@@ -29,7 +29,10 @@ const tradeRules: Record<Trade, string> = {
 export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6);
 
 /** Exceeding these is a boot failure, not a surprise on next month's bill (docs/FLOW.md §13). */
-export const PROMPT_TOKEN_BUDGET = { review: 6000, extraction: 4000, transcribe: 1500 } as const;
+// Raised from 6,000 on 2026-08-19 when the rule-1a carve-out and the anti-over-grouping guard
+// were added after a live false rejection. ~6,000 tokens is about $0.012 per review call. Raise
+// this deliberately, never to make a boot failure go away.
+export const PROMPT_TOKEN_BUDGET = { review: 7000, extraction: 4000, transcribe: 1500 } as const;
 
 /** Stage 0. Trade-independent: copying a document out is the same job whatever trade it is for. */
 export function transcribePrompt(): string {

@@ -60,14 +60,28 @@ HOW TO JUDGE - STRICTLY:
   price for a type at a height. Optional add-ons - gate motors, powder coating, a compliance
   certificate, a callout fee - are allowed to be "from $X", because they are quoted on inspection
   and never enter the calculation. Do NOT reject a submission because an optional extra is priced
-  "from". If every core rate is firm and the only loose figures are on extras, that is an APPROVAL.
-- Missing extras are never blocking either. If they offer something and did not price it at all,
-  mention it only if you already have other fixes to report - never as the sole reason to reject.
+  "from". If every core rate is one set number and the only loose figures are on extras, that is an
+  APPROVAL.
 - Listing a service is not pricing it.
 - Partial compliance is non-compliance. One failed blocking rule means approved = false.
 - Volume of detail is not compliance. Two thousand words with one vague price fails. Four lines with
   every required figure passes.
 - Do not weight effort or writing quality. A blunt, correctly-priced list passes.
+
+UNPRICED OPTIONAL EXTRAS ARE NEVER A REASON TO REJECT. READ THIS BEFORE DECIDING.
+Two different things look alike and must not be treated alike:
+  QUOTABLE WORK - a type of fence at a height, per metre. The quote is calculated from these. Every
+    one they name must carry a price. Missing one is blocking.
+  EVERYTHING ELSE - gate motors, powder coating, compliance certificates, callout fees, custom or
+    one-off gates, and plain statements of capability like "we do custom gates", "happy to work on
+    steep blocks", "ask us about automation". These are quoted on inspection and never enter the
+    calculation.
+An unpriced item in the second group may be mentioned ONLY alongside a real blocking problem. If it
+is the only thing you have found, set approved = true.
+  Wrong: every fence type priced, GST stated, service area and minimum charge given, but the text
+    says "we do custom gates" with no price -> rejected for the custom gates. This is a false
+    rejection: it sends a business away that had already given us everything we need.
+  Right: the same submission -> approved, and the custom gates are not mentioned at all.
 
 WHERE UNSURE: treat the rule as unmet. A wrong rejection costs them one revision. A wrong approval
 publishes a wrong price to a customer, which they either honour at a loss or refuse.
@@ -85,8 +99,23 @@ Merge everything that needs the same action into a single line, naming the items
     "Glass pool fencing is listed as POA."
     "Rural fencing says call for pricing."
   Right - one fix:
-    "Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing - these are
+    "Add one set per-metre rate for Colorbond, glass pool fencing and rural fencing - these are
      currently POA or 'call for pricing', which we can't quote from."
+
+BUT DO NOT MERGE DIFFERENT ACTIONS. Same action, different items - one line. Different actions -
+different lines, however tempting it is to save a bullet. A line that asks for four unrelated things
+cannot be ticked off; the reader does three of them and forgets the fourth.
+  Wrong - three unrelated answers crushed into one line:
+    "Add whether your prices include GST, your minimum job charge, and a service area with a suburb
+     you work from plus a travel distance."
+  Right - three lines, each one thing to go and do:
+    "Say whether your prices include GST."
+    "Add the smallest job you will take on and what you charge for it."
+    "Give the suburb you work out from and how far you travel."
+
+KEEP EACH ONE SHORT. One sentence, under 25 words. If a fix will not fit in a sentence, it is doing
+more than one job - split it.
+
 Aim for 3 to 5 fixes in total. If you have more than 5, you have not grouped hard enough. Never more
 than 6.
 
