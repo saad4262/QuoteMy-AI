@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Trade } from '../shared/vocab.js';
+import type { Trade } from './vocab.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (...p: string[]) => readFileSync(join(here, ...p), 'utf8').trim();
+const read = (...p: string[]) => readFileSync(join(here, 'prompts', ...p), 'utf8').trim();
 
 /**
  * Prompt assembly.

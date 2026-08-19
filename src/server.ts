@@ -1,21 +1,39 @@
-import { createApp } from './app.js';
-import { env } from './config/env.js';
-import { logger } from './config/logger.js';
-import { assertPromptBudgets, promptSizes } from './prompts/index.js';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import { env, logger } from './config.js';
+import { errorHandler, requestId, requestLog } from './http.js';
+import { assertPromptBudgets, promptSizes } from './prompts.js';
+import { routes } from './routes.js';
 
-// A fat SOP fails the boot, not next month's bill (docs/FLOW.md 13).
-assertPromptBudgets();
+export function createApp() {
+  const app = express();
 
-const server = createApp().listen(env.PORT, () => {
-  logger.info(
-    { port: env.PORT, env: env.NODE_ENV, provider: env.AI_PROVIDER, store: env.STORE, prompts: promptSizes() },
-    'quotemy-ai api listening',
-  );
-});
+  app.set('trust proxy', 1);
+  app.disable('x-powered-by');
+  app.use(requestId);
+  app.use(helmet()); // security headers on every response, one line
+  app.use(cors({ origin: env.CORS_ORIGINS === '*' ? true : env.CORS_ORIGINS.split(',').map((o) => o.trim()) }));
+  app.use(express.json({ limit: '1mb' }));
+  app.use(requestLog);
 
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    logger.info({ signal }, 'shutting down');
-    server.close(() => process.exit(0));
+  app.use('/api/v1', routes);
+
+  app.use((_req, _res, next) => next(Object.assign(new Error('Route not found'), { status: 404, code: 'not_found' })));
+  app.use(errorHandler);
+
+  return app;
+}
+
+// Only start listening when run directly, so tests can import createApp without a port.
+if (process.env.NODE_ENV !== 'test') {
+  assertPromptBudgets(); // a fat SOP fails the boot, not next month's bill
+
+  const server = createApp().listen(env.PORT, () => {
+    logger.info({ port: env.PORT, env: env.NODE_ENV, provider: env.AI_PROVIDER, prompts: promptSizes() }, 'api listening');
   });
+
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => server.close(() => process.exit(0)));
+  }
 }

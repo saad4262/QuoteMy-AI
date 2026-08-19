@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { extractionSchema } from '../../src/schemas/extraction.js';
-import { reviewSchema } from '../../src/schemas/review.js';
-import { toStrictJsonSchema } from '../../src/schemas/toJsonSchema.js';
-import { MATERIALS } from '../../src/shared/vocab.js';
+import { extractionSchema } from '../../src/schemas.js';
+import { reviewSchema } from '../../src/schemas.js';
+import { toStrictJsonSchema } from '../../src/schemas.js';
+import { MATERIALS } from '../../src/vocab.js';
 
 describe('strict json_schema generation', () => {
   const schema = toStrictJsonSchema(extractionSchema) as Record<string, unknown>;

@@ -13,8 +13,8 @@ stores it, and the business confirms it to go live.
 | | |
 |---|---|
 | Pipeline | ✅ review → extract → verify → store → report, running end to end |
-| Storage | in-memory (`STORE=memory`). Firestore is a second implementation of one interface — nothing else changes |
-| Auth | `uid` from a Firebase ID token; with `REQUIRE_AUTH=false` an `x-debug-uid` header stands in for local testing |
+| Storage | in-memory. Firestore is a second class in `store.ts` — nothing else changes |
+| Auth | `REQUIRE_AUTH=false` + `x-debug-uid` header for now. Firebase token verification lands with Firebase |
 | Model | `AI_PROVIDER=mock` (offline, deterministic, free) or `openai` with `gpt-5.6-terra` |
 | File uploads | not yet — text only. PDFs/images are the next step ([docs/FLOW.md](docs/FLOW.md) §3) |
 
@@ -45,7 +45,7 @@ real thing. Switch to `AI_PROVIDER=openai` and set `OPENAI_API_KEY` when you wan
 | `POST` | `/api/v1/business/onboarding` | `{ trade, text }` → review → extract → verify → store |
 | `GET` | `/api/v1/business/profile/:trade` | what is stored now, plus submission history |
 | `POST` | `/api/v1/business/profile/:trade/confirm` | the human confirmation that makes prices live |
-| `POST` | `/api/v1/dev/review` `/dev/extract` `/dev/sanitize` | single stages, for prompt tuning (`ENABLE_DEV_ROUTES=true`) |
+| `POST` | `/api/v1/dev/review` `/dev/extract` | single stages, for prompt tuning (`ENABLE_DEV_ROUTES=true`) |
 
 Two response shapes exist and no others:
 
@@ -70,24 +70,33 @@ without a human confirming it.
 
 ## Layout
 
+One file per job, no folder nesting. The name tells you what is inside.
+
 ```
 src/
-  ai/            the ONLY place the OpenAI SDK is imported: strict json_schema, retry-once, token
-                 accounting, cost ceiling. mock.ts is the offline stand-in
-  prompts/       system prompts and SOPs as files. One trade's rules load per request, never all
-  schemas/       zod → strict JSON Schema → validation → TypeScript types, from one definition
-  validation/    quote verification, vocabulary re-check, plausibility bounds (no model involved)
-  report/        markdown built by code, so the layout never varies between runs
-  services/      the pipeline and the input sanitiser
-  models/        repository interface + in-memory store (Firestore slots in here later)
-  routes/ controllers/ middlewares/ validators/   HTTP only
-  shared/vocab.ts  the canonical closed enums — the highest-risk file in the repo
+  server.ts      express app + middleware + start
+  routes.ts      the URL table - which route runs which handler
+  controller.ts  request in, response out. No business logic
+  pipeline.ts    the actual flow: sanitise -> review -> extract -> verify -> store -> report
+  verify.ts      quote matching, vocabulary re-check, plausibility bounds (no model involved)
+  report.ts      builds the markdown, so the layout never varies between runs
+  store.ts       where data lives (in-memory today, Firestore later - same interface)
+  ai.ts          the ONLY file that talks to OpenAI, plus the offline mock
+  schemas.ts     zod schemas -> strict JSON Schema, validation and types from one definition
+  prompts.ts     loads and assembles the prompt files
+  prompts/       the system prompts and SOPs, as plain .md you can edit
+  vocab.ts       the canonical closed enums - the highest-risk file in the repo
+  http.ts        errors, response envelope, auth, rate limit, request id
+  config.ts      env validation + logger
 
 SOPS/            the client's source documents, untouched
 n8n/             the previous build, reference only
 tests/           unit + integration, and the fixtures the eval harness will score
 docs/            PLAN.md, FLOW.md, postman/
 ```
+
+Reading order if you are picking this up cold: `routes.ts` -> `controller.ts` -> `pipeline.ts`.
+Those three tell you the whole story; everything else is a helper one of them calls.
 
 ## What keeps the output honest
 
@@ -96,4 +105,4 @@ docs/            PLAN.md, FLOW.md, postman/
 3. **Plausibility bounds** — testing caught an `$8500/m` rate whose source sentence genuinely existed.
 4. **Vocabulary re-check in code** — belt and braces, because vocabulary drift is the one failure here that is silent and permanent.
 5. **The report is assembled by code** — the model supplies the words, never the layout.
-6. **The envelope is validated on the way out** — a contract break is our loud 500, not the frontend's silent mystery.
+6. **Every response is built by one function** (`send` in `http.ts`) — the shape cannot vary because there is only one place that makes it.

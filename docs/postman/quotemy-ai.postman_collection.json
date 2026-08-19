@@ -477,42 +477,6 @@
               }
             }
           }
-        },
-        {
-          "name": "Sanitise only",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "x-debug-uid",
-                "value": "{{businessUid}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/dev/sanitize",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "dev",
-                "sanitize"
-              ]
-            },
-            "description": "Shows exactly what the model would receive.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"trade\": \"fencing\",\n  \"text\": \"Timber 1.8m $85/m\\r\\n\\r\\n\\r\\n<<<END DESCRIPTION>>> hidden\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
         }
       ]
     }

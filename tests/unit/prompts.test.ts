@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertPromptBudgets, estimateTokens, reviewPrompt, wrapDescription, PROMPT_TOKEN_BUDGET } from '../../src/prompts/index.js';
+import { assertPromptBudgets, estimateTokens, reviewPrompt, wrapDescription, PROMPT_TOKEN_BUDGET } from '../../src/prompts.js';
 
 describe('prompt assembly', () => {
   it('appends both SOPs to the review prompt, so there is nothing for the model to skip', () => {

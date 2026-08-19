@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildRejectionReport } from '../../src/report/rejection.js';
-import { buildApprovalReport } from '../../src/report/approval.js';
-import { verifyExtraction } from '../../src/validation/verify.js';
-import type { Extraction } from '../../src/schemas/extraction.js';
+import { buildRejectionReport } from '../../src/report.js';
+import { buildApprovalReport } from '../../src/report.js';
+import { verifyExtraction } from '../../src/verify.js';
+import type { Extraction } from '../../src/schemas.js';
 
 const review = {
   approved: false,

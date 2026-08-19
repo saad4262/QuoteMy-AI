@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assertSubmittable, sanitizeText } from '../../src/services/sanitize.js';
-import { AppError } from '../../src/utils/AppError.js';
+import { assertSubmittable, sanitizeText } from '../../src/pipeline.js';
+import { AppError } from '../../src/http.js';
 
 describe('sanitizeText', () => {
   it('strips the description fence so submitted text cannot speak as the system', () => {

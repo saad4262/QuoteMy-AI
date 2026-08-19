@@ -12,8 +12,8 @@ import {
   type Removes,
   type Trade,
   type Unit,
-} from '../shared/vocab.js';
-import type { Extraction } from '../schemas/extraction.js';
+} from './vocab.js';
+import type { Extraction } from './schemas.js';
 
 /**
  * Ported from the n8n `Format Extraction` Code node, near-verbatim, because it was tested.

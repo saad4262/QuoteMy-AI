@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { verifyExtraction } from '../../src/validation/verify.js';
-import type { Extraction } from '../../src/schemas/extraction.js';
+import { verifyExtraction } from '../../src/verify.js';
+import type { Extraction } from '../../src/schemas.js';
 
 const empty: Extraction = {
   businessName: null,

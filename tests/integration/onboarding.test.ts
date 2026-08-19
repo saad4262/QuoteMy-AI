@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createApp } from '../../src/app.js';
-import { MemoryRepository } from '../../src/models/memory.repository.js';
-import { setRepository } from '../../src/models/index.js';
+import { createApp } from '../../src/server.js';
+import { MemoryRepository } from '../../src/store.js';
+import { setRepository } from '../../src/store.js';
 
 const app = createApp();
 const good = readFileSync('tests/fixtures/description-GOOD-southeast-fencing.txt', 'utf8');
