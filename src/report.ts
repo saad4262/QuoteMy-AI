@@ -33,32 +33,35 @@ export const label = (key: string): string => LABELS[key] ?? key;
 export const wordCount = (text: string): number => text.split(/\s+/).filter(Boolean).length;
 
 /**
- * The model decides WHAT to say and how to group it; this code decides how it LOOKS. Formatting is
- * not a judgement call, and a model asked for markdown drifts - which is why the same submission
- * never comes back looking different the second time.
+ * The model decides WHAT to say; this code decides how it LOOKS and writes the parts that must never
+ * vary. Formatting is not a judgement call, and a model asked for markdown drifts - which is why the
+ * same submission never comes back looking different the second time.
  *
- * Shape of a rejection, and the reasoning behind it:
+ * Shape of a rejection:
  *
- *   <opening>                one line: we read it, here is where it stands
- *   ## Why this matters      one or two lines, in terms of winning work - not the rules restated
- *   ## What is missing       things they never said        -> they go and find the numbers
- *   ## Needs to be clearer   things they said, but vaguely -> they go and rewrite the lines
- *   <closing>                one line: send it back
+ *   <opening>                 one line: we read it, here is where it stands
+ *   ## Why this matters       one or two lines, in terms of winning work - not the rules restated
+ *   ## What we still need     things they never said        -> go and find the numbers
+ *   ## What needs to be clearer  things they said vaguely   -> go and rewrite those lines
+ *   ## What to do next        written here, in code, so the instruction is identical every time
  *
- * Splitting missing from unclear is the difference between "something is wrong" and "here is
- * exactly what to write down". Neither section appears if it is empty.
+ * The steps are numbered straight through both sections, so it reads as a list of jobs to do rather
+ * than two piles of complaints. Neither section appears if it is empty.
  */
 export function buildRejectionReport(r: ReviewResult) {
   const missing = r.fixes.filter((f) => f.kind === 'missing' && f.what);
   const unclear = r.fixes.filter((f) => f.kind === 'unclear' && f.what);
 
   const md: string[] = [];
+  let step = 0;
+
   const section = (heading: string, items: ReviewResult['fixes']) => {
     if (!items.length) return;
     md.push(heading, '');
     for (const f of items) {
-      md.push(`- ${f.what}`);
-      if (f.example) md.push(`  - e.g. \`${f.example}\``);
+      step += 1;
+      md.push(`${step}. ${f.what}`);
+      if (f.example) md.push(`   - e.g. \`${f.example}\``);
     }
     md.push('');
   };
@@ -66,10 +69,10 @@ export function buildRejectionReport(r: ReviewResult) {
   if (r.opening) md.push(r.opening, '');
   if (r.whyUpdatesNeeded) md.push('## Why this matters', '', r.whyUpdatesNeeded, '');
 
-  section('## What is missing', missing);
-  section('## Needs to be clearer', unclear);
+  section('## What we still need', missing);
+  section('## What needs to be clearer', unclear);
 
-  if (r.closing) md.push(r.closing);
+  md.push(...NEXT_STEP_REJECTED);
 
   const report = md.join('\n');
 
@@ -77,12 +80,28 @@ export function buildRejectionReport(r: ReviewResult) {
     report,
     opening: r.opening,
     fixes: r.fixes,
-    // For a frontend that would rather build its own bullets than render the markdown.
+    // For a frontend that would rather build its own list than render the markdown.
     missing: missing.map((f) => f.what),
     unclear: unclear.map((f) => f.what),
     reportWordCount: wordCount(report),
   };
 }
+
+/**
+ * Fixed closings. These are the same words every single time on purpose: they tell the business
+ * what the buttons under this report do, and that instruction must not drift with the model's mood.
+ */
+const NEXT_STEP_REJECTED = [
+  '## What to do next',
+  '',
+  'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
+];
+
+const NEXT_STEP_APPROVED = [
+  '## What to do next',
+  '',
+  'Check the figures above. If they are right, confirm them and your profile goes live for customers. If something is wrong, update your details and send them through again. If you need a hand, use the contact button below.',
+];
 
 export function buildApprovalReport(d: VerifiedResult, opening: string) {
   const verified = d.status === 'verified';
@@ -157,11 +176,7 @@ export function buildApprovalReport(d: VerifiedResult, opening: string) {
     );
   }
 
-  md.push(
-    verified
-      ? 'If a figure looks wrong, update your description and send it again. Confirm on your dashboard to go live.'
-      : 'Write your rates out with the number and the unit together, then send it through again.',
-  );
+  md.push(...(verified ? NEXT_STEP_APPROVED : NEXT_STEP_REJECTED));
 
   const report = md.join('\n');
   return { report, reportWordCount: wordCount(report) };

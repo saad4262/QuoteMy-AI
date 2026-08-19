@@ -136,31 +136,38 @@ If a figure looks wrong, update your description and send it again.
 `data.report`, ready to render:
 
 ```markdown
-Thanks for sending your pricing through — there is good detail here, but we need a few firm
-numbers before it can go live.
+I have been through the details you sent. Most of it is clear, but a few numbers are still needed
+before your profile can go live.
 
 ## Why this matters
-Customers get an instant quote straight from your rates, so anything left as a range or "POA"
-means your business will not come up in their results.
+Customers get an instant quote from your rates, so anything left as a range or "POA" means your
+business will not appear in their results.
 
-## What is missing
-- Say whether your prices include GST.
-  - e.g. `All prices include GST`
-- Add the smallest job you will take on and what you charge for it.
-  - e.g. `Minimum charge $850`
+## What we still need
+1. Say whether your prices include GST.
+   - e.g. `All prices include GST`
+2. Add the smallest job you will take on and what you charge for it.
+   - e.g. `Minimum charge $850`
 
-## Needs to be clearer
-- Give a firm price per metre for each fence type and height you do — most of what you sent is
-  written as a range or a "call us".
-  - e.g. `Colorbond 1.8m - $110/m (your figure)`
+## What needs to be clearer
+3. Give one set price per metre for each fence type and height you do — most of what you sent is
+   written as a range or a "call us".
+   - e.g. `Colorbond 1.8m - $110/m (your figure)`
 
-Add those in and send it through again — should only take a few minutes.
+## What to do next
+Update your details and send them through again for approval. If something above does not look
+right, use the contact button below and one of our team will go through it with you.
 ```
 
 **Why it is shaped like this.** `missing` means they never said it, so they go and find the number.
 `unclear` means they said it but not in a form we can quote from, so they go and rewrite the line.
 Those are two different jobs, and putting them under one heading is what makes a report feel vague.
-Target length is 60–250 words: short enough to read on a phone after work, long enough to act on.
+The steps are numbered straight through both sections so it reads as a list of jobs, not two piles
+of complaints. Target length is 60–250 words.
+
+**`## What to do next` is written in code, not by the model** — identical words every time, because
+it describes what the two buttons under the report actually do. Put a "send for approval" button and
+a "contact our team" button there and the text already matches them.
 
 Render `report` as markdown, or build your own panel from `missing` / `unclear` / `fixes`.
 

@@ -6,13 +6,12 @@ import type { Extraction } from '../../src/schemas.js';
 
 const review = {
   approved: false,
-  opening: 'Thanks for sending your pricing through - there is good detail here.',
-  whyUpdatesNeeded: 'Customers get an instant quote straight from your rates.',
+  opening: 'I have been through the details you sent. A few numbers are still needed before your profile can go live.',
+  whyUpdatesNeeded: 'Customers get an instant quote from your rates, so a range or "POA" keeps you out of their results.',
   fixes: [
     { kind: 'unclear' as const, what: 'Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing.', example: 'Colorbond 1.8m - $110/m (your figure)' },
     { kind: 'missing' as const, what: 'Say whether your prices include GST.', example: null },
   ],
-  closing: 'Add those in and send it through again.',
 };
 
 describe('rejection report', () => {
@@ -21,22 +20,24 @@ describe('rejection report', () => {
     const b = buildRejectionReport(review);
     expect(a.report).toBe(b.report);
     expect(a.report).toMatchInlineSnapshot(`
-      "Thanks for sending your pricing through - there is good detail here.
+      "I have been through the details you sent. A few numbers are still needed before your profile can go live.
 
       ## Why this matters
 
-      Customers get an instant quote straight from your rates.
+      Customers get an instant quote from your rates, so a range or "POA" keeps you out of their results.
 
-      ## What is missing
+      ## What we still need
 
-      - Say whether your prices include GST.
+      1. Say whether your prices include GST.
 
-      ## Needs to be clearer
+      ## What needs to be clearer
 
-      - Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing.
-        - e.g. \`Colorbond 1.8m - $110/m (your figure)\`
+      2. Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing.
+         - e.g. \`Colorbond 1.8m - $110/m (your figure)\`
 
-      Add those in and send it through again."
+      ## What to do next
+
+      Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you."
     `);
   });
 

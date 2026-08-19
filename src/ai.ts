@@ -284,7 +284,7 @@ export class MockAiClient implements AiClient {
     if (rates.length < 3) {
       fixes.push({
         kind: 'unclear',
-        what: 'Give a firm price per metre for each fence type and height you do - most of what you sent is written as a range or a "call us".',
+        what: 'Give one set price per metre for each fence type and height you do - most of what you sent is written as a range or a "call us".',
         example: 'Colorbond 1.8m - $110/m (your figure)',
       });
     }
@@ -299,7 +299,7 @@ export class MockAiClient implements AiClient {
     if (vague && rates.length >= 3) {
       fixes.push({
         kind: 'unclear',
-        what: 'Replace the remaining "POA" and "from" figures on your core rates with the price you actually charge.',
+        what: 'Replace the remaining "POA" and "from" figures on your per-metre rates with the price you actually charge.',
         example: null,
       });
     }
@@ -308,15 +308,12 @@ export class MockAiClient implements AiClient {
     return {
       approved,
       opening: approved
-        ? 'Thanks for sending your pricing through — it has everything we need, so it is going live for you to check.'
-        : 'Thanks for sending your pricing through — there is good detail here, but we need a few firm numbers before it can go live.',
+        ? 'I have been through the details you sent and everything we need is there.'
+        : 'I have been through the details you sent. Most of it is clear, but a few numbers are still needed before your profile can go live.',
       whyUpdatesNeeded: approved
         ? ''
-        : 'Customers get an instant quote straight from your rates, so anything left as a range or "POA" means your business will not come up in their results.',
+        : 'Customers get an instant quote from your rates, so anything left as a range or "POA" means your business will not appear in their results.',
       fixes: approved ? [] : fixes.slice(0, 5),
-      closing: approved
-        ? 'Have a quick look over the figures on your dashboard and confirm them to go live.'
-        : 'Add those in and send it through again — should only take a few minutes.',
     };
   }
 

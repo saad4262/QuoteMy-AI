@@ -31,7 +31,6 @@ export const reviewSchema = z.object({
       example: z.string().nullable(),
     })
     .array(),
-  closing: z.string(),
 });
 export type ReviewResult = z.infer<typeof reviewSchema>;
 

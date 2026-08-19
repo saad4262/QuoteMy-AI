@@ -28,7 +28,7 @@ describe('strict json_schema generation', () => {
   it('produces a valid strict schema for the review stage too', () => {
     const review = toStrictJsonSchema(reviewSchema) as Record<string, unknown>;
     expect(review.additionalProperties).toBe(false);
-    expect(review.required).toEqual(['approved', 'opening', 'whyUpdatesNeeded', 'fixes', 'closing']);
+    expect(review.required).toEqual(['approved', 'opening', 'whyUpdatesNeeded', 'fixes']);
   });
 });
 

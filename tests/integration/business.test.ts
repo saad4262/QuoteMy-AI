@@ -53,8 +53,12 @@ describe('action: submit', () => {
     const report: string = res.body.data.report;
 
     expect(report).toContain('## Why this matters');
-    expect(report).toMatch(/## (What is missing|Needs to be clearer)/);
-    expect(report.split('\n').filter((l) => l.startsWith('- ')).length).toBeGreaterThanOrEqual(2);
+    expect(report).toMatch(/## What (we still need|needs to be clearer)/);
+    expect(report).toContain('## What to do next');
+    expect(report).toContain('contact button below');
+    // numbered straight through both sections, so it reads as jobs to do
+    expect(report).toContain('1. ');
+    expect(report).toContain('2. ');
     // Long enough to be actionable, short enough to read on a phone after work.
     expect(res.body.data.reportWordCount).toBeGreaterThan(40);
     expect(res.body.data.reportWordCount).toBeLessThan(250);
