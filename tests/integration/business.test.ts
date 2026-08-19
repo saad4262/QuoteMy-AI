@@ -21,9 +21,9 @@ describe('action: submit', () => {
     expect(res.body.ok).toBe(true);
     expect(res.body.data.approved).toBe(true);
     expect(res.body.data.status).toBe('verified');
-    expect(res.body.data.ratesSaved).toBeGreaterThan(0);
-    expect(res.body.data.report).toContain('## Your rates');
-    expect(res.body.meta.coverage.rates).toBe(res.body.data.ratesSaved);
+    expect(res.body.data.business.ratesSaved).toBeGreaterThan(0);
+    expect(res.body.data.business.report).toContain('## Your rates');
+    expect(res.body.data.admin.coverage.rates).toBe(res.body.data.business.ratesSaved);
 
     const profile = await call({ action: 'profile', businessUid: 'biz-good' });
     expect(profile.body.data.pricing.status).toBe('verified');
@@ -42,7 +42,8 @@ describe('action: submit', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.approved).toBe(false);
     expect(res.body.data.status).toBe('unverified');
-    expect(res.body.data.missing.length + res.body.data.unclear.length).toBeGreaterThan(0);
+    expect(res.body.data.business.fixes.length).toBeGreaterThan(0);
+    expect(res.body.data.admin.fixCounts.missing).toBeGreaterThan(0);
 
     const profile = await call({ action: 'profile', businessUid: 'biz-bad' });
     expect(profile.status).toBe(404);
@@ -50,18 +51,20 @@ describe('action: submit', () => {
 
   it('writes a rejection report a person can act on: reasons grouped under headings', async () => {
     const res = await call({ businessUid: 'biz-bad', text: bad });
-    const report: string = res.body.data.report;
+    const report: string = res.body.data.business.report;
 
     expect(report).toContain('## Why this matters');
     expect(report).toMatch(/## What (we still need|needs to be clearer)/);
     expect(report).toContain('## What to do next');
-    expect(report).toContain('contact button below');
+    // the same sentence is also its own field, so a frontend can put it next to the buttons
+    expect(res.body.data.business.nextStep).toContain('contact button below');
+    expect(report).toContain(res.body.data.business.nextStep);
     // numbered straight through both sections, so it reads as jobs to do
     expect(report).toContain('1. ');
     expect(report).toContain('2. ');
     // Long enough to be actionable, short enough to read on a phone after work.
-    expect(res.body.data.reportWordCount).toBeGreaterThan(40);
-    expect(res.body.data.reportWordCount).toBeLessThan(250);
+    expect(res.body.data.admin.reportWordCount).toBeGreaterThan(40);
+    expect(res.body.data.admin.reportWordCount).toBeLessThan(250);
   });
 
   it('returns the identical shape for a ten-item and a two-item business', async () => {
@@ -77,9 +80,10 @@ describe('action: submit', () => {
 
     expect(a.body.data.approved).toBe(true);
     expect(b.body.data.approved).toBe(true);
-    expect(a.body.data.ratesSaved).toBeGreaterThan(b.body.data.ratesSaved);
+    expect(a.body.data.business.ratesSaved).toBeGreaterThan(b.body.data.business.ratesSaved);
     expect(Object.keys(b.body.data).sort()).toEqual(Object.keys(a.body.data).sort());
-    expect(Object.keys(b.body.data.pricing).sort()).toEqual(Object.keys(a.body.data.pricing).sort());
+    expect(Object.keys(b.body.data.business).sort()).toEqual(Object.keys(a.body.data.business).sort());
+    expect(Object.keys(b.body.data.business.pricing).sort()).toEqual(Object.keys(a.body.data.business.pricing).sort());
   });
 
   it('keeps two businesses data apart', async () => {

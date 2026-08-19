@@ -41,11 +41,17 @@ describe('rejection report', () => {
     `);
   });
 
+  it('ships the content twice at most: markdown to render, and the same fixes structured', () => {
+    const built = buildRejectionReport(review);
+    expect(Object.keys(built).sort()).toEqual(
+      ['counts', 'fixes', 'nextStep', 'report', 'reportWordCount'].sort(),
+    );
+  });
+
   it('stays inside the 250-word limit and reports its own length', () => {
     const built = buildRejectionReport(review);
     expect(built.reportWordCount).toBeLessThan(250);
-    expect(built.missing).toHaveLength(1);
-    expect(built.unclear).toHaveLength(1);
+    expect(built.counts).toEqual({ missing: 1, unclear: 1 });
   });
 });
 

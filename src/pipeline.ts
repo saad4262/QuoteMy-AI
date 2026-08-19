@@ -62,7 +62,10 @@ export async function runOnboarding(
   const text = sanitizeText(input.text);
   assertSubmittable(text);
 
+  const submissionId = randomUUID();
   const spend = () => Number(stages.reduce((sum, s) => sum + s.costUsd, 0).toFixed(6));
+
+  // `meta` is request telemetry - how the answer was produced, not part of the answer.
   const meta = () => ({
     trade: input.trade,
     model: ai.model,
@@ -92,7 +95,7 @@ export async function runOnboarding(
 
   if (!review.data.approved) {
     await repo.addSubmission({
-      id: randomUUID(),
+      id: submissionId,
       uid,
       trade: input.trade,
       approved: false,
@@ -100,9 +103,32 @@ export async function runOnboarding(
       ratesSaved: 0,
       createdAt: now(),
     });
+
+    const built = buildRejectionReport(review.data);
+
     // Nothing is written to the profile on the reject path - an incomplete price list must not
     // overwrite figures the business already had approved.
-    return { data: { approved: false, status: 'unverified', ...buildRejectionReport(review.data) }, meta: meta() };
+    return {
+      data: {
+        approved: false,
+        status: 'unverified',
+        // Two audiences, two blocks. `business` is rendered to the tradesperson as it is;
+        // `admin` never reaches them - it is for the internal view that watches these decisions.
+        business: {
+          report: built.report,
+          fixes: built.fixes,
+          nextStep: built.nextStep,
+        },
+        admin: {
+          submissionId,
+          decision: 'rejected',
+          fixCounts: built.counts,
+          reportWordCount: built.reportWordCount,
+          textChars: text.length,
+        },
+      },
+      meta: meta(),
+    };
   }
 
   // --- stage 2: extract --------------------------------------------------------------------
@@ -138,7 +164,7 @@ export async function runOnboarding(
     updatedAt: at,
   });
   await repo.addSubmission({
-    id: randomUUID(),
+    id: submissionId,
     uid,
     trade: input.trade,
     approved: true,
@@ -148,16 +174,30 @@ export async function runOnboarding(
   });
 
   // --- stage 5: report ---------------------------------------------------------------------
+  const built = buildApprovalReport(verified, review.data.opening);
+
   return {
     data: {
       approved: true,
       status: verified.status,
-      ...buildApprovalReport(verified, review.data.opening),
-      pricing: verified.pricing,
-      capabilities: verified.capabilities,
-      couldNotUnderstand: verified.unmapped,
-      ratesSaved: verified.ratesKept,
+      business: {
+        report: built.report,
+        nextStep: built.nextStep,
+        pricing: verified.pricing,
+        capabilities: verified.capabilities,
+        ratesSaved: verified.ratesKept,
+      },
+      admin: {
+        submissionId,
+        decision: 'approved',
+        // Every number we could not keep, and why - the list that tells an admin whether the
+        // extraction is behaving. The business sees the same thing worded plainly in the report.
+        dropped: verified.unmapped,
+        coverage: verified.coverage,
+        reportWordCount: built.reportWordCount,
+        textChars: text.length,
+      },
     },
-    meta: { ...meta(), coverage: verified.coverage },
+    meta: meta(),
   };
 }

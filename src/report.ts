@@ -76,13 +76,15 @@ export function buildRejectionReport(r: ReviewResult) {
 
   const report = md.join('\n');
 
+  // Exactly two representations and no more: the markdown to render, and the same content
+  // structured for a frontend that would rather build its own list. `missing` and `unclear` are
+  // fixes.filter(f => f.kind === ...) - a frontend can do that in one line, so we do not ship a
+  // third and fourth copy of the same sentences.
   return {
     report,
-    opening: r.opening,
     fixes: r.fixes,
-    // For a frontend that would rather build its own list than render the markdown.
-    missing: missing.map((f) => f.what),
-    unclear: unclear.map((f) => f.what),
+    nextStep: NEXT_STEP_TEXT_REJECTED,
+    counts: { missing: missing.length, unclear: unclear.length },
     reportWordCount: wordCount(report),
   };
 }
@@ -91,17 +93,15 @@ export function buildRejectionReport(r: ReviewResult) {
  * Fixed closings. These are the same words every single time on purpose: they tell the business
  * what the buttons under this report do, and that instruction must not drift with the model's mood.
  */
-const NEXT_STEP_REJECTED = [
-  '## What to do next',
-  '',
-  'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
-];
+const NEXT_STEP_TEXT_REJECTED =
+  'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.';
 
-const NEXT_STEP_APPROVED = [
-  '## What to do next',
-  '',
-  'Check the figures above. If they are right, confirm them and your profile goes live for customers. If something is wrong, update your details and send them through again. If you need a hand, use the contact button below.',
-];
+const NEXT_STEP_TEXT_APPROVED =
+  'Check the figures above. If they are right, confirm them and your profile goes live for customers. If something is wrong, update your details and send them through again. If you need a hand, use the contact button below.';
+
+const NEXT_STEP_REJECTED = ['## What to do next', '', NEXT_STEP_TEXT_REJECTED];
+
+const NEXT_STEP_APPROVED = ['## What to do next', '', NEXT_STEP_TEXT_APPROVED];
 
 export function buildApprovalReport(d: VerifiedResult, opening: string) {
   const verified = d.status === 'verified';
@@ -179,5 +179,9 @@ export function buildApprovalReport(d: VerifiedResult, opening: string) {
   md.push(...(verified ? NEXT_STEP_APPROVED : NEXT_STEP_REJECTED));
 
   const report = md.join('\n');
-  return { report, reportWordCount: wordCount(report) };
+  return {
+    report,
+    nextStep: verified ? NEXT_STEP_TEXT_APPROVED : NEXT_STEP_TEXT_REJECTED,
+    reportWordCount: wordCount(report),
+  };
 }

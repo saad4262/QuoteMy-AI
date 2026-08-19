@@ -64,39 +64,62 @@ digit. Those run **before** any model call, so junk costs nothing.
 
 This is the button on the frontend: trade, a text box, and Send for approval.
 
+#### The response has two blocks, for two audiences
+
+```jsonc
+"data": {
+  "approved": false,
+  "status": "unverified",
+  "business": { … },   // render this to the tradesperson, as it is
+  "admin":    { … }    // internal only - never reaches the business
+}
+```
+
+`meta` sits outside both: it is request telemetry (which model, what it cost, how long each stage
+took), not part of the answer.
+
+Each piece of content appears **at most twice** — once as markdown to render, once structured for a
+frontend that would rather build its own layout. There is no third copy.
+
 #### Approved
 
 ```jsonc
 { "ok": true, "data": {
     "approved": true,
-    "status": "verified",             // "unverified" if nothing survived verification
-    "report": "markdown — this is the summary panel",
-    "reportWordCount": 311,
-    "pricing": {
-      "gstIncluded": true,
-      "enabledMaterials": ["timber_pine", "colorbond"],
-      "rates": { "timber_pine": { "1.5m": 79, "1.8m": 85 }, "colorbond": { "1.8m": 110 } },
-      "removals": [], "gates": [], "siteConditions": [],
-      "serviceArea": { "baseLocation": "Berwick", "radiusKm": 30, "excludedAreas": [] },
-      "minimumCharge": 850
+    "status": "verified",              // "unverified" if nothing survived verification
+    "business": {
+      "report": "markdown — the summary panel",
+      "nextStep": "Check the figures above. If they are right, confirm them …",
+      "pricing": {
+        "gstIncluded": true,
+        "enabledMaterials": ["timber_pine", "colorbond"],
+        "rates": { "timber_pine": { "1.5m": 79, "1.8m": 85 }, "colorbond": { "1.8m": 110 } },
+        "removals": [], "gates": [], "siteConditions": [],
+        "serviceArea": { "baseLocation": "Berwick", "radiusKm": 30, "excludedAreas": [] },
+        "minimumCharge": 850
+      },
+      "capabilities": { "businessName": "…", "tags": [], "extras": [], "inclusions": [], "exclusions": [] },
+      "ratesSaved": 20
     },
-    "capabilities": { "businessName": "…", "tags": [], "extras": [], "inclusions": [], "exclusions": [] },
-    "couldNotUnderstand": ["…anything we could not store, in plain English…"],
-    "ratesSaved": 20
+    "admin": {
+      "submissionId": "1adb7d80…",
+      "decision": "approved",
+      "dropped": ["…every number we could not keep, and why…"],
+      "coverage": { "rates": 20, "removals": 0, "gates": 0, "siteConditions": 0, "extras": 0, "tags": 0, "unmapped": 1 },
+      "reportWordCount": 329,
+      "textChars": 3365
+    }
   },
-  "meta": {
-    "trade": "fencing", "model": "mock", "store": "memory", "schemaVersion": 1,
-    "stages": [ { "name": "review", "ms": 1, "tokensIn": 4751, "tokensOut": 0, "retries": 0, "costUsd": 0 },
-                { "name": "extraction", "…": "…" } ],
-    "costUsd": 0,
-    "coverage": { "rates": 20, "removals": 0, "gates": 0, "siteConditions": 0, "extras": 0, "tags": 0, "unmapped": 1 }
-  } }
+  "meta": { "trade": "fencing", "model": "gpt-5.6-terra", "store": "memory", "schemaVersion": 1,
+            "stages": [ { "name": "review", "ms": 4210, "tokensIn": 4102, "tokensOut": 1180,
+                          "retries": 0, "costUsd": 0.0223 }, { "name": "extraction", "…": "…" } ],
+            "costUsd": 0.0581 } }
 ```
 
-`data.report` is the summary panel, already formatted:
+`business.report` is the summary panel, already formatted:
 
 ```markdown
-Thanks for sending your pricing through — it has everything we need, so it is going live for you to check.
+I have been through the details you sent and everything we need is there.
 
 ## Your rates
 | Type | Height | Per metre |
@@ -112,7 +135,10 @@ Thanks for sending your pricing through — it has everything we need, so it is 
 ## What we could not use
 - …
 
-If a figure looks wrong, update your description and send it again.
+## What to do next
+Check the figures above. If they are right, confirm them and your profile goes live for customers.
+If something is wrong, update your details and send them through again. If you need a hand, use the
+contact button below.
 ```
 
 #### Rejected
@@ -121,19 +147,26 @@ If a figure looks wrong, update your description and send it again.
 { "ok": true, "data": {
     "approved": false,
     "status": "unverified",
-    "report": "markdown — the same panel, different content",
-    "opening": "Thanks for sending your pricing through — …",
-    "fixes": [ { "kind": "missing", "what": "Say whether your prices include GST.", "example": "All prices include GST" },
-               { "kind": "unclear", "what": "Give a firm price per metre for each type and height…",
-                 "example": "Colorbond 1.8m - $110/m (your figure)" } ],
-    "missing": ["Say whether your prices include GST.", "…"],   // just the `what` strings
-    "unclear": ["Give a firm price per metre …"],
-    "reportWordCount": 150
+    "business": {
+      "report": "markdown — the same panel, different content",
+      "fixes": [ { "kind": "missing", "what": "Say whether your prices include GST.",
+                   "example": "All prices include GST" },
+                 { "kind": "unclear", "what": "Give one set price per metre for each type and height…",
+                   "example": "Colorbond 1.8m - $110/m (your figure)" } ],
+      "nextStep": "Update your details and send them through again for approval. …"
+    },
+    "admin": {
+      "submissionId": "1adb7d80…",
+      "decision": "rejected",
+      "fixCounts": { "missing": 2, "unclear": 1 },
+      "reportWordCount": 175,
+      "textChars": 3290
+    }
   },
   "meta": { "…one stage only — extraction never ran…" } }
 ```
 
-`data.report`, ready to render:
+`business.report`, ready to render:
 
 ```markdown
 I have been through the details you sent. Most of it is clear, but a few numbers are still needed
@@ -166,13 +199,12 @@ The steps are numbered straight through both sections so it reads as a list of j
 of complaints. Target length is 60–250 words.
 
 **`## What to do next` is written in code, not by the model** — identical words every time, because
-it describes what the two buttons under the report actually do. Put a "send for approval" button and
-a "contact our team" button there and the text already matches them.
+it describes what the two buttons under the report actually do. It is also returned on its own as
+`business.nextStep`, so you can print it beside the buttons instead of inside the markdown. Put a
+"send for approval" button and a "contact our team" button there and the text already matches them.
 
-Render `report` as markdown, or build your own panel from `missing` / `unclear` / `fixes`.
-
-**Nothing is stored on the reject path** — an incomplete resubmission must not overwrite figures the
-business already had approved.
+To render, either drop `business.report` into a markdown component, or ignore it and build your own
+panel from `business.fixes` (filter by `kind`) plus `business.nextStep`.
 
 ---
 
