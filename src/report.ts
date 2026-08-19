@@ -33,26 +33,41 @@ export const label = (key: string): string => LABELS[key] ?? key;
 export const wordCount = (text: string): number => text.split(/\s+/).filter(Boolean).length;
 
 /**
- * The agent decides what to say and what to group; code decides layout. Formatting is not a
- * judgement call, and a model asked for markdown drifts — this is the main reason the report never
- * comes out differently the second time.
+ * The model decides WHAT to say and how to group it; this code decides how it LOOKS. Formatting is
+ * not a judgement call, and a model asked for markdown drifts - which is why the same submission
+ * never comes back looking different the second time.
+ *
+ * Shape of a rejection, and the reasoning behind it:
+ *
+ *   <opening>                one line: we read it, here is where it stands
+ *   ## Why this matters      one or two lines, in terms of winning work - not the rules restated
+ *   ## What is missing       things they never said        -> they go and find the numbers
+ *   ## Needs to be clearer   things they said, but vaguely -> they go and rewrite the lines
+ *   <closing>                one line: send it back
+ *
+ * Splitting missing from unclear is the difference between "something is wrong" and "here is
+ * exactly what to write down". Neither section appears if it is empty.
  */
 export function buildRejectionReport(r: ReviewResult) {
+  const missing = r.fixes.filter((f) => f.kind === 'missing' && f.what);
+  const unclear = r.fixes.filter((f) => f.kind === 'unclear' && f.what);
+
   const md: string[] = [];
-
-  if (r.opening) md.push(r.opening, '');
-
-  if (r.whyUpdatesNeeded) md.push('## Why these updates are needed', '', r.whyUpdatesNeeded, '');
-
-  if (r.fixes.length) {
-    md.push('## What needs fixing', '');
-    for (const f of r.fixes) {
-      if (!f.what) continue;
+  const section = (heading: string, items: ReviewResult['fixes']) => {
+    if (!items.length) return;
+    md.push(heading, '');
+    for (const f of items) {
       md.push(`- ${f.what}`);
       if (f.example) md.push(`  - e.g. \`${f.example}\``);
     }
     md.push('');
-  }
+  };
+
+  if (r.opening) md.push(r.opening, '');
+  if (r.whyUpdatesNeeded) md.push('## Why this matters', '', r.whyUpdatesNeeded, '');
+
+  section('## What is missing', missing);
+  section('## Needs to be clearer', unclear);
 
   if (r.closing) md.push(r.closing);
 
@@ -62,9 +77,9 @@ export function buildRejectionReport(r: ReviewResult) {
     report,
     opening: r.opening,
     fixes: r.fixes,
-    // Kept for the frontend only — a compact list or a count badge. Deliberately not rendered into
-    // the report itself: a tradesperson does not need to be told how many things are wrong.
-    fixList: r.fixes.map((f) => f.what).filter(Boolean),
+    // For a frontend that would rather build its own bullets than render the markdown.
+    missing: missing.map((f) => f.what),
+    unclear: unclear.map((f) => f.what),
     reportWordCount: wordCount(report),
   };
 }
@@ -133,9 +148,9 @@ export function buildApprovalReport(d: VerifiedResult, opening: string) {
 
   if (d.unmapped.length) {
     md.push(
-      '## Worth a look',
+      '## What we could not use',
       '',
-      'We could not save these as pricing - either they are not something we hold, or the figure did not match your text.',
+      'These did not make it into your pricing - either they are not something we hold, or the figure did not match your text.',
       '',
       ...d.unmapped.map((u) => `- ${u}`),
       '',

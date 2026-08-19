@@ -280,17 +280,28 @@ export class MockAiClient implements AiClient {
     const hasMinimum = /minimum charge/i.test(text);
     const vague = /\bpoa\b|call (?:us|for pricing)|from \$\d/i.test(text);
 
-    const fixes: { what: string; example: string | null }[] = [];
+    const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
     if (rates.length < 3) {
       fixes.push({
-        what: 'Give a firm price per metre for each fence type and height you do — most of what you sent is written as a range or a "call us".',
+        kind: 'unclear',
+        what: 'Give a firm price per metre for each fence type and height you do - most of what you sent is written as a range or a "call us".',
         example: 'Colorbond 1.8m - $110/m (your figure)',
       });
     }
-    if (!hasGst) fixes.push({ what: 'Say whether your prices include GST.', example: null });
-    if (!hasMinimum) fixes.push({ what: 'Add the smallest job you will take on and what you charge for it.', example: null });
+    if (!hasGst) fixes.push({ kind: 'missing', what: 'Say whether your prices include GST.', example: 'All prices include GST' });
+    if (!hasMinimum) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Add the smallest job you will take on and what you charge for it.',
+        example: 'Minimum charge $850',
+      });
+    }
     if (vague && rates.length >= 3) {
-      fixes.push({ what: 'Replace the remaining "POA" and "from" figures on your core rates with the price you actually charge.', example: null });
+      fixes.push({
+        kind: 'unclear',
+        what: 'Replace the remaining "POA" and "from" figures on your core rates with the price you actually charge.',
+        example: null,
+      });
     }
 
     const approved = fixes.length === 0;

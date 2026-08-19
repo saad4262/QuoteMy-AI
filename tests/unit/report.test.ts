@@ -9,8 +9,8 @@ const review = {
   opening: 'Thanks for sending your pricing through - there is good detail here.',
   whyUpdatesNeeded: 'Customers get an instant quote straight from your rates.',
   fixes: [
-    { what: 'Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing.', example: 'Colorbond 1.8m - $110/m (your figure)' },
-    { what: 'Say whether your prices include GST.', example: null },
+    { kind: 'unclear' as const, what: 'Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing.', example: 'Colorbond 1.8m - $110/m (your figure)' },
+    { kind: 'missing' as const, what: 'Say whether your prices include GST.', example: null },
   ],
   closing: 'Add those in and send it through again.',
 };
@@ -23,15 +23,18 @@ describe('rejection report', () => {
     expect(a.report).toMatchInlineSnapshot(`
       "Thanks for sending your pricing through - there is good detail here.
 
-      ## Why these updates are needed
+      ## Why this matters
 
       Customers get an instant quote straight from your rates.
 
-      ## What needs fixing
+      ## What is missing
+
+      - Say whether your prices include GST.
+
+      ## Needs to be clearer
 
       - Add a firm per-metre rate for Colorbond, glass pool fencing and rural fencing.
         - e.g. \`Colorbond 1.8m - $110/m (your figure)\`
-      - Say whether your prices include GST.
 
       Add those in and send it through again."
     `);
@@ -40,7 +43,8 @@ describe('rejection report', () => {
   it('stays inside the 250-word limit and reports its own length', () => {
     const built = buildRejectionReport(review);
     expect(built.reportWordCount).toBeLessThan(250);
-    expect(built.fixList).toHaveLength(2);
+    expect(built.missing).toHaveLength(1);
+    expect(built.unclear).toHaveLength(1);
   });
 });
 

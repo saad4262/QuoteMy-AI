@@ -1,19 +1,36 @@
 import { z } from 'zod';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS } from './vocab.js';
 
-/** What the frontend may send. businessUid is NOT here - it comes from the verified token. */
-export const submitBody = z.object({
+/**
+ * Everything the business side sends arrives on ONE route, and `action` says what to do with it.
+ * The frontend has one URL to call, not five.
+ *
+ * There is no auth yet, so `businessUid` is taken at face value. That is a deliberate, temporary
+ * choice - when Firebase is wired up it comes from the verified token instead.
+ */
+export const businessBody = z.object({
+  action: z.enum(['submit', 'confirm', 'profile', 'review', 'extract']).default('submit'),
+  businessUid: z.string().trim().min(1).default('test-business'),
   trade: z.enum(TRADES).default('fencing'),
-  text: z.string(),
+  text: z.string().default(''),
 });
-export type SubmitBody = z.infer<typeof submitBody>;
+export type BusinessBody = z.infer<typeof businessBody>;
 
 /** Stage 1's output. The model supplies the words; code owns the layout (report.ts). */
 export const reviewSchema = z.object({
   approved: z.boolean(),
   opening: z.string(),
   whyUpdatesNeeded: z.string(),
-  fixes: z.object({ what: z.string(), example: z.string().nullable() }).array(),
+  fixes: z
+    .object({
+      // "missing" = they never said it. "unclear" = they said it, but not in a form we can quote
+      // from. The report puts each group under its own heading, which is the difference between
+      // "something is wrong somewhere" and "here is exactly what to go and write down".
+      kind: z.enum(['missing', 'unclear']),
+      what: z.string(),
+      example: z.string().nullable(),
+    })
+    .array(),
   closing: z.string(),
 });
 export type ReviewResult = z.infer<typeof reviewSchema>;

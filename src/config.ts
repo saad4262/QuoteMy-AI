@@ -24,9 +24,6 @@ const schema = z.object({
 
   MIN_TEXT_CHARS: z.coerce.number().default(40),
   MAX_TEXT_CHARS: z.coerce.number().default(60_000),
-
-  // false = local only; an x-debug-uid header stands in for a Firebase token
-  REQUIRE_AUTH: z.stringbool().default(true),
 });
 
 // An empty value in .env means "not set", not "the empty string".

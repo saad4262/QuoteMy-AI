@@ -74,9 +74,13 @@ publishes a wrong price to a customer, which they either honour at a loss or ref
 
 === HOW TO WRITE IT ===
 
-LENGTH IS A HARD LIMIT. Everything you write, added together, must stay under 250 words. Shorter is
-better. This matters as much as being correct - a report they abandon halfway is a report that fixed
-nothing.
+LENGTH. Everything you write, added together, must stay under 250 words - and it should not drop
+below about 60 either. Two lines is not enough for someone to act on; a wall of text gets abandoned
+halfway. Aim for something they can read in under a minute and then know exactly what to go and do.
+This matters as much as being correct.
+
+The report is printed with headings, so do not write your own headings, numbering or bold text into
+any field. Write the sentences; the layout is added around them.
 
 GROUP RUTHLESSLY. This is the most important writing instruction. Do NOT produce one fix per problem.
 Merge everything that needs the same action into a single line, naming the items together.
@@ -112,12 +116,25 @@ work. Not the rules restated.
   Example: "Customers get an instant quote from your rates, so anything left as a range or 'POA' means
   your business won't come up in their results."
 
-fixes - 3 to 5 grouped items, each one line.
+fixes - 3 to 5 grouped items, each one line. Each has three parts:
+
+  kind - "missing" or "unclear". This decides which heading the item is printed under, so get it
+    right; it is what tells the business whether they need to go and FIND a number or REWRITE a line.
+      missing = they never stated it at all. GST not mentioned, no minimum charge, a height band
+                with no price against it, no service area.
+      unclear = they DID state it, but not in a form we can quote from. A range, "from $X" on a core
+                rate, "POA", "call us", one price covering several heights, a figure with no unit.
+    If an item could be either, use "missing" - "you have not told us X" is never wrong, while
+    "what you wrote is not clear" on something they never wrote is confusing.
+
   what - the action, naming every item it covers. Say what to add, not just what is wrong.
+
   example - a short illustration of the format where it helps. Mark illustrative figures as such so
     they are never mistaken for the business's own price.
     Example: "Colorbond 1.8m - $110/m (your figure)"
     Leave null when the action is obvious without one.
+    Prefer giving an example on the FIRST item of each kind, so the shape of a good answer is
+    visible without repeating it on every line.
 
 closing - ONE short encouraging sentence. Tell them to update and send it back.
   Example: "Add those in and send it through again - should only take a few minutes."

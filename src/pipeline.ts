@@ -3,7 +3,7 @@ import { getAiClient, type AiClient, type StageUsage } from './ai.js';
 import { env } from './config.js';
 import { AppError, unprocessable } from './http.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
-import { extractionSchema, reviewSchema, type SubmitBody } from './schemas.js';
+import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
 import { buildApprovalReport, buildRejectionReport } from './report.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository } from './store.js';
 import { verifyExtraction } from './verify.js';
@@ -52,7 +52,7 @@ export function assertSubmittable(text: string): void {
  */
 export async function runOnboarding(
   uid: string,
-  input: SubmitBody,
+  input: BusinessBody,
   deps: { ai?: AiClient; repo?: BusinessRepository } = {},
 ) {
   const ai = deps.ai ?? getAiClient();

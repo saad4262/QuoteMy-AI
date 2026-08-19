@@ -1,127 +1,77 @@
-# API reference — how to test every route
+# API reference
 
-Eight routes: six normal, two that only exist for prompt tuning. Everything below was captured from
-a running server, not written from memory.
+**Two routes.** Everything the business side does goes to one of them, and the `action` field picks
+the job — so the frontend has one URL to map, not five.
 
 ```bash
 cp .env.example .env
 npm run dev            # http://localhost:8787
 ```
 
-Default settings mean **no API key and no Firebase are needed**: `AI_PROVIDER=mock` (offline reader),
-`REQUIRE_AUTH=false` (an `x-debug-uid` header stands in for a Firebase token).
+No auth, no API key, no Firebase. `AI_PROVIDER=mock` is a deterministic offline reader.
 
 ---
 
 ## The two response shapes
 
-Every response in this API is one of these two. There is no third.
-
 ```jsonc
 // success
-{
-  "ok": true,
-  "requestId": "a618cebf-1329-46fe-87de-1b8188ee4ec1",
-  "data": { },        // what you asked for
-  "meta": { }         // how it was produced: model, cost, timings, coverage
-}
+{ "ok": true,  "requestId": "a618cebf…", "data": { … }, "meta": { … } }
 
 // failure
-{
-  "ok": false,
-  "requestId": "45e092b3-fec8-44e8-9511-bacf82354f18",
-  "error": { "code": "unprocessable", "message": "Send your pricing details and we will take a look" }
-}
+{ "ok": false, "requestId": "45e092b3…", "error": { "code": "unprocessable", "message": "…" } }
 ```
 
-`requestId` is also returned as an `x-request-id` header and appears in the server log for that
-request. When something looks wrong, that id is how you find it.
+`requestId` also comes back as an `x-request-id` header and appears in the server log for that
+request — that is how you find what happened.
 
-**A rejected price list is a success, not an error** — `200` with `data.approved: false`. The
-business did nothing wrong by sending an incomplete list. Only a broken request or a broken
-pipeline produces `ok: false`.
+**A rejected price list is a success**, `200` with `data.approved: false`. The business did nothing
+wrong by sending an incomplete list. Only a broken request or a broken pipeline is `ok: false`.
 
 ---
 
-## Every request needs identity
-
-| | |
-|---|---|
-| Now (`REQUIRE_AUTH=false`) | header `x-debug-uid: any-business-id` |
-| Later (`REQUIRE_AUTH=true`) | header `Authorization: Bearer <firebase id token>` |
-
-`businessUid` is **never** read from the body. Send it in the body and it is ignored — that is
-deliberate, and there is a test for it. Whatever `x-debug-uid` you use is the "business" whose data
-you are reading and writing, so use different values to simulate different businesses.
-
----
-
-## 1. `GET /api/v1/health`
-
-No auth. Is the server up.
-
-```jsonc
-{ "ok": true, "requestId": "…", "data": { "status": "ok", "uptime": 327.01 } }
-```
-
-## 2. `GET /api/v1/ready`
-
-No auth. Which model and provider are actually live, and how big the prompts are.
-
-```jsonc
-{ "ok": true, "requestId": "…",
-  "data": { "status": "ok", "provider": "mock", "model": "mock",
-            "prompts": { "review": 4656, "extraction": 1934 } } }
-```
-
-If `provider` says `mock`, nothing is being sent to OpenAI and nothing is being charged.
-
-## 3. `GET /api/v1/vocab/:trade`
-
-No auth. The closed lists. **The frontend should render its tick-boxes from this endpoint**, never
-from a hand-copied list — that is how the two stay in step.
+## `GET /api/v1/health`
 
 ```jsonc
 { "ok": true, "data": {
-  "trade": "fencing",
-  "materials": ["timber_pine","timber_hardwood","colorbond","aluminium","pool_aluminium","pool_glass","chainmesh","rural_wire"],
-  "gateTypes": ["pedestrian_single","driveway_double","driveway_sliding","motor_automation"],
-  "conditions": ["sloped","rock","restricted_access","hand_dig"],
-  "removes": ["timber","metal","any"],
-  "units": ["per_metre","per_item","per_job","per_sqm"],
-  "tags": ["custom-gates","steep-blocks","pool-compliant","rural-capable","own-installers","insured","glass-capable","automation"],
-  "bounds": { "pricePerMetre": {"min":0,"max":2000}, "price": {"min":0,"max":100000},
-              "heightM": {"min":0.3,"max":4}, "radiusKm": {"min":0,"max":500} } } }
+  "status": "ok", "uptime": 78.2,
+  "provider": "mock", "model": "mock",          // "mock" = nothing sent to OpenAI, nothing charged
+  "prompts": { "review": 4656, "extraction": 1934 } } }
 ```
 
-An unknown trade returns `404 not_found` in the standard error shape.
+## `POST /api/v1/business`
 
-## 4. `POST /api/v1/business/onboarding` — the main one
-
-**Request**
+One body, five actions:
 
 ```jsonc
-// headers: Content-Type: application/json, x-debug-uid: demo
 {
-  "trade": "fencing",     // optional, defaults to "fencing". Only "fencing" is valid today
-  "text": "…the business's price list, pasted as they wrote it…"
+  "action": "submit",             // submit | profile | confirm | review | extract. Default: submit
+  "businessUid": "demo-1",        // who this is. Default: "test-business"
+  "trade": "fencing",             // default: "fencing" (the only trade today)
+  "text": "…their price list…"    // submit / review / extract only
 }
 ```
 
-`text` must survive the mechanical checks: at least 40 characters, at most 60,000, and it has to
-contain at least one digit. Those run **before** any model call, so a junk submission costs nothing.
+`text` must clear the mechanical checks — at least 40 characters, at most 60,000, and at least one
+digit. Those run **before** any model call, so junk costs nothing.
 
-### Response A — approved
+> `businessUid` is taken at face value because there is no auth yet. When Firebase is wired up it
+> will come from the verified token instead, and the body field will be ignored.
+
+---
+
+### `action: "submit"` — the main one
+
+This is the button on the frontend: trade, a text box, and Send for approval.
+
+#### Approved
 
 ```jsonc
-{
-  "ok": true,
-  "requestId": "…",
-  "data": {
+{ "ok": true, "data": {
     "approved": true,
-    "status": "verified",              // "unverified" if nothing survived verification
-    "report": "markdown — show this to the business",
-    "reportWordCount": 148,
+    "status": "verified",             // "unverified" if nothing survived verification
+    "report": "markdown — this is the summary panel",
+    "reportWordCount": 311,
     "pricing": {
       "gstIncluded": true,
       "enabledMaterials": ["timber_pine", "colorbond"],
@@ -130,119 +80,134 @@ contain at least one digit. Those run **before** any model call, so a junk submi
       "serviceArea": { "baseLocation": "Berwick", "radiusKm": 30, "excludedAreas": [] },
       "minimumCharge": 850
     },
-    "capabilities": { "businessName": "Southeast Fencing", "tags": [], "extras": [], "inclusions": [], "exclusions": [] },
+    "capabilities": { "businessName": "…", "tags": [], "extras": [], "inclusions": [], "exclusions": [] },
     "couldNotUnderstand": ["…anything we could not store, in plain English…"],
-    "ratesSaved": 3
+    "ratesSaved": 20
   },
   "meta": {
     "trade": "fencing", "model": "mock", "store": "memory", "schemaVersion": 1,
-    "stages": [
-      { "name": "review",     "ms": 1, "tokensIn": 4751, "tokensOut": 0, "retries": 0, "costUsd": 0 },
-      { "name": "extraction", "ms": 1, "tokensIn": 2029, "tokensOut": 0, "retries": 0, "costUsd": 0 }
-    ],
+    "stages": [ { "name": "review", "ms": 1, "tokensIn": 4751, "tokensOut": 0, "retries": 0, "costUsd": 0 },
+                { "name": "extraction", "…": "…" } ],
     "costUsd": 0,
-    "coverage": { "rates": 3, "removals": 0, "gates": 0, "siteConditions": 0, "extras": 0, "tags": 0, "unmapped": 1 }
-  }
-}
+    "coverage": { "rates": 20, "removals": 0, "gates": 0, "siteConditions": 0, "extras": 0, "tags": 0, "unmapped": 1 }
+  } }
 ```
 
-Things worth looking at while testing:
+`data.report` is the summary panel, already formatted:
 
-- **`rates` is a nested map, and the height keys are built by code** — `"1.8m"` comes from the number
-  `1.8`, never from the model's text, so it cannot drift into `"1.8"` or `"1800mm"`.
-- **`ratesSaved` vs how many rates are in your text.** A gap means something was dropped — and the
-  reason is in `couldNotUnderstand`, in plain English.
-- **`status` can be `unverified` even when `approved` is true.** That is the case where the review
-  passed but no number survived quote-matching or bounds. It is deliberate: an empty price list must
-  not be labelled as checked.
-- **`meta.stages`** shows what each model call cost and how long it took. `retries: 1` means the
-  first reply failed schema validation and was asked for again with the error attached.
-- **`meta.coverage`** is computed in code, not by the model: what actually landed.
+```markdown
+Thanks for sending your pricing through — it has everything we need, so it is going live for you to check.
 
-### Response B — not approved
+## Your rates
+| Type | Height | Per metre |
+| --- | --- | --- |
+| Treated pine | 1.8m | $85 |
+…
+
+## Your details
+| Area covered | Berwick, within 30km |
+| Minimum charge | $850 |
+| GST | Included in the prices above |
+
+## What we could not use
+- …
+
+If a figure looks wrong, update your description and send it again.
+```
+
+#### Rejected
 
 ```jsonc
-{
-  "ok": true,
-  "data": {
+{ "ok": true, "data": {
     "approved": false,
     "status": "unverified",
-    "report": "markdown — show this to the business",
-    "opening": "Thanks for sending your pricing through — there is good detail here, but …",
-    "fixes": [
-      { "what": "Give a firm price per metre for each fence type and height you do — …",
-        "example": "Colorbond 1.8m - $110/m (your figure)" },
-      { "what": "Say whether your prices include GST.", "example": null }
-    ],
-    "fixList": ["Give a firm price per metre …", "Say whether your prices include GST."],
-    "reportWordCount": 136
+    "report": "markdown — the same panel, different content",
+    "opening": "Thanks for sending your pricing through — …",
+    "fixes": [ { "kind": "missing", "what": "Say whether your prices include GST.", "example": "All prices include GST" },
+               { "kind": "unclear", "what": "Give a firm price per metre for each type and height…",
+                 "example": "Colorbond 1.8m - $110/m (your figure)" } ],
+    "missing": ["Say whether your prices include GST.", "…"],   // just the `what` strings
+    "unclear": ["Give a firm price per metre …"],
+    "reportWordCount": 150
   },
-  "meta": { "…one stage only — extraction never ran…" }
-}
+  "meta": { "…one stage only — extraction never ran…" } }
 ```
 
-Render `report` as markdown. Use `fixes` if you would rather build the bullets into your own UI.
-`fixList` is just the `what` strings for a compact view.
+`data.report`, ready to render:
 
-**Nothing is stored on the reject path.** An incomplete resubmission must not overwrite figures the
+```markdown
+Thanks for sending your pricing through — there is good detail here, but we need a few firm
+numbers before it can go live.
+
+## Why this matters
+Customers get an instant quote straight from your rates, so anything left as a range or "POA"
+means your business will not come up in their results.
+
+## What is missing
+- Say whether your prices include GST.
+  - e.g. `All prices include GST`
+- Add the smallest job you will take on and what you charge for it.
+  - e.g. `Minimum charge $850`
+
+## Needs to be clearer
+- Give a firm price per metre for each fence type and height you do — most of what you sent is
+  written as a range or a "call us".
+  - e.g. `Colorbond 1.8m - $110/m (your figure)`
+
+Add those in and send it through again — should only take a few minutes.
+```
+
+**Why it is shaped like this.** `missing` means they never said it, so they go and find the number.
+`unclear` means they said it but not in a form we can quote from, so they go and rewrite the line.
+Those are two different jobs, and putting them under one heading is what makes a report feel vague.
+Target length is 60–250 words: short enough to read on a phone after work, long enough to act on.
+
+Render `report` as markdown, or build your own panel from `missing` / `unclear` / `fixes`.
+
+**Nothing is stored on the reject path** — an incomplete resubmission must not overwrite figures the
 business already had approved.
 
-## 5. `GET /api/v1/business/profile/:trade`
+---
 
-What is stored right now for this business, plus its submission history.
+### `action: "profile"` — what is stored right now
 
 ```jsonc
-{ "ok": true,
-  "data": {
+{ "ok": true, "data": {
     "pricing": { "…", "trade": "fencing", "status": "verified", "schemaVersion": 1,
                  "updatedAt": "2026-08-19T06:42:15.526Z", "confirmedAt": null },
     "capabilities": { "…", "unmapped": [ … ] },
-    "submissions": [
-      { "id": "fd4ec6b6…", "uid": "demo", "trade": "fencing", "approved": true,
-        "status": "verified", "ratesSaved": 3, "createdAt": "2026-08-19T06:42:15.526Z" },
-      { "id": "ce918c8b…", "approved": false, "status": "unverified", "ratesSaved": 0, "…": "…" }
-    ]
+    "submissions": [ { "id": "fd4ec6b6…", "approved": true, "status": "verified",
+                       "ratesSaved": 20, "createdAt": "…" },
+                     { "id": "ce918c8b…", "approved": false, "status": "unverified", "ratesSaved": 0, "…": "…" } ]
   },
   "meta": { "trade": "fencing", "live": false } }
 ```
 
-`404` if this business has never had an approved submission for this trade. Note the rejected
-submission **is** in the history — history records every attempt; the profile records only what was
-approved.
+`404` if this business has never had an approved submission. Rejected attempts still appear in
+`submissions` — history records every attempt, the profile records only what was approved.
 
-## 6. `POST /api/v1/business/profile/:trade/confirm`
+### `action: "confirm"` — makes the prices live
 
-No body. This is the business saying "yes, these figures are right", and it is **the only thing that
-makes prices live**. The pipeline never sets `confirmedAt`.
+No `text` needed. This is the business saying "yes, these figures are right", and it is **the only
+thing that makes prices live** — the pipeline never sets `confirmedAt`.
 
 ```jsonc
-{ "ok": true,
-  "data": { "pricing": { "status": "confirmed", "confirmedAt": "2026-08-19T06:27:18.824Z", "…": "…" },
-            "alreadyConfirmed": false },
+{ "ok": true, "data": { "pricing": { "status": "confirmed", "confirmedAt": "…" }, "alreadyConfirmed": false },
   "meta": { "trade": "fencing", "live": true } }
 ```
 
-- Calling it twice is safe — the second call returns `alreadyConfirmed: true`.
-- Confirming `unverified` pricing returns `400 bad_request`: there is nothing worth publishing.
-- **Submitting a new price list clears the confirmation.** The business confirms the new figures;
-  approval of the old ones is not inherited.
+- Calling it twice is safe: `alreadyConfirmed: true`.
+- Confirming `unverified` pricing → `400`.
+- **Submitting a new price list clears the confirmation.** The business confirms the new figures.
 
-## 7–8. `POST /api/v1/dev/review` and `/api/v1/dev/extract`
+### `action: "review"` / `"extract"` — one stage at a time
 
-Only mounted when `ENABLE_DEV_ROUTES=true`. Same body as onboarding. Nothing is stored. They exist
-because you cannot improve a prompt you can only run end to end.
+`ENABLE_DEV_ROUTES=true` only, nothing is stored. These exist because you cannot improve a prompt
+you can only run end to end.
 
-- `/dev/review` → `data.review` — the raw approve/reject decision, before any report is built.
-- `/dev/extract` → `data.raw` (exactly what the model returned) **next to** `data.verified` (what
-  survived quote-matching, vocabulary and bounds). Comparing the two is how you see what the checks
-  are actually catching:
-
-```jsonc
-{ "data": {
-    "raw":      { "rates": [ { "material": "timber_pine", "heightM": 1.8, "pricePerMetre": 85,
-                               "sourceQuote": "1.8m high - $85 per metre" } ], "…": "…" },
-    "verified": { "status": "verified", "pricing": { "rates": { "timber_pine": { "1.8m": 85 } } }, "…": "…" } } }
-```
+- `review` → `data.review`, the raw approve/reject decision before any report is built.
+- `extract` → `data.raw` (exactly what the model returned) next to `data.verified` (what survived
+  quote-matching, vocabulary and bounds). The difference between them is what the checks caught.
 
 ---
 
@@ -251,53 +216,46 @@ because you cannot improve a prompt you can only run end to end.
 | code | HTTP | when |
 |---|---|---|
 | `bad_request` | 400 | body failed validation, or confirming unverified pricing. `error.details` names the field |
-| `unauthorized` | 401 | no `x-debug-uid` (or no bearer token once auth is on) |
-| `not_found` | 404 | unknown trade, or no profile for this business yet |
+| `not_found` | 404 | no profile for this business yet, or an action that is switched off |
 | `unprocessable` | 422 | text empty, under 40 characters, or containing no digit |
 | `payload_too_large` | 413 | text over 60,000 characters |
-| `rate_limited` | 429 | more than 20 submissions in an hour from one business |
+| `rate_limited` | 429 | more than 40 submissions in an hour from one address |
 | `cost_limit` | 429 | the submission would cost more than `MAX_COST_PER_REQUEST_USD` |
 | `upstream_timeout` | 504 | the model did not answer in time |
 | `upstream_unavailable` | 502 | OpenAI error after one retry |
 | `schema_violation` | 502 | the model's output failed validation twice — the prompt is wrong, not the model |
-| `not_implemented` | 501 | `REQUIRE_AUTH=true` while Firebase is not connected yet |
 | `internal_error` | 500 | anything unclassified |
 
 ---
 
-## Testing it in Postman
+## Testing in Postman
 
-1. **Import** `docs/postman/quotemy-ai.postman_collection.json`.
-2. Check the collection variables: `baseUrl = http://localhost:8787/api/v1`, `businessUid = postman-biz-1`.
-   Every request already sends `x-debug-uid: {{businessUid}}`.
+1. Import `docs/postman/quotemy-ai.postman_collection.json`.
+2. Variables: `baseUrl = http://localhost:8787/api/v1`, `businessUid = postman-biz-1`.
 3. Run the folders top to bottom.
 
 | Folder | What you should see |
 |---|---|
-| **0. Health** | `health` and `ready` return `ok: true`; `ready` says `provider: mock`. `vocab` lists the enums |
-| **1. Submit** | the good list → `approved: true`, `status: verified`, rates in `data.pricing.rates`. The vague list → `approved: false` with 3–5 grouped fixes |
-| **2. Read back and confirm** | `profile` shows `confirmedAt: null` and `meta.live: false`; after `confirm`, `status: confirmed` and `live: true` |
-| **3. Input handling** | four requests that must fail cleanly — 422, 422, 422, 400 — each with a readable `error.message`. The injection request must come back as a normal review, with the injected line treated as data |
-| **4. Single stages** | `/dev/review` and `/dev/extract`, for looking at one stage at a time |
+| **Health** | `ok: true`, `provider: mock` |
+| **1. Send for approval** | good list → `approved: true` with a rates table in `data.report`. Vague list → `approved: false` with the missing / unclear sections |
+| **2. Read back and confirm** | `profile` shows `confirmedAt: null`, `meta.live: false`; after `confirm`, `status: confirmed`, `live: true` |
+| **3. Input handling** | 422, 422, 422, 400 — each with a readable message. The injection request comes back as a normal review, the injected line treated as data |
+| **4. One stage at a time** | `review` and `extract` on their own |
 
-**Things worth trying by hand**, because they are the parts that matter:
+Worth trying by hand — these are the parts that matter:
 
-- Change `businessUid` to `postman-biz-2` and call `profile` — it should be `404`. Two businesses
-  never see each other's data.
-- Add `"businessUid": "someone-else"` to the onboarding body. It is ignored; the data lands under
-  your header's uid. That was the n8n security hole.
-- Take the good price list and change one rate to `$8500 per metre`. It gets **dropped** by the
-  bounds check even though the sentence is genuinely in your text, and `couldNotUnderstand` says so.
-- Change a rate's number but leave the rest of the sentence alone, then look at `ratesSaved` — this
-  is quote verification doing its job.
-- Submit, confirm, then submit again → `confirmedAt` is back to `null`.
-- Restart the server and call `profile` → `404`. Storage is in-memory today; this is expected, and
-  it is what Firestore replaces.
+- Change `businessUid` and call `profile`: `404`. Two businesses never see each other's data.
+- Change one rate to `$8500 per metre`. It is **dropped** by the bounds check even though that
+  sentence is genuinely in your text, and `couldNotUnderstand` says why.
+- Change a rate's number but leave the rest of the line alone, then check `ratesSaved` — that is
+  quote verification working.
+- Submit → confirm → submit again: `confirmedAt` is back to `null`.
+- Restart the server, then `profile`: `404`. Storage is in-memory today; Firestore replaces that.
 
-## Two limits to keep in mind while testing
+## Two limits while testing
 
-1. **`AI_PROVIDER=mock` is a rule-based reader, not intelligence.** It recognises firm
-   `$N per metre` lines, GST, minimum charge and a travel radius — and ignores gates, removals and
-   surcharges, which it reports honestly in `couldNotUnderstand`. It exists to prove the plumbing,
-   not the extraction quality. For real behaviour, set `AI_PROVIDER=openai` and an `OPENAI_API_KEY`.
-2. **Text only.** PDFs, images and Word documents are the next piece of work (`docs/FLOW.md` §3).
+1. **`AI_PROVIDER=mock` is a rule-based reader, not intelligence.** It reads firm `$N per metre`
+   lines, GST, minimum charge and a travel radius, and says so honestly in `couldNotUnderstand` about
+   the rest. It proves the plumbing, not extraction quality. For real behaviour set
+   `AI_PROVIDER=openai` and an `OPENAI_API_KEY`.
+2. **Text only.** PDFs, images and Word files are the next piece of work (`docs/FLOW.md` §3).

@@ -2,13 +2,12 @@ import type { NextFunction, Request, Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { randomUUID } from 'node:crypto';
 import { z, type ZodType } from 'zod';
-import { env, isProd, logger } from './config.js';
+import { isProd, logger } from './config.js';
 
 declare global {
   namespace Express {
     interface Request {
       requestId: string;
-      uid?: string;
     }
   }
 }
@@ -26,7 +25,6 @@ export class AppError extends Error {
 }
 
 export const badRequest = (m: string, d?: unknown) => new AppError(400, m, 'bad_request', d);
-export const unauthorized = (m = 'Bearer token required') => new AppError(401, m, 'unauthorized');
 export const notFound = (m = 'Not found') => new AppError(404, m, 'not_found');
 export const unprocessable = (m: string) => new AppError(422, m, 'unprocessable');
 
@@ -55,25 +53,6 @@ export function requestLog(req: Request, res: Response, next: NextFunction): voi
   next();
 }
 
-/**
- * Identity comes from a verified token, never from the request body - that was the n8n hole where
- * anyone with the URL could overwrite a stranger's prices.
- *
- * Firebase is not connected yet, so REQUIRE_AUTH=false plus an x-debug-uid header is how local and
- * Postman testing signs in. With REQUIRE_AUTH=true nothing gets through until Firebase is wired up.
- */
-export function auth(req: Request, _res: Response, next: NextFunction): void {
-  if (!env.REQUIRE_AUTH) {
-    const debugUid = req.header('x-debug-uid')?.trim();
-    if (debugUid) {
-      req.uid = debugUid;
-      return next();
-    }
-    return next(unauthorized('Send an x-debug-uid header (REQUIRE_AUTH is off)'));
-  }
-  next(new AppError(501, 'Firebase auth is not connected yet', 'not_implemented'));
-}
-
 export const validateBody =
   <T>(schema: ZodType<T>) =>
   (req: Request, _res: Response, next: NextFunction) => {
@@ -86,10 +65,10 @@ export const validateBody =
 /** Two model calls per submission - this is a cost ceiling as much as abuse control. */
 export const submitLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 20,
+  limit: 40,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  keyGenerator: (req) => req.uid ?? ipKeyGenerator(req.ip ?? ''),
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ''),
   message: { ok: false, error: { code: 'rate_limited', message: 'Too many submissions, try later' } },
 });
 
