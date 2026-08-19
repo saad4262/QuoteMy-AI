@@ -43,6 +43,12 @@ export function assertSubmittable(text: string): void {
   if (!/\d/.test(text)) {
     throw unprocessable('We could not find any prices in that - send your rates with the numbers included');
   }
+  // No run of writing in any Latin script is 100 characters long without a space. A blob that is
+  // means the box was mashed or something was pasted that is not text - mechanical, not judgement,
+  // so it is caught here instead of being sent to the model at full price.
+  if (Math.max(...text.split(/\s+/).map((w) => w.length)) > 100) {
+    throw unprocessable('We could not read that - type your rates out, or attach your price list as a file');
+  }
 }
 
 /**
@@ -70,6 +76,15 @@ export async function runOnboarding(
 
   const text = sanitizeText(source.text);
   assertSubmittable(stripProvenance(text));
+
+  // A file we got nothing out of has to be named. Staying quiet about it lets a business believe
+  // their photo was used - the silent failure this whole system is built to avoid.
+  const unread = source.documents
+    .filter((d) => d.unreadable)
+    .map(
+      (d) =>
+        `We could not read anything from ${d.label}. If it has pricing in it, send a clearer photo or type those figures in.`,
+    );
 
   const submissionId = randomUUID();
   const spend = () => Number(stages.reduce((sum, s) => sum + s.costUsd, 0).toFixed(6));
@@ -102,7 +117,9 @@ export async function runOnboarding(
 
   const now = () => new Date().toISOString();
 
-  if (!review.data.approved) {
+  const approved = review.data.outcome === 'approved';
+
+  if (!approved) {
     await repo.addSubmission({
       id: submissionId,
       uid,
@@ -114,6 +131,8 @@ export async function runOnboarding(
     });
 
     const fixes = review.data.fixes;
+    const message =
+      review.data.outcome === 'not_a_price_list' ? MESSAGES.notAPriceList : MESSAGES.rejected;
 
     // Nothing is written to the profile on the reject path - an incomplete price list must not
     // overwrite figures the business already had approved.
@@ -124,14 +143,15 @@ export async function runOnboarding(
         // Two audiences, two blocks. `business` is what the tradesperson's screen renders;
         // `admin` never reaches them - the full written report is an internal artifact.
         business: {
-          opening: MESSAGES.rejected.opening,
+          opening: message.opening,
           fixes,
+          notUsed: unread,
           source: { documents: source.documents },
-          nextStep: MESSAGES.rejected.nextStep,
+          nextStep: message.nextStep,
         },
         admin: {
           submissionId,
-          decision: 'rejected',
+          decision: review.data.outcome,
           fixCounts: {
             missing: fixes.filter((f) => f.kind === 'missing').length,
             unclear: fixes.filter((f) => f.kind === 'unclear').length,
@@ -202,8 +222,9 @@ export async function runOnboarding(
         pricing: verified.pricing,
         capabilities: verified.capabilities,
         ratesSaved: verified.ratesKept,
-        // Anything we could not keep, in plain English. They do need to know this.
-        notUsed: verified.unmapped,
+        // Anything we could not keep, in plain English - including any file we read nothing from.
+        // They do need to know this.
+        notUsed: [...unread, ...verified.unmapped],
         // Slug -> human label, so the screen shows "Treated pine" and never keeps its own copy
         // of a list that would drift from vocab.ts.
         labels: LABELS,

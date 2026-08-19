@@ -58,7 +58,7 @@ describe('action: submit', () => {
     call({ businessUid: 'biz-bad', text: bad }).then((res) => {
       const { business, admin } = res.body.data;
 
-      expect(Object.keys(business).sort()).toEqual(['fixes', 'nextStep', 'opening', 'source']);
+      expect(Object.keys(business).sort()).toEqual(['fixes', 'nextStep', 'notUsed', 'opening', 'source']);
       expect(business.opening).toBeTruthy();
       expect(business.nextStep).toContain('contact button below');
 
@@ -112,6 +112,29 @@ describe('input handling', () => {
       expect(res.body.requestId).toBeTruthy();
     });
   }
+
+  it('turns away a mashed-keyboard blob in code, before any model call', async () => {
+    const blob = 'heekadszcscxfeeddffddfffffsfdsdffddfdfdfsdsfdfsdsggdfgffd'.repeat(6) + ' 12 241';
+    const res = await call({ businessUid: 'biz-x', text: blob });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('unprocessable');
+    expect(res.body.error.message).toMatch(/could not read that/i);
+  });
+
+  it('says something different when there was no price list to assess at all', async () => {
+    const res = await call({
+      businessUid: 'biz-chat',
+      text: 'Hi there, just wondering if you blokes cover the eastern suburbs at all? Cheers, Dave. 0400 000 000',
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.approved).toBe(false);
+    expect(res.body.data.admin.decision).toBe('not_a_price_list');
+    // not "a few things need updating" - that would read as though we had not looked
+    expect(res.body.data.business.opening).toMatch(/could not find any pricing/i);
+    expect(res.body.data.business.fixes).toHaveLength(1);
+  });
 
   it('rejects an unknown trade with a field-level message', async () => {
     const res = await call({ businessUid: 'biz-x', trade: 'plumbing', text: good });
@@ -215,6 +238,22 @@ describe('file uploads', () => {
     expect(res.status).toBe(415);
     expect(res.body.error.code).toBe('unsupported_file_type');
     expect(res.body.error.message).toMatch(/JPEG/);
+  });
+
+  it('names a file it could not read instead of quietly ignoring it', async () => {
+    const res = await attach('rate-card.png', {
+      text: [
+        'Treated pine 1.8m - $85 per metre',
+        'Colorbond 1.8m - $110 per metre',
+        'Aluminium slat 1.2m - $165 per metre',
+        'All prices include GST. Minimum charge is $850.',
+      ].join('\n'),
+    });
+
+    expect(res.body.data.approved).toBe(true);
+    // the picture was read as nothing - saying nothing about it would let them believe it was used
+    expect(res.body.data.business.notUsed.join(' ')).toContain('rate-card.png');
+    expect(res.body.data.business.source.documents[1].unreadable).toBe(true);
   });
 
   it('says so plainly when a file carries nothing readable', async () => {

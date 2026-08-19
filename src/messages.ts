@@ -47,6 +47,11 @@ export const MESSAGES = {
     nextStep:
       'Write your rates out with the number and the unit together - for example "Colorbond 1.8m - $110 per metre" - and send them through again. If you would rather talk it through, use the contact button below.',
   },
+  notAPriceList: {
+    opening: 'We could not find any pricing in what you sent, so there is nothing for us to check yet.',
+    nextStep:
+      'Send the fence types you install, the heights you do them at, and what you charge per metre - typed out or as a photo of your price list. If you are not sure what we need, use the contact button below and one of our team will walk you through it.',
+  },
   rejected: {
     opening: 'We have been through the details you sent. A few things need updating before your profile can go live.',
     nextStep:

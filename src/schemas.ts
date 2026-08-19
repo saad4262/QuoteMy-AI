@@ -32,7 +32,13 @@ export const transcriptSchema = z.object({
  * opening and a sign-off that change with the model's mood are drift, not personality.
  */
 export const reviewSchema = z.object({
-  approved: z.boolean(),
+  /**
+   * Three outcomes, not two. "not_a_price_list" is a submission with no pricing content at all -
+   * gibberish, a greeting, an enquiry, the wrong trade. It needs different words from a real price
+   * list that is nearly there: telling someone "a few things need updating" when they sent nothing
+   * usable reads as though we did not look.
+   */
+  outcome: z.enum(['approved', 'needs_updates', 'not_a_price_list']),
   fixes: z
     .object({
       // "missing" = they never said it. "unclear" = they said it, but not in a form we can quote

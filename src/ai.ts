@@ -91,6 +91,12 @@ function buildInput(call: ModelCall<unknown>): OpenAI.Responses.ResponseInput | 
 class OpenAiClient implements AiClient {
   readonly model: string;
   private readonly sdk: OpenAI;
+  /**
+   * Sampling off, so the same submission gives the same answer twice. Some models refuse the
+   * parameter outright; the first 400 that says so flips this and we stop sending it, rather than
+   * failing a real request over a knob.
+   */
+  private sendTemperature = true;
 
   constructor(apiKey: string, model: string) {
     this.model = model;
@@ -138,7 +144,10 @@ class OpenAiClient implements AiClient {
     throw new AppError(502, 'The model returned output we could not use', 'schema_violation');
   }
 
-  private async request(call: ModelCall<unknown>, feedback: string) {
+  private async request(
+    call: ModelCall<unknown>,
+    feedback: string,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), call.timeoutMs ?? env.MODEL_TIMEOUT_MS);
 
@@ -149,6 +158,7 @@ class OpenAiClient implements AiClient {
           instructions: call.system + feedback,
           input: buildInput(call),
           max_output_tokens: call.maxOutputTokens,
+          ...(this.sendTemperature ? { temperature: 0 } : {}),
           text: {
             format: {
               type: 'json_schema',
@@ -167,6 +177,12 @@ class OpenAiClient implements AiClient {
         tokensOut: response.usage?.output_tokens ?? 0,
       };
     } catch (err) {
+      if (this.sendTemperature && isUnsupportedTemperature(err)) {
+        logger.warn({ model: this.model }, 'model does not accept temperature; continuing without it');
+        this.sendTemperature = false;
+        clearTimeout(timer);
+        return this.request(call, feedback);
+      }
       throw toUpstreamError(err);
     } finally {
       clearTimeout(timer);
@@ -186,6 +202,11 @@ class OpenAiClient implements AiClient {
       : { ok: false as const, error: JSON.stringify(z.treeifyError(result.error)) };
   }
 }
+
+const isUnsupportedTemperature = (err: unknown): boolean => {
+  const e = err as { status?: number; message?: string; param?: string };
+  return e?.status === 400 && /temperature/i.test(`${e.message ?? ''} ${e.param ?? ''}`);
+};
 
 function toUpstreamError(err: unknown): AppError {
   if (err instanceof AppError) return err;
@@ -358,7 +379,25 @@ export class MockAiClient implements AiClient {
       });
     }
 
-    return { approved: fixes.length === 0, fixes: fixes.slice(0, 5) };
+    // Rough stand-in for the real judgement: nothing that looks like a rate anywhere means there
+    // was nothing to assess.
+    const looksLikeAPriceList = rates.length > 0 || /\$\s*\d/.test(text);
+    if (!looksLikeAPriceList) {
+      return {
+        outcome: 'not_a_price_list',
+        fixes: [
+          {
+            kind: 'missing',
+            what: 'Send your fencing details with the fence types, heights and per-metre prices you charge.',
+            example: 'Timber 1.8m - $110/m (your figure)',
+          },
+        ],
+      };
+    }
+    return {
+      outcome: fixes.length === 0 ? 'approved' : 'needs_updates',
+      fixes: fixes.slice(0, 5),
+    };
   }
 
   private extraction(text: string, rates: MockRate[]) {

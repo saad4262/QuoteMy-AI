@@ -190,7 +190,7 @@ raw slug.
     },
     "admin": {
       "submissionId": "41c9e82d…",
-      "decision": "rejected",
+      "decision": "needs_updates",   // or "not_a_price_list"
       "fixCounts": { "missing": 2, "unclear": 1 },
       "textChars": 3290
     }
@@ -259,7 +259,7 @@ you can only run end to end.
 |---|---|---|
 | `bad_request` | 400 | body failed validation, or confirming unverified pricing. `error.details` names the field |
 | `not_found` | 404 | no profile for this business yet, or an action that is switched off |
-| `unprocessable` | 422 | nothing readable arrived — empty, under 40 characters, no digit, or a file we could not read anything out of |
+| `unprocessable` | 422 | nothing readable arrived — empty, under 40 characters, no digit, an unbroken 100+ character blob, or a file we could not read anything out of |
 | `unsupported_file_type` | 415 | the bytes are not a format we read. HEIC gets its own message |
 | `payload_too_large` | 413 | a file over 20 MB, more than 40 MB in total, more than 6 files, or a transcript over 60,000 characters |
 | `rate_limited` | 429 | more than 40 submissions in an hour from one address |

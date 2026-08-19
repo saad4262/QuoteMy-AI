@@ -216,12 +216,13 @@ to a tradesperson.** `meta` is telemetry — useful on an admin page, never on t
         { "kind": "unclear", "what": "Give one set price per metre for each fence type and height you do…",
           "example": "Colorbond 1.8m - $110/m (your figure)" }
       ],
+      "notUsed": ["We could not read anything from rate-card.png. …"],   // usually empty
       "source": { "documents": [ /* same shape as above */ ] },
       "nextStep": "Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you."
     },
     "admin": {
       "submissionId": "41c9e82d-…",
-      "decision": "rejected",
+      "decision": "needs_updates",     // "approved" | "needs_updates" | "not_a_price_list"
       "fixCounts": { "missing": 2, "unclear": 1 },
       "sourceText": "…", "textChars": 3290
     }
@@ -314,6 +315,36 @@ We read: pricelist.pdf (4,210 characters) · your typed notes
 means a model read them off a document, so they are worth a glance. `unreadable: true` means we got
 nothing from that file; say so plainly and suggest a clearer photo.
 
+### Three outcomes, not two
+
+`admin.decision` tells you which situation you are in, and `business.opening` / `nextStep` already
+carry the right words for it. You do not need to write copy per case — but the panel should look
+different for the third one:
+
+| `admin.decision` | What happened | Panel |
+|---|---|---|
+| `approved` | it passed | the approved screen |
+| `needs_updates` | a real attempt, but something is missing or unclear | the fix list |
+| `not_a_price_list` | gibberish, a greeting, a question, the wrong trade | **one** fix, no numbered list — this is closer to an empty state than a rejection |
+
+On `not_a_price_list` the opening reads *"We could not find any pricing in what you sent, so there is
+nothing for us to check yet."* Rendering that under a heading like "What needs updating" with a
+numbered list of one reads as though the system misunderstood them. Show the single fix as a plain
+sentence.
+
+### `notUsed` on both paths
+
+`business.notUsed` is present on approved **and** rejected responses. It names anything we could not
+use — including **a file we read nothing from**:
+
+```
+We could not read anything from rate-card.png. If it has pricing in it, send a clearer photo or
+type those figures in.
+```
+
+**Always render it when it is non-empty.** A business who attached a photo and is told nothing about
+it will assume it was used.
+
 ### ⚠️ `approved: true` with `status: "unverified"`
 
 This means the review passed but **no figure survived checking** — every number failed to match the
@@ -388,7 +419,7 @@ const outcome =
 
 | `code` | HTTP | What it means | What the UI should do |
 |---|---|---|---|
-| `unprocessable` | 422 | Nothing readable arrived — empty, under 40 chars, no digit anywhere, or a file we got nothing out of | Show `message` under the text box |
+| `unprocessable` | 422 | Nothing readable arrived — empty, under 40 chars, no digit anywhere, an unbroken 100+ character blob, or a file we got nothing out of | Show `message` under the text box |
 | `unsupported_file_type` | 415 | Not a format we read. HEIC has its own message | Show `message` on the file row |
 | `payload_too_large` | 413 | File over 20 MB, request over 40 MB, more than 6 files, or a transcript over 60,000 chars | Show `message`; prevent this client-side |
 | `bad_request` | 400 | Body failed validation, or confirming unverified pricing. `error.details` names the field | Generic message; a real one means a frontend bug |
@@ -500,10 +531,11 @@ export type SubmitResult =
       business: {
         opening: string;
         fixes: Fix[];
+        notUsed: string[];
         source: { documents: SourceDocument[] };
         nextStep: string;
       };
-      admin: { submissionId: string; decision: 'rejected';
+      admin: { submissionId: string; decision: 'needs_updates' | 'not_a_price_list';
                fixCounts: { missing: number; unclear: number };
                sourceText: string; textChars: number };
     };
@@ -535,6 +567,7 @@ export interface ConfirmResult {
    adds has had no such check.
 6. **Confirm is the only thing that makes prices live.** Do not imply a submission is live before it.
 7. **Send `businessUid` on every call.** Two businesses are kept entirely separate by it.
+8. **Always show `notUsed` when it is non-empty** — it is where an unreadable attachment is named.
 
 ## 12. Running the backend locally
 
