@@ -12,9 +12,19 @@ export const businessBody = z.object({
   action: z.enum(['submit', 'confirm', 'profile', 'review', 'extract']).default('submit'),
   businessUid: z.string().trim().min(1).default('test-business'),
   trade: z.enum(TRADES).default('fencing'),
+  // Optional because attached files are a submission on their own. Whether anything usable
+  // arrived is decided in pipeline.ts, once text and files have been read into one transcript.
   text: z.string().default(''),
 });
 export type BusinessBody = z.infer<typeof businessBody>;
+
+/**
+ * Stage 0's output. One job, kept as narrow as possible: copy out what the document says.
+ * `unreadable` is how the model says so instead of inventing something plausible.
+ */
+export const transcriptSchema = z.object({
+  documents: z.object({ label: z.string(), text: z.string(), unreadable: z.boolean() }).array(),
+});
 
 /**
  * Stage 1's output. The model decides one thing - does this pass - and writes the list of jobs if

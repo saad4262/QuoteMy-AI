@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { MulterError } from 'multer';
 import { randomUUID } from 'node:crypto';
 import { z, type ZodType } from 'zod';
 import { isProd, logger } from './config.js';
@@ -72,7 +73,20 @@ export const submitLimiter = rateLimit({
   message: { ok: false, error: { code: 'rate_limited', message: 'Too many submissions, try later' } },
 });
 
-export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
+/** multer rejects oversized or too-many uploads before we see them; say so in our own words. */
+function fromMulter(err: unknown): AppError | null {
+  if (!(err instanceof MulterError)) return null;
+  const message =
+    err.code === 'LIMIT_FILE_SIZE'
+      ? 'That file is too large - keep each one under 20 MB'
+      : err.code === 'LIMIT_FILE_COUNT'
+        ? 'Send up to 6 files at a time'
+        : 'We could not read that upload - try attaching it again';
+  return new AppError(413, message, 'payload_too_large');
+}
+
+export function errorHandler(rawErr: unknown, req: Request, res: Response, _next: NextFunction): void {
+  const err = fromMulter(rawErr) ?? rawErr;
   const known = err instanceof AppError;
   const status = known ? err.status : 500;
 

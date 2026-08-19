@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "QuoteMy AI \u2014 business side",
-    "description": "Two routes only:\n  GET  {{baseUrl}}/health     \u2014 is it up, which model is live\n  POST {{baseUrl}}/business   \u2014 everything else, picked by the `action` field\n\nNo auth and no API key needed: AI_PROVIDER=mock is a deterministic offline reader.\nStorage is in-memory, so it clears when the server restarts.",
+    "description": "Two routes only:\n  GET  {{baseUrl}}/health     - is it up, which model is live\n  POST {{baseUrl}}/business   - everything else, picked by the `action` field\n\nSend it as JSON, or as multipart/form-data with the same fields plus one or more `files`.\n\nNo auth and no API key needed: AI_PROVIDER=mock is a deterministic offline reader. It cannot read real PDFs or photos - for that, set AI_PROVIDER=openai and an OPENAI_API_KEY.\nStorage is in-memory, so it clears when the server restarts.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -95,6 +95,50 @@
               }
             },
             "description": "Expect 200 with data.approved = false. data.report has 'Why this matters', 'What is missing' and 'Needs to be clearer'. Rejection is NOT an HTTP error."
+          }
+        },
+        {
+          "name": "Price list as a file (form-data)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/business",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "business"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "businessUid",
+                  "value": "{{businessUid}}",
+                  "type": "text"
+                },
+                {
+                  "key": "trade",
+                  "value": "fencing",
+                  "type": "text"
+                },
+                {
+                  "key": "text",
+                  "value": "",
+                  "type": "text",
+                  "description": "optional - anything they want to add in their own words"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": [],
+                  "description": "pick a PDF or a photo of a price list. Repeat this row for more files (max 6)."
+                }
+              ]
+            },
+            "description": "The same route takes multipart/form-data. Set the `files` row's type to File and choose a document.\n\nAccepted: PDF, PNG/JPEG/WEBP/GIF, .docx, .xlsx, plain text. Not HEIC - that gets a 415 asking for a JPEG.\n\nLook at data.business.source.documents: readBy \"text\" means the numbers came straight from the bytes, readBy \"model\" means one was read off a document. admin.sourceText is the full transcript everything was checked against.\n\nSend the same file twice and the second response has no `transcribe` in meta.stages - it is cached by the file's sha256."
           }
         }
       ]

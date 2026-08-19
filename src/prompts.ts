@@ -18,6 +18,7 @@ const read = (...p: string[]) => readFileSync(join(here, 'prompts', ...p), 'utf8
  */
 const reviewSystem = read('review.system.md');
 const extractionSystem = read('extraction.system.md');
+const transcribeSystem = read('transcribe.system.md');
 const generalSop = read('sop', '_general.md');
 
 const tradeRules: Record<Trade, string> = {
@@ -28,7 +29,12 @@ const tradeRules: Record<Trade, string> = {
 export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6);
 
 /** Exceeding these is a boot failure, not a surprise on next month's bill (docs/FLOW.md §13). */
-export const PROMPT_TOKEN_BUDGET = { review: 6000, extraction: 4000 } as const;
+export const PROMPT_TOKEN_BUDGET = { review: 6000, extraction: 4000, transcribe: 1500 } as const;
+
+/** Stage 0. Trade-independent: copying a document out is the same job whatever trade it is for. */
+export function transcribePrompt(): string {
+  return transcribeSystem;
+}
 
 export function reviewPrompt(trade: Trade): string {
   return [reviewSystem, '=== GENERAL PUBLISH RULES ===', generalSop, `=== ${trade.toUpperCase()} RULES ===`, tradeRules[trade]].join(
@@ -60,6 +66,7 @@ export function assertPromptBudgets(): void {
   const checks: [string, number, number][] = [
     ['review', estimateTokens(reviewPrompt('fencing')), PROMPT_TOKEN_BUDGET.review],
     ['extraction', estimateTokens(extractionPrompt('fencing')), PROMPT_TOKEN_BUDGET.extraction],
+    ['transcribe', estimateTokens(transcribePrompt()), PROMPT_TOKEN_BUDGET.transcribe],
   ];
   for (const [name, used, budget] of checks) {
     if (used > budget) {
@@ -71,4 +78,5 @@ export function assertPromptBudgets(): void {
 export const promptSizes = () => ({
   review: estimateTokens(reviewPrompt('fencing')),
   extraction: estimateTokens(extractionPrompt('fencing')),
+  transcribe: estimateTokens(transcribePrompt()),
 });

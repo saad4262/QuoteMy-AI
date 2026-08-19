@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { getAiClient, type AiClient, type StageUsage } from './ai.js';
 import { env } from './config.js';
 import { AppError, unprocessable } from './http.js';
+import { assertSomethingArrived, readSource, stripProvenance, type UploadedFile } from './ingest.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
 import { LABELS, MESSAGES } from './messages.js';
@@ -48,19 +49,27 @@ export function assertSubmittable(text: string): void {
  * The pipeline. Every step's successor is known before it runs, so this is a pipeline and not an
  * agent - there is no tool for the model to skip and no branch for it to choose.
  *
- *   sanitise -> mechanical gate -> review -> [reject]  or  extract -> verify -> store -> report
+ *   ingest -> sanitise -> mechanical gate -> review -> [reject]  or  extract -> verify -> store
  */
 export async function runOnboarding(
   uid: string,
   input: BusinessBody,
+  files: UploadedFile[] = [],
   deps: { ai?: AiClient; repo?: BusinessRepository } = {},
 ) {
   const ai = deps.ai ?? getAiClient();
   const repo = deps.repo ?? getRepository();
   const stages: StageUsage[] = [];
 
-  const text = sanitizeText(input.text);
-  assertSubmittable(text);
+  // --- stage 0: ingest --------------------------------------------------------------------
+  // Typed text and attached files become one transcript. From here on there is a single code
+  // path, and quote verification is unchanged: this transcript IS "what the business wrote".
+  const source = await readSource(input.text, files, { ai });
+  if (source.usage) stages.push(source.usage);
+  assertSomethingArrived(source);
+
+  const text = sanitizeText(source.text);
+  assertSubmittable(stripProvenance(text));
 
   const submissionId = randomUUID();
   const spend = () => Number(stages.reduce((sum, s) => sum + s.costUsd, 0).toFixed(6));
@@ -117,6 +126,7 @@ export async function runOnboarding(
         business: {
           opening: MESSAGES.rejected.opening,
           fixes,
+          source: { documents: source.documents },
           nextStep: MESSAGES.rejected.nextStep,
         },
         admin: {
@@ -126,6 +136,7 @@ export async function runOnboarding(
             missing: fixes.filter((f) => f.kind === 'missing').length,
             unclear: fixes.filter((f) => f.kind === 'unclear').length,
           },
+          sourceText: text,
           textChars: text.length,
         },
       },
@@ -145,7 +156,9 @@ export async function runOnboarding(
   guardCost();
 
   // --- stage 3: verify (no model involved) -------------------------------------------------
-  const verified = verifyExtraction(extraction.data, text, input.trade);
+  // Matched against the transcript with the [filename] headers removed, so a header can never
+  // stand in for a source quote.
+  const verified = verifyExtraction(extraction.data, stripProvenance(text), input.trade);
 
   // --- stage 4: store ----------------------------------------------------------------------
   const at = now();
@@ -194,12 +207,18 @@ export async function runOnboarding(
         // Slug -> human label, so the screen shows "Treated pine" and never keeps its own copy
         // of a list that would drift from vocab.ts.
         labels: LABELS,
+        // What we read, and how. `readBy: "model"` means a figure was read off a document rather
+        // than taken from the bytes - worth the business glancing at.
+        source: { documents: source.documents },
         nextStep: message.nextStep,
       },
       admin: {
         submissionId,
         decision: 'approved',
         coverage: verified.coverage,
+        // The transcript everything was checked against - the artifact to look at when a figure
+        // comes out wrong.
+        sourceText: text,
         textChars: text.length,
       },
     },

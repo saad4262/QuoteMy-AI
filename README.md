@@ -16,7 +16,7 @@ stores it, and the business confirms it to go live.
 | Storage | in-memory. Firestore is a second class in `store.ts` — nothing else changes |
 | Auth | none yet — `businessUid` comes from the body. Firebase token verification replaces it later |
 | Model | `AI_PROVIDER=mock` (offline, deterministic, free) or `openai` with `gpt-5.6-terra` |
-| File uploads | not yet — text only. PDFs/images are the next step ([docs/FLOW.md](docs/FLOW.md) §3) |
+| File uploads | ✅ PDF, images, Word, spreadsheets, plain text — read into one transcript before anything else runs |
 
 ## Running
 
@@ -85,7 +85,8 @@ src/
   server.ts      express app + middleware + start
   routes.ts      the URL table - two routes
   controller.ts  one handler, switching on the `action` field. No business logic
-  pipeline.ts    the actual flow: sanitise -> review -> extract -> verify -> store -> report
+  ingest.ts      uploads -> one transcript: magic-byte typing, limits, transcription, caching
+  pipeline.ts    the actual flow: ingest -> sanitise -> review -> extract -> verify -> store
   verify.ts      quote matching, vocabulary re-check, plausibility bounds (no model involved)
   messages.ts    the fixed opening and next-step lines, and the slug -> label map
   store.ts       where data lives (in-memory today, Firestore later - same interface)

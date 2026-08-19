@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { getAiClient } from './ai.js';
 import { env } from './config.js';
 import { badRequest, notFound, send } from './http.js';
+import { assertSomethingArrived, readSource, type UploadedFile } from './ingest.js';
 import { assertSubmittable, runOnboarding, sanitizeText } from './pipeline.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
@@ -29,11 +30,14 @@ export async function business(req: Request, res: Response) {
   }
 }
 
-/** The main one: review -> extract -> verify -> store. */
+/** The main one: ingest -> review -> extract -> verify -> store. */
 async function submit(req: Request, res: Response, body: BusinessBody) {
-  const result = await runOnboarding(body.businessUid, body);
+  const result = await runOnboarding(body.businessUid, body, filesOf(req));
   send(req, res, result.data, result.meta);
 }
+
+/** multer puts uploads here; an empty list when the request was plain JSON. */
+const filesOf = (req: Request): UploadedFile[] => (Array.isArray(req.files) ? req.files : []);
 
 /** What is stored right now, plus every attempt this business has made. */
 async function profile(req: Request, res: Response, body: BusinessBody) {
@@ -69,11 +73,17 @@ async function confirm(req: Request, res: Response, body: BusinessBody) {
 
 /** One stage at a time, for tuning a prompt. Nothing is stored. ENABLE_DEV_ROUTES only. */
 async function devStage(req: Request, res: Response, body: BusinessBody) {
-  const text = sanitizeText(body.text);
+  // Files are read here too, so a prompt can be tuned against the real transcript of a real PDF
+  // rather than against something retyped by hand.
+  const source = await readSource(body.text, filesOf(req));
+  assertSomethingArrived(source);
+
+  const text = sanitizeText(source.text);
   assertSubmittable(text);
 
   const ai = getAiClient();
   const { trade } = body;
+  const stages = source.usage ? [source.usage] : [];
 
   if (body.action === 'review') {
     const result = await ai.callStructured({
@@ -83,7 +93,12 @@ async function devStage(req: Request, res: Response, body: BusinessBody) {
       user: wrapDescription(trade, text),
       maxOutputTokens: 4000,
     });
-    return send(req, res, { review: result.data }, { trade, model: ai.model, stages: [result.usage] });
+    return send(
+      req,
+      res,
+      { review: result.data, source },
+      { trade, model: ai.model, stages: [...stages, result.usage] },
+    );
   }
 
   const result = await ai.callStructured({
@@ -93,9 +108,9 @@ async function devStage(req: Request, res: Response, body: BusinessBody) {
     user: wrapDescription(trade, text),
     maxOutputTokens: 8000,
   });
-  send(req, res, { raw: result.data, verified: verifyExtraction(result.data, text, trade) }, {
+  send(req, res, { raw: result.data, verified: verifyExtraction(result.data, text, trade), source }, {
     trade,
     model: ai.model,
-    stages: [result.usage],
+    stages: [...stages, result.usage],
   });
 }

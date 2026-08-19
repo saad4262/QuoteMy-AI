@@ -3,6 +3,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../src/server.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
+import { clearTranscriptCache } from '../../src/ingest.js';
 
 const app = createApp();
 const good = readFileSync('tests/fixtures/description-GOOD-southeast-fencing.txt', 'utf8');
@@ -57,7 +58,7 @@ describe('action: submit', () => {
     call({ businessUid: 'biz-bad', text: bad }).then((res) => {
       const { business, admin } = res.body.data;
 
-      expect(Object.keys(business).sort()).toEqual(['fixes', 'nextStep', 'opening']);
+      expect(Object.keys(business).sort()).toEqual(['fixes', 'nextStep', 'opening', 'source']);
       expect(business.opening).toBeTruthy();
       expect(business.nextStep).toContain('contact button below');
 
@@ -152,6 +153,83 @@ describe('status lifecycle', () => {
 
   it('will not confirm a business that has submitted nothing', async () => {
     expect((await call({ action: 'confirm', businessUid: 'nobody' })).status).toBe(404);
+  });
+});
+
+describe('file uploads', () => {
+  beforeEach(clearTranscriptCache);
+
+  const attach = (name: string, field: Record<string, string> = {}) => {
+    const req = request(app).post('/api/v1/business');
+    for (const [key, value] of Object.entries({ businessUid: 'biz-files', trade: 'fencing', ...field })) {
+      req.field(key, value);
+    }
+    return req.attach('files', `tests/fixtures/${name}`);
+  };
+
+  it('accepts a text file on its own and reads it without a model call', async () => {
+    const res = await attach('rates.txt');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.approved).toBe(true);
+    expect(res.body.data.business.source.documents).toEqual([
+      { label: 'rates.txt', kind: 'text', readBy: 'text', chars: expect.any(Number), unreadable: false },
+    ]);
+    // read from the bytes, so nothing was spent on an ingest stage
+    expect(res.body.meta.stages.map((s: { name: string }) => s.name)).not.toContain('transcribe');
+  });
+
+  it('takes a PDF through the transcription stage and says a model read it', async () => {
+    const res = await attach('rate-card.pdf');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.business.source.documents[0]).toMatchObject({
+      label: 'rate-card.pdf',
+      kind: 'pdf',
+      readBy: 'model',
+    });
+    expect(res.body.meta.stages[0].name).toBe('transcribe');
+  });
+
+  it('accepts typed text and a file in the same submission', async () => {
+    const res = await attach('rates.txt', { text: 'We also do custom gates, priced on the day.' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.business.source.documents.map((d: { label: string }) => d.label)).toEqual([
+      'typed',
+      'rates.txt',
+    ]);
+  });
+
+  it('gives the admin view the transcript everything was checked against', async () => {
+    const res = await attach('rates.txt');
+    expect(res.body.data.admin.sourceText).toContain('$85 per metre');
+  });
+
+  it('turns a HEIC away with a readable message, not a 500', async () => {
+    const res = await request(app)
+      .post('/api/v1/business')
+      .field('businessUid', 'biz-heic')
+      .attach('files', Buffer.concat([Buffer.alloc(4), Buffer.from('ftypheic'), Buffer.alloc(32)]), 'IMG_1.HEIC');
+
+    expect(res.status).toBe(415);
+    expect(res.body.error.code).toBe('unsupported_file_type');
+    expect(res.body.error.message).toMatch(/JPEG/);
+  });
+
+  it('says so plainly when a file carries nothing readable', async () => {
+    const res = await attach('rate-card.png'); // the mock cannot read pictures, and says so
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('unprocessable');
+  });
+
+  it('still accepts a plain JSON submission with no files at all', async () => {
+    const res = await call({ businessUid: 'biz-json', text: good });
+    expect(res.body.data.approved).toBe(true);
+    expect(res.body.data.business.source.documents).toEqual([
+      { label: 'typed', kind: 'text', readBy: 'text', chars: expect.any(Number), unreadable: false },
+    ]);
   });
 });
 

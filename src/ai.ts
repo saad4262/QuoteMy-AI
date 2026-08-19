@@ -5,12 +5,21 @@ import { AppError } from './http.js';
 import { toStrictJsonSchema } from './schemas.js';
 import type { Material } from './vocab.js';
 
+/** A file on its way to the model. Held in memory only — nothing is ever written to disk. */
+export interface ModelFile {
+  name: string;
+  mime: string;
+  data: Buffer;
+  isImage: boolean;
+}
+
 export interface ModelCall<T> {
   /** Schema name sent to OpenAI, and the label this call appears under in `meta.stages`. */
   name: string;
   schema: z.ZodType<T>;
   system: string;
   user: string;
+  files?: ModelFile[];
   maxOutputTokens: number;
   timeoutMs?: number;
 }
@@ -50,6 +59,29 @@ export function costUsd(model: string, tokensIn: number, tokensOut: number): num
   const p = MODEL_PRICES[model];
   if (!p) return 0;
   return Number(((tokensIn * p.in) / 1e6 + (tokensOut * p.out) / 1e6).toFixed(6));
+}
+
+/**
+ * Without files this is just the prompt text. With files it becomes the Responses API's content
+ * parts: PDFs, Word and spreadsheets as `input_file` (OpenAI pulls out the text layer AND the page
+ * images), pictures as `input_image`. Both go as base64 data URLs, so nothing is uploaded first
+ * and nothing outlives the request.
+ */
+function buildInput(call: ModelCall<unknown>): OpenAI.Responses.ResponseInput | string {
+  if (!call.files?.length) return call.user;
+
+  const parts: OpenAI.Responses.ResponseInputContent[] = [{ type: 'input_text', text: call.user }];
+
+  for (const file of call.files) {
+    const dataUrl = `data:${file.mime};base64,${file.data.toString('base64')}`;
+    parts.push(
+      file.isImage
+        ? { type: 'input_image', image_url: dataUrl, detail: 'auto' }
+        : { type: 'input_file', filename: file.name, file_data: dataUrl },
+    );
+  }
+
+  return [{ role: 'user', content: parts }];
 }
 
 /**
@@ -115,7 +147,7 @@ class OpenAiClient implements AiClient {
         {
           model: this.model,
           instructions: call.system + feedback,
-          input: call.user,
+          input: buildInput(call),
           max_output_tokens: call.maxOutputTokens,
           text: {
             format: {
@@ -262,7 +294,11 @@ export class MockAiClient implements AiClient {
   async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
     const text = call.user;
     const rates = readRates(text);
-    const data = call.name === 'review' ? this.review(text, rates) : this.extraction(text, rates);
+
+    let data: unknown;
+    if (call.name === 'transcribe') data = this.transcribe(call.files ?? []);
+    else if (call.name === 'review') data = this.review(text, rates);
+    else data = this.extraction(text, rates);
 
     const usage = {
       name: call.name,
@@ -273,6 +309,24 @@ export class MockAiClient implements AiClient {
       costUsd: 0,
     };
     return { data: call.schema.parse(data), usage };
+  }
+
+  /**
+   * Offline stand-in for reading a document. It can only do the honest, trivial case: if the bytes
+   * happen to be readable text, hand them back. A real PDF or photo comes back as [unreadable],
+   * because pretending to have read one would put invented figures into the pipeline - the exact
+   * failure this whole system is built to prevent.
+   */
+  private transcribe(files: ModelFile[]) {
+    return {
+      documents: files.map((file) => {
+        const decoded = file.data.toString('utf8');
+        const isText = !file.data.includes(0) && Buffer.from(decoded, 'utf8').equals(file.data);
+        return isText
+          ? { label: file.name, text: decoded.trim(), unreadable: false }
+          : { label: file.name, text: '', unreadable: true };
+      }),
+    };
   }
 
   private review(text: string, rates: MockRate[]) {
