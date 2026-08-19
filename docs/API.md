@@ -64,21 +64,20 @@ digit. Those run **before** any model call, so junk costs nothing.
 
 This is the button on the frontend: trade, a text box, and Send for approval.
 
-#### The response has two blocks, for two audiences
+#### The response has two blocks
 
 ```jsonc
 "data": {
   "approved": false,
   "status": "unverified",
   "business": { … },   // what the tradesperson's screen shows
-  "admin":    { … }    // internal only - never reaches the business
+  "admin":    { … }    // the decision and how it was reached
 }
 ```
 
-**The written report is admin-only.** The business gets a one-line opening, their own fields, and
-one line saying what to do next — all as data their UI lays out. Nobody should have to read a
-twenty-line markdown table to learn that their submission passed; their figures are already on the
-screen in front of them.
+**There is no markdown anywhere.** Both screens render the same structured fields their own way -
+the business screen and the admin screen are different views of one answer, not one page of prose
+that has to serve both.
 
 `meta` sits outside both: request telemetry (which model, what it cost, how long each stage took).
 
@@ -101,15 +100,14 @@ screen in front of them.
       "capabilities": { "businessName": "…", "tags": [], "extras": [], "inclusions": [], "exclusions": [] },
       "ratesSaved": 20,
       "notUsed": ["…anything we could not keep, in plain English…"],
+      "labels": { "timber_pine": "Treated pine", "driveway_double": "Double driveway gate", "…": "…" },
       "nextStep": "Check the figures. If they are right, confirm them and your profile goes live …"
     },
     "admin": {
-      "submissionId": "1adb7d80…",
+      "submissionId": "cdba23c1…",
       "decision": "approved",
-      "report": "markdown — the full written page, for the internal view",
       "coverage": { "rates": 20, "removals": 0, "gates": 0, "siteConditions": 0, "extras": 0, "tags": 0, "unmapped": 1 },
-      "reportWordCount": 329,
-      "textChars": 3365
+      "textChars": 3300
     }
   },
   "meta": { "trade": "fencing", "model": "gpt-5.6-terra", "store": "memory", "schemaVersion": 1,
@@ -118,9 +116,13 @@ screen in front of them.
             "costUsd": 0.0581 } }
 ```
 
-The approved screen is three things: `opening`, the fields from `pricing` / `capabilities` rendered
-however you like, and `nextStep` next to the Confirm and Contact buttons. `notUsed` is worth showing
-too — it is the honest list of what did not make it in.
+The approved screen is: `opening`, their fields from `pricing` / `capabilities`, `notUsed`, and
+`nextStep` beside the Confirm and Contact buttons.
+
+**`labels` is the slug → human-label map** (`timber_pine` → `Treated pine`). It is sent with the
+answer so the frontend never keeps its own copy — a second copy drifts from `vocab.ts` the first
+time a value is added, and nothing anywhere reports the mismatch; the screen just starts showing a
+raw slug.
 
 #### Rejected
 
@@ -137,28 +139,25 @@ too — it is the honest list of what did not make it in.
       "nextStep": "Update your details and send them through again for approval. If something above does not look right, use the contact button below …"
     },
     "admin": {
-      "submissionId": "ae4e53c9…",
+      "submissionId": "41c9e82d…",
       "decision": "rejected",
-      "report": "markdown — the same content as one written page",
       "fixCounts": { "missing": 2, "unclear": 1 },
-      "reportWordCount": 139,
       "textChars": 3290
     }
   },
   "meta": { "…one stage only — extraction never ran…" } }
 ```
 
-Render it as: `opening`, then the fixes — group them by `kind` under two headings, "What we still
-need" for `missing` and "What needs to be clearer" for `unclear` — then `nextStep` beside the two
-buttons.
+Render it as: `opening`, then the fixes grouped by `kind` under two headings — "What we still need"
+for `missing`, "What needs to be clearer" for `unclear` — then `nextStep` beside the two buttons.
 
 **Why `kind` exists.** `missing` means they never said it, so they go and find the number. `unclear`
 means they said it but not in a form we can quote from, so they go and rewrite the line. Two
-different jobs; one heading over both is what makes a report feel vague.
+different jobs; one heading over both is what makes feedback feel vague.
 
-**Only the fixes are written by the model.** `opening` and `nextStep` are fixed text in
-`src/report.ts` — identical every time, because they describe what the buttons underneath actually
-do. A model-written sign-off would drift away from the buttons.
+**Only the fixes are written by the model.** Its whole output is `{ approved, fixes[] }`. `opening`
+and `nextStep` are fixed text in `src/messages.ts` — identical every time, because they name what
+the buttons underneath actually do.
 
 ---
 

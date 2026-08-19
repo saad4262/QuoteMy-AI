@@ -87,7 +87,7 @@ src/
   controller.ts  one handler, switching on the `action` field. No business logic
   pipeline.ts    the actual flow: sanitise -> review -> extract -> verify -> store -> report
   verify.ts      quote matching, vocabulary re-check, plausibility bounds (no model involved)
-  report.ts      builds the markdown, so the layout never varies between runs
+  messages.ts    the fixed opening and next-step lines, and the slug -> label map
   store.ts       where data lives (in-memory today, Firestore later - same interface)
   ai.ts          the ONLY file that talks to OpenAI, plus the offline mock
   schemas.ts     zod schemas -> strict JSON Schema, validation and types from one definition
@@ -112,5 +112,5 @@ Those three tell you the whole story; everything else is a helper one of them ca
 2. **Quote verification** — every number must carry the exact sentence it came from, and that sentence must really appear in the business's text. No match → the number is dropped and the business is told.
 3. **Plausibility bounds** — testing caught an `$8500/m` rate whose source sentence genuinely existed.
 4. **Vocabulary re-check in code** — belt and braces, because vocabulary drift is the one failure here that is silent and permanent.
-5. **The report is assembled by code** — the model supplies the words, never the layout.
+5. **The model writes only `{ approved, fixes[] }`** — every other sentence the business reads is fixed text in `messages.ts`, so nothing drifts with the model's mood.
 6. **Every response is built by one function** (`send` in `http.ts`) — the shape cannot vary because there is only one place that makes it.

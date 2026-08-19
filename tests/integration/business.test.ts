@@ -23,9 +23,10 @@ describe('action: submit', () => {
     expect(res.body.data.status).toBe('verified');
     expect(res.body.data.business.ratesSaved).toBeGreaterThan(0);
     expect(res.body.data.business.pricing.rates.timber_pine).toBeTruthy();
-    // the long written report is for admin only - the business gets its own fields
+    // no markdown anywhere - both screens render the same structured fields their own way
     expect(res.body.data.business.report).toBeUndefined();
-    expect(res.body.data.admin.report).toContain('## Your rates');
+    expect(res.body.data.admin.report).toBeUndefined();
+    expect(res.body.data.business.labels.timber_pine).toBe('Treated pine');
     expect(res.body.data.admin.coverage.rates).toBe(res.body.data.business.ratesSaved);
 
     const profile = await call({ action: 'profile', businessUid: 'biz-good' });
@@ -52,23 +53,20 @@ describe('action: submit', () => {
     expect(profile.status).toBe(404);
   });
 
-  it('writes a rejection report a person can act on: reasons grouped under headings', async () => {
-    const res = await call({ businessUid: 'biz-bad', text: bad });
-    const report: string = res.body.data.admin.report;
+  it('hands the business three things: an opening, the jobs to do, and what happens next', () => 
+    call({ businessUid: 'biz-bad', text: bad }).then((res) => {
+      const { business, admin } = res.body.data;
 
-    expect(report).toMatch(/## What (we still need|needs to be clearer)/);
-    expect(report).toContain('## What to do next');
-    // the business gets the same fixed sentences as fields, to print beside its buttons
-    expect(res.body.data.business.opening).toBeTruthy();
-    expect(res.body.data.business.nextStep).toContain('contact button below');
-    expect(report).toContain(res.body.data.business.nextStep);
-    // numbered straight through both sections, so it reads as jobs to do
-    expect(report).toContain('1. ');
-    expect(report).toContain('2. ');
-    // Long enough to be actionable, short enough to read on a phone after work.
-    expect(res.body.data.admin.reportWordCount).toBeGreaterThan(40);
-    expect(res.body.data.admin.reportWordCount).toBeLessThan(250);
-  });
+      expect(Object.keys(business).sort()).toEqual(['fixes', 'nextStep', 'opening']);
+      expect(business.opening).toBeTruthy();
+      expect(business.nextStep).toContain('contact button below');
+
+      // every fix is a job, split into the two kinds so the screen can head them separately
+      expect(business.fixes.length).toBeGreaterThanOrEqual(2);
+      for (const fix of business.fixes) expect(['missing', 'unclear']).toContain(fix.kind);
+
+      expect(admin.fixCounts.missing + admin.fixCounts.unclear).toBe(business.fixes.length);
+    }));
 
   it('returns the identical shape for a ten-item and a two-item business', async () => {
     const small = [

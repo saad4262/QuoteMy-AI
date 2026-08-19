@@ -4,7 +4,7 @@ import { env } from './config.js';
 import { AppError, unprocessable } from './http.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
-import { buildApprovalReport, buildRejectionReport, MESSAGES } from './report.js';
+import { LABELS, MESSAGES } from './messages.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository } from './store.js';
 import { verifyExtraction } from './verify.js';
 
@@ -104,7 +104,7 @@ export async function runOnboarding(
       createdAt: now(),
     });
 
-    const built = buildRejectionReport(review.data.fixes);
+    const fixes = review.data.fixes;
 
     // Nothing is written to the profile on the reject path - an incomplete price list must not
     // overwrite figures the business already had approved.
@@ -116,15 +116,16 @@ export async function runOnboarding(
         // `admin` never reaches them - the full written report is an internal artifact.
         business: {
           opening: MESSAGES.rejected.opening,
-          fixes: review.data.fixes,
+          fixes,
           nextStep: MESSAGES.rejected.nextStep,
         },
         admin: {
           submissionId,
           decision: 'rejected',
-          report: built.report,
-          fixCounts: built.counts,
-          reportWordCount: built.reportWordCount,
+          fixCounts: {
+            missing: fixes.filter((f) => f.kind === 'missing').length,
+            unclear: fixes.filter((f) => f.kind === 'unclear').length,
+          },
           textChars: text.length,
         },
       },
@@ -174,8 +175,7 @@ export async function runOnboarding(
     createdAt: at,
   });
 
-  // --- stage 5: report ----------------------------------------------------------------------
-  const built = buildApprovalReport(verified);
+  // --- stage 5: answer ------------------------------------------------------------------------
   const message = verified.status === 'verified' ? MESSAGES.approved : MESSAGES.nothingUsable;
 
   return {
@@ -191,14 +191,15 @@ export async function runOnboarding(
         ratesSaved: verified.ratesKept,
         // Anything we could not keep, in plain English. They do need to know this.
         notUsed: verified.unmapped,
+        // Slug -> human label, so the screen shows "Treated pine" and never keeps its own copy
+        // of a list that would drift from vocab.ts.
+        labels: LABELS,
         nextStep: message.nextStep,
       },
       admin: {
         submissionId,
         decision: 'approved',
-        report: built.report,
         coverage: verified.coverage,
-        reportWordCount: built.reportWordCount,
         textChars: text.length,
       },
     },
