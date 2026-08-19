@@ -70,16 +70,17 @@ This is the button on the frontend: trade, a text box, and Send for approval.
 "data": {
   "approved": false,
   "status": "unverified",
-  "business": { … },   // render this to the tradesperson, as it is
+  "business": { … },   // what the tradesperson's screen shows
   "admin":    { … }    // internal only - never reaches the business
 }
 ```
 
-`meta` sits outside both: it is request telemetry (which model, what it cost, how long each stage
-took), not part of the answer.
+**The written report is admin-only.** The business gets a one-line opening, their own fields, and
+one line saying what to do next — all as data their UI lays out. Nobody should have to read a
+twenty-line markdown table to learn that their submission passed; their figures are already on the
+screen in front of them.
 
-Each piece of content appears **at most twice** — once as markdown to render, once structured for a
-frontend that would rather build its own layout. There is no third copy.
+`meta` sits outside both: request telemetry (which model, what it cost, how long each stage took).
 
 #### Approved
 
@@ -88,8 +89,7 @@ frontend that would rather build its own layout. There is no third copy.
     "approved": true,
     "status": "verified",              // "unverified" if nothing survived verification
     "business": {
-      "report": "markdown — the summary panel",
-      "nextStep": "Check the figures above. If they are right, confirm them …",
+      "opening": "Your details have been approved. Below is what we have saved from them.",
       "pricing": {
         "gstIncluded": true,
         "enabledMaterials": ["timber_pine", "colorbond"],
@@ -99,12 +99,14 @@ frontend that would rather build its own layout. There is no third copy.
         "minimumCharge": 850
       },
       "capabilities": { "businessName": "…", "tags": [], "extras": [], "inclusions": [], "exclusions": [] },
-      "ratesSaved": 20
+      "ratesSaved": 20,
+      "notUsed": ["…anything we could not keep, in plain English…"],
+      "nextStep": "Check the figures. If they are right, confirm them and your profile goes live …"
     },
     "admin": {
       "submissionId": "1adb7d80…",
       "decision": "approved",
-      "dropped": ["…every number we could not keep, and why…"],
+      "report": "markdown — the full written page, for the internal view",
       "coverage": { "rates": 20, "removals": 0, "gates": 0, "siteConditions": 0, "extras": 0, "tags": 0, "unmapped": 1 },
       "reportWordCount": 329,
       "textChars": 3365
@@ -116,30 +118,9 @@ frontend that would rather build its own layout. There is no third copy.
             "costUsd": 0.0581 } }
 ```
 
-`business.report` is the summary panel, already formatted:
-
-```markdown
-I have been through the details you sent and everything we need is there.
-
-## Your rates
-| Type | Height | Per metre |
-| --- | --- | --- |
-| Treated pine | 1.8m | $85 |
-…
-
-## Your details
-| Area covered | Berwick, within 30km |
-| Minimum charge | $850 |
-| GST | Included in the prices above |
-
-## What we could not use
-- …
-
-## What to do next
-Check the figures above. If they are right, confirm them and your profile goes live for customers.
-If something is wrong, update your details and send them through again. If you need a hand, use the
-contact button below.
-```
+The approved screen is three things: `opening`, the fields from `pricing` / `capabilities` rendered
+however you like, and `nextStep` next to the Confirm and Contact buttons. `notUsed` is worth showing
+too — it is the honest list of what did not make it in.
 
 #### Rejected
 
@@ -148,63 +129,36 @@ contact button below.
     "approved": false,
     "status": "unverified",
     "business": {
-      "report": "markdown — the same panel, different content",
+      "opening": "We have been through the details you sent. A few things need updating before your profile can go live.",
       "fixes": [ { "kind": "missing", "what": "Say whether your prices include GST.",
                    "example": "All prices include GST" },
                  { "kind": "unclear", "what": "Give one set price per metre for each type and height…",
                    "example": "Colorbond 1.8m - $110/m (your figure)" } ],
-      "nextStep": "Update your details and send them through again for approval. …"
+      "nextStep": "Update your details and send them through again for approval. If something above does not look right, use the contact button below …"
     },
     "admin": {
-      "submissionId": "1adb7d80…",
+      "submissionId": "ae4e53c9…",
       "decision": "rejected",
+      "report": "markdown — the same content as one written page",
       "fixCounts": { "missing": 2, "unclear": 1 },
-      "reportWordCount": 175,
+      "reportWordCount": 139,
       "textChars": 3290
     }
   },
   "meta": { "…one stage only — extraction never ran…" } }
 ```
 
-`business.report`, ready to render:
+Render it as: `opening`, then the fixes — group them by `kind` under two headings, "What we still
+need" for `missing` and "What needs to be clearer" for `unclear` — then `nextStep` beside the two
+buttons.
 
-```markdown
-I have been through the details you sent. Most of it is clear, but a few numbers are still needed
-before your profile can go live.
+**Why `kind` exists.** `missing` means they never said it, so they go and find the number. `unclear`
+means they said it but not in a form we can quote from, so they go and rewrite the line. Two
+different jobs; one heading over both is what makes a report feel vague.
 
-## Why this matters
-Customers get an instant quote from your rates, so anything left as a range or "POA" means your
-business will not appear in their results.
-
-## What we still need
-1. Say whether your prices include GST.
-   - e.g. `All prices include GST`
-2. Add the smallest job you will take on and what you charge for it.
-   - e.g. `Minimum charge $850`
-
-## What needs to be clearer
-3. Give one set price per metre for each fence type and height you do — most of what you sent is
-   written as a range or a "call us".
-   - e.g. `Colorbond 1.8m - $110/m (your figure)`
-
-## What to do next
-Update your details and send them through again for approval. If something above does not look
-right, use the contact button below and one of our team will go through it with you.
-```
-
-**Why it is shaped like this.** `missing` means they never said it, so they go and find the number.
-`unclear` means they said it but not in a form we can quote from, so they go and rewrite the line.
-Those are two different jobs, and putting them under one heading is what makes a report feel vague.
-The steps are numbered straight through both sections so it reads as a list of jobs, not two piles
-of complaints. Target length is 60–250 words.
-
-**`## What to do next` is written in code, not by the model** — identical words every time, because
-it describes what the two buttons under the report actually do. It is also returned on its own as
-`business.nextStep`, so you can print it beside the buttons instead of inside the markdown. Put a
-"send for approval" button and a "contact our team" button there and the text already matches them.
-
-To render, either drop `business.report` into a markdown component, or ignore it and build your own
-panel from `business.fixes` (filter by `kind`) plus `business.nextStep`.
+**Only the fixes are written by the model.** `opening` and `nextStep` are fixed text in
+`src/report.ts` — identical every time, because they describe what the buttons underneath actually
+do. A model-written sign-off would drift away from the buttons.
 
 ---
 

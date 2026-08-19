@@ -4,7 +4,7 @@ import { env } from './config.js';
 import { AppError, unprocessable } from './http.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
-import { buildApprovalReport, buildRejectionReport } from './report.js';
+import { buildApprovalReport, buildRejectionReport, MESSAGES } from './report.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository } from './store.js';
 import { verifyExtraction } from './verify.js';
 
@@ -104,7 +104,7 @@ export async function runOnboarding(
       createdAt: now(),
     });
 
-    const built = buildRejectionReport(review.data);
+    const built = buildRejectionReport(review.data.fixes);
 
     // Nothing is written to the profile on the reject path - an incomplete price list must not
     // overwrite figures the business already had approved.
@@ -112,16 +112,17 @@ export async function runOnboarding(
       data: {
         approved: false,
         status: 'unverified',
-        // Two audiences, two blocks. `business` is rendered to the tradesperson as it is;
-        // `admin` never reaches them - it is for the internal view that watches these decisions.
+        // Two audiences, two blocks. `business` is what the tradesperson's screen renders;
+        // `admin` never reaches them - the full written report is an internal artifact.
         business: {
-          report: built.report,
-          fixes: built.fixes,
-          nextStep: built.nextStep,
+          opening: MESSAGES.rejected.opening,
+          fixes: review.data.fixes,
+          nextStep: MESSAGES.rejected.nextStep,
         },
         admin: {
           submissionId,
           decision: 'rejected',
+          report: built.report,
           fixCounts: built.counts,
           reportWordCount: built.reportWordCount,
           textChars: text.length,
@@ -173,26 +174,29 @@ export async function runOnboarding(
     createdAt: at,
   });
 
-  // --- stage 5: report ---------------------------------------------------------------------
-  const built = buildApprovalReport(verified, review.data.opening);
+  // --- stage 5: report ----------------------------------------------------------------------
+  const built = buildApprovalReport(verified);
+  const message = verified.status === 'verified' ? MESSAGES.approved : MESSAGES.nothingUsable;
 
   return {
     data: {
       approved: true,
       status: verified.status,
       business: {
-        report: built.report,
-        nextStep: built.nextStep,
+        opening: message.opening,
+        // Their own fields, structured. The screen already shows these - it does not need a
+        // markdown table repeating them back.
         pricing: verified.pricing,
         capabilities: verified.capabilities,
         ratesSaved: verified.ratesKept,
+        // Anything we could not keep, in plain English. They do need to know this.
+        notUsed: verified.unmapped,
+        nextStep: message.nextStep,
       },
       admin: {
         submissionId,
         decision: 'approved',
-        // Every number we could not keep, and why - the list that tells an admin whether the
-        // extraction is behaving. The business sees the same thing worded plainly in the report.
-        dropped: verified.unmapped,
+        report: built.report,
         coverage: verified.coverage,
         reportWordCount: built.reportWordCount,
         textChars: text.length,

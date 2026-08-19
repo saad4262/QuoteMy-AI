@@ -304,17 +304,7 @@ export class MockAiClient implements AiClient {
       });
     }
 
-    const approved = fixes.length === 0;
-    return {
-      approved,
-      opening: approved
-        ? 'I have been through the details you sent and everything we need is there.'
-        : 'I have been through the details you sent. Most of it is clear, but a few numbers are still needed before your profile can go live.',
-      whyUpdatesNeeded: approved
-        ? ''
-        : 'Customers get an instant quote from your rates, so anything left as a range or "POA" means your business will not appear in their results.',
-      fixes: approved ? [] : fixes.slice(0, 5),
-    };
+    return { approved: fixes.length === 0, fixes: fixes.slice(0, 5) };
   }
 
   private extraction(text: string, rates: MockRate[]) {

@@ -33,26 +33,39 @@ export const label = (key: string): string => LABELS[key] ?? key;
 export const wordCount = (text: string): number => text.split(/\s+/).filter(Boolean).length;
 
 /**
- * The model decides WHAT to say; this code decides how it LOOKS and writes the parts that must never
- * vary. Formatting is not a judgement call, and a model asked for markdown drifts - which is why the
- * same submission never comes back looking different the second time.
- *
- * Shape of a rejection:
- *
- *   <opening>                 one line: we read it, here is where it stands
- *   ## Why this matters       one or two lines, in terms of winning work - not the rules restated
- *   ## What we still need     things they never said        -> go and find the numbers
- *   ## What needs to be clearer  things they said vaguely   -> go and rewrite those lines
- *   ## What to do next        written here, in code, so the instruction is identical every time
- *
- * The steps are numbered straight through both sections, so it reads as a list of jobs to do rather
- * than two piles of complaints. Neither section appears if it is empty.
+ * Everything the business reads apart from the fixes themselves is fixed text. It says the same
+ * thing every time on purpose: it tells them what the buttons under it do, and that instruction
+ * must not drift.
  */
-export function buildRejectionReport(r: ReviewResult) {
-  const missing = r.fixes.filter((f) => f.kind === 'missing' && f.what);
-  const unclear = r.fixes.filter((f) => f.kind === 'unclear' && f.what);
+export const MESSAGES = {
+  approved: {
+    opening: 'Your details have been approved. Below is what we have saved from them.',
+    nextStep:
+      'Check the figures. If they are right, confirm them and your profile goes live for customers. If something is wrong, update your details and send them through again, or use the contact button below if you need a hand.',
+  },
+  nothingUsable: {
+    opening: 'Your details came through, but we could not match any of your rates back to what you wrote.',
+    nextStep:
+      'Write your rates out with the number and the unit together - for example "Colorbond 1.8m - $110 per metre" - and send them through again. If you would rather talk it through, use the contact button below.',
+  },
+  rejected: {
+    opening: 'We have been through the details you sent. A few things need updating before your profile can go live.',
+    nextStep:
+      'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
+  },
+} as const;
 
-  const md: string[] = [];
+/**
+ * The report is the ADMIN artifact - one readable page showing what was decided and what was read.
+ * The business never sees it: they get the fixed opening, their own fields, and the next step, all
+ * as structured data their own UI renders. Nobody should have to read a 20-line table to find out
+ * that their submission passed.
+ */
+export function buildRejectionReport(fixes: ReviewResult['fixes']) {
+  const missing = fixes.filter((f) => f.kind === 'missing' && f.what);
+  const unclear = fixes.filter((f) => f.kind === 'unclear' && f.what);
+
+  const md: string[] = [MESSAGES.rejected.opening, ''];
   let step = 0;
 
   const section = (heading: string, items: ReviewResult['fixes']) => {
@@ -66,53 +79,24 @@ export function buildRejectionReport(r: ReviewResult) {
     md.push('');
   };
 
-  if (r.opening) md.push(r.opening, '');
-  if (r.whyUpdatesNeeded) md.push('## Why this matters', '', r.whyUpdatesNeeded, '');
-
   section('## What we still need', missing);
   section('## What needs to be clearer', unclear);
 
-  md.push(...NEXT_STEP_REJECTED);
+  md.push('## What to do next', '', MESSAGES.rejected.nextStep);
 
   const report = md.join('\n');
-
-  // Exactly two representations and no more: the markdown to render, and the same content
-  // structured for a frontend that would rather build its own list. `missing` and `unclear` are
-  // fixes.filter(f => f.kind === ...) - a frontend can do that in one line, so we do not ship a
-  // third and fourth copy of the same sentences.
   return {
     report,
-    fixes: r.fixes,
-    nextStep: NEXT_STEP_TEXT_REJECTED,
     counts: { missing: missing.length, unclear: unclear.length },
     reportWordCount: wordCount(report),
   };
 }
 
-/**
- * Fixed closings. These are the same words every single time on purpose: they tell the business
- * what the buttons under this report do, and that instruction must not drift with the model's mood.
- */
-const NEXT_STEP_TEXT_REJECTED =
-  'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.';
-
-const NEXT_STEP_TEXT_APPROVED =
-  'Check the figures above. If they are right, confirm them and your profile goes live for customers. If something is wrong, update your details and send them through again. If you need a hand, use the contact button below.';
-
-const NEXT_STEP_REJECTED = ['## What to do next', '', NEXT_STEP_TEXT_REJECTED];
-
-const NEXT_STEP_APPROVED = ['## What to do next', '', NEXT_STEP_TEXT_APPROVED];
-
-export function buildApprovalReport(d: VerifiedResult, opening: string) {
+export function buildApprovalReport(d: VerifiedResult) {
   const verified = d.status === 'verified';
   const md: string[] = [];
 
-  md.push(
-    verified
-      ? opening || 'Your pricing is saved. Have a quick look over the figures below before you confirm.'
-      : 'Your pricing came through, but we could not match any of the rates back to what you wrote.',
-    '',
-  );
+  md.push(verified ? MESSAGES.approved.opening : MESSAGES.nothingUsable.opening, '');
 
   const rateLines: string[] = [];
   for (const [material, bands] of Object.entries(d.pricing.rates)) {
@@ -176,12 +160,8 @@ export function buildApprovalReport(d: VerifiedResult, opening: string) {
     );
   }
 
-  md.push(...(verified ? NEXT_STEP_APPROVED : NEXT_STEP_REJECTED));
+  md.push('## What to do next', '', verified ? MESSAGES.approved.nextStep : MESSAGES.nothingUsable.nextStep);
 
   const report = md.join('\n');
-  return {
-    report,
-    nextStep: verified ? NEXT_STEP_TEXT_APPROVED : NEXT_STEP_TEXT_REJECTED,
-    reportWordCount: wordCount(report),
-  };
+  return { report, reportWordCount: wordCount(report) };
 }

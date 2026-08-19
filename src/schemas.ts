@@ -16,16 +16,17 @@ export const businessBody = z.object({
 });
 export type BusinessBody = z.infer<typeof businessBody>;
 
-/** Stage 1's output. The model supplies the words; code owns the layout (report.ts). */
+/**
+ * Stage 1's output. The model decides one thing - does this pass - and writes the list of jobs if
+ * it does not. Every other sentence the business reads is fixed text in report.ts, because an
+ * opening and a sign-off that change with the model's mood are drift, not personality.
+ */
 export const reviewSchema = z.object({
   approved: z.boolean(),
-  opening: z.string(),
-  whyUpdatesNeeded: z.string(),
   fixes: z
     .object({
       // "missing" = they never said it. "unclear" = they said it, but not in a form we can quote
-      // from. The report puts each group under its own heading, which is the difference between
-      // "something is wrong somewhere" and "here is exactly what to go and write down".
+      // from. The two are different jobs for the business, so they are shown separately.
       kind: z.enum(['missing', 'unclear']),
       what: z.string(),
       example: z.string().nullable(),

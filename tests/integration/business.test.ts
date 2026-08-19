@@ -22,7 +22,10 @@ describe('action: submit', () => {
     expect(res.body.data.approved).toBe(true);
     expect(res.body.data.status).toBe('verified');
     expect(res.body.data.business.ratesSaved).toBeGreaterThan(0);
-    expect(res.body.data.business.report).toContain('## Your rates');
+    expect(res.body.data.business.pricing.rates.timber_pine).toBeTruthy();
+    // the long written report is for admin only - the business gets its own fields
+    expect(res.body.data.business.report).toBeUndefined();
+    expect(res.body.data.admin.report).toContain('## Your rates');
     expect(res.body.data.admin.coverage.rates).toBe(res.body.data.business.ratesSaved);
 
     const profile = await call({ action: 'profile', businessUid: 'biz-good' });
@@ -51,12 +54,12 @@ describe('action: submit', () => {
 
   it('writes a rejection report a person can act on: reasons grouped under headings', async () => {
     const res = await call({ businessUid: 'biz-bad', text: bad });
-    const report: string = res.body.data.business.report;
+    const report: string = res.body.data.admin.report;
 
-    expect(report).toContain('## Why this matters');
     expect(report).toMatch(/## What (we still need|needs to be clearer)/);
     expect(report).toContain('## What to do next');
-    // the same sentence is also its own field, so a frontend can put it next to the buttons
+    // the business gets the same fixed sentences as fields, to print beside its buttons
+    expect(res.body.data.business.opening).toBeTruthy();
     expect(res.body.data.business.nextStep).toContain('contact button below');
     expect(report).toContain(res.body.data.business.nextStep);
     // numbered straight through both sections, so it reads as jobs to do

@@ -74,14 +74,9 @@ publishes a wrong price to a customer, which they either honour at a loss or ref
 
 === HOW TO WRITE IT ===
 
-LENGTH. Everything you write, added together, must stay under 250 words - and it should not drop
-below about 60 either. Two lines is not enough for someone to act on; a wall of text gets abandoned
-halfway. Aim for something they can read in under a minute and then know exactly what to go and do.
-This matters as much as being correct.
-
-The report is printed with headings and a numbered list, so do not write your own headings,
-numbering, bullets or bold text into any field. Write the sentences; the layout is added around
-them.
+LENGTH. Your fixes added together must stay under 150 words. One sentence each, no preamble. They
+are printed as a numbered list under headings, so do not write your own headings, numbering, bullets
+or bold text into any field. Write the sentences; the layout is added around them.
 
 GROUP RUTHLESSLY. This is the most important writing instruction. Do NOT produce one fix per problem.
 Merge everything that needs the same action into a single line, naming the items together.
@@ -128,29 +123,29 @@ complaint, "Add a per-metre price for Colorbond at each height you do" is a job.
 
 === OUTPUT ===
 
+You write TWO things and nothing else: the decision, and the list of jobs.
+
+The opening line, the explanation of what happens next, and the whole layout are fixed text written
+by the system around your fixes. Do not write a greeting, an opening, a sign-off, a summary, or any
+sentence about what happens next - it is already there, and yours would only repeat it.
+
 approved - true ONLY when every blocking rule is satisfied. Otherwise false.
 
-opening - ONE short sentence: you have read what they sent, and where it stands.
-  Example: "I have been through the details you sent. Most of it is clear, but a few numbers are
-  still needed before your profile can go live."
-
-whyUpdatesNeeded - ONE or TWO short sentences on why exact pricing matters to THEM, in terms of
-winning work. Not the rules restated.
-  Example: "Customers get an instant quote from your rates, so anything left as a range or 'POA'
-  means your business will not appear in their results."
-
-fixes - 3 to 5 grouped items, each one line, each a job they can go and do. Each has three parts:
+fixes - 3 to 5 grouped items, each one line, each a job they can go and do. Empty array when
+approved is true. Each has three parts:
 
   kind - "missing" or "unclear". This decides which heading the item is printed under, so get it
     right; it is what tells the business whether they need to go and FIND a number or REWRITE a line.
       missing = they never stated it at all. GST not mentioned, no minimum charge, a height band
                 with no price against it, no service area.
-      unclear = they DID state it, but not in a form we can quote from. A range, "from $X" on a core
-                rate, "POA", "call us", one price covering several heights, a figure with no unit.
+      unclear = they DID state it, but not in a form we can quote from. A range, "from $X" on a
+                per-metre rate, "POA", "call us", one price covering several heights, a figure with
+                no unit.
     If an item could be either, use "missing" - "you have not told us X" is never wrong, while
     "what you wrote is not clear" on something they never wrote is confusing.
 
-  what - the action, naming every item it covers. Say what to add, not just what is wrong.
+  what - the action, naming every item it covers. Say what to add, not just what is wrong. One
+    sentence. Start with a verb.
 
   example - a short illustration of the format where it helps. Mark illustrative figures as such so
     they are never mistaken for the business's own price.
@@ -158,10 +153,3 @@ fixes - 3 to 5 grouped items, each one line, each a job they can go and do. Each
     Leave null when the action is obvious without one.
     Prefer giving an example on the FIRST item of each kind, so the shape of a good answer is
     visible without repeating it on every line.
-
-Do NOT write a closing or a sign-off. What happens next - resend for approval, or contact the team -
-is printed under your fixes automatically, in the same words every time, next to the buttons that do
-those two things. A sign-off of your own would only repeat it.
-
-When approved is true: opening confirms everything needed is there, whyUpdatesNeeded is an empty
-string, and fixes is an EMPTY array.
