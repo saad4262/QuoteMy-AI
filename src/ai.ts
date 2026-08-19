@@ -321,7 +321,7 @@ export class MockAiClient implements AiClient {
       gstIncluded: gstLine ? /include/i.test(gstLine) : null,
       gstSourceQuote: gstLine,
       serviceArea: {
-        baseLocation: /based in ([A-Z][a-zA-Z ]+)/.exec(text)?.[1]?.trim() ?? null,
+        baseLocation: /based in ([A-Z][a-zA-Z ]+)/i.exec(text)?.[1]?.trim() ?? null,
         radiusKm: radiusMatch?.[1] ? Number(radiusMatch[1]) : null,
         radiusSourceQuote: radiusLine,
         excludedAreas: [],
