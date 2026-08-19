@@ -4,6 +4,7 @@ Business-onboarding API for QuoteMy AI (Express + TypeScript, MVC). A business s
 list, the pipeline reviews it, extracts it, verifies every number against what they actually wrote,
 stores it, and the business confirms it to go live.
 
+- **Building the UI against this API:** [docs/FRONTEND.md](docs/FRONTEND.md) — self-contained; point your editor at it
 - **Why Node instead of n8n:** [docs/PLAN.md](docs/PLAN.md)
 - **The contract being built — routes, ingestion, model calls, errors, security:** [docs/FLOW.md](docs/FLOW.md)
 - **The n8n build, kept for reference only:** [n8n/](n8n/)
