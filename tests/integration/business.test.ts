@@ -153,3 +153,12 @@ describe('health', () => {
     expect(res.body.data.provider).toBe('mock');
   });
 });
+
+describe('unknown routes', () => {
+  it('answers 404, not 500, and says which path was wrong', async () => {
+    const res = await request(app).get('/');
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('not_found');
+    expect(res.body.error.message).toContain('GET /');
+  });
+});

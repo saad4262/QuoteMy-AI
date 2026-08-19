@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { env, logger } from './config.js';
-import { errorHandler, requestId, requestLog } from './http.js';
+import { errorHandler, notFound, requestId, requestLog } from './http.js';
 import { assertPromptBudgets, promptSizes } from './prompts.js';
 import { routes } from './routes.js';
 
@@ -19,7 +19,8 @@ export function createApp() {
 
   app.use('/api/v1', routes);
 
-  app.use((_req, _res, next) => next(Object.assign(new Error('Route not found'), { status: 404, code: 'not_found' })));
+  // Anything that matched no route above. Must be an AppError, or errorHandler calls it a 500.
+  app.use((req, _res, next) => next(notFound(`No route for ${req.method} ${req.path}`)));
   app.use(errorHandler);
 
   return app;
