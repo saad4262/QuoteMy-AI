@@ -1,3 +1,5 @@
+import type { Trade } from './vocab.js';
+
 /**
  * Enum slugs are how the database stores it; nobody wants to read timber_pine on a screen.
  *
@@ -48,9 +50,10 @@ export const MESSAGES = {
       'Write your rates out with the number and the unit together - for example "Colorbond 1.8m - $110 per metre" - and send them through again. If you would rather talk it through, use the contact button below.',
   },
   notAPriceList: {
-    opening: 'We could not find any pricing in what you sent, so there is nothing for us to check yet.',
+    opening:
+      'This page is for your pricing, and we could not find any in what you sent. Here is what we need before your profile can go live.',
     nextStep:
-      'Send the fence types you install, the heights you do them at, and what you charge per metre - typed out or as a photo of your price list. If you are not sure what we need, use the contact button below and one of our team will walk you through it.',
+      'Type it in, or attach your price list as a PDF or a photo - whichever is easier. If you are not sure about any of it, use the contact button below and one of our team will walk you through it.',
   },
   rejected: {
     opening: 'We have been through the details you sent. A few things need updating before your profile can go live.',
@@ -58,3 +61,39 @@ export const MESSAGES = {
       'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
   },
 } as const;
+
+/**
+ * What to send, when they sent nothing usable. Taken from the blocking rules in
+ * prompts/sop/_general.md and prompts/sop/fencing/rules.md - the same rules the review stage
+ * judges against, so nobody is asked for one thing and marked against another.
+ *
+ * Written here rather than by the model: it is the same list every time, and a business staring at
+ * an empty form needs the shape of a right answer, not a sentence telling them to try again.
+ */
+export const WHAT_TO_SEND: Record<Trade, { need: string[]; helpful: string[]; example: string }> = {
+  fencing: {
+    need: [
+      'Each fence type you install, and your price per metre at every height you do it at',
+      'Whether those prices include GST',
+      'The suburb or postcode you work out from, and how far you travel',
+      'The smallest job you will take on, and what you charge for it',
+    ],
+    helpful: [
+      'Gate prices, per gate',
+      'What you charge to pull down and take away an old fence',
+      'Any extra for sloped blocks, rock, or tight access',
+      'Anything not included in your prices - permits, painting, stump removal',
+    ],
+    example: [
+      'TREATED PINE',
+      '1.8m high - $85 per metre',
+      '2.1m high - $104 per metre',
+      '',
+      'COLORBOND',
+      '1.8m high - $110 per metre',
+      '',
+      'All prices include GST. Based in Berwick, we travel 30km.',
+      'Minimum charge $850. Single gate $480.',
+    ].join('\n'),
+  },
+};

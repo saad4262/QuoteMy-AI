@@ -5,7 +5,7 @@ import { AppError, unprocessable } from './http.js';
 import { assertSomethingArrived, readSource, stripProvenance, type UploadedFile } from './ingest.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
-import { LABELS, MESSAGES } from './messages.js';
+import { LABELS, MESSAGES, WHAT_TO_SEND } from './messages.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository } from './store.js';
 import { verifyExtraction } from './verify.js';
 
@@ -43,12 +43,29 @@ export function assertSubmittable(text: string): void {
   if (!/\d/.test(text)) {
     throw unprocessable('We could not find any prices in that - send your rates with the numbers included');
   }
-  // No run of writing in any Latin script is 100 characters long without a space. A blob that is
-  // means the box was mashed or something was pasted that is not text - mechanical, not judgement,
-  // so it is caught here instead of being sent to the model at full price.
-  if (Math.max(...text.split(/\s+/).map((w) => w.length)) > 100) {
-    throw unprocessable('We could not read that - type your rates out, or attach your price list as a file');
-  }
+}
+
+/**
+ * Does this look like someone typing, or like someone mashing the keyboard?
+ *
+ * Deliberately conservative: turning away a real business is far worse than paying a cent to read
+ * junk, so this only fires on text that is overwhelmingly not words. Two mechanical signals, no
+ * dictionary and no judgement:
+ *   - a run of 100+ characters with no space is not writing in any Latin script
+ *   - a word with no vowel, or with five consonants in a row, is not an English word. One or two
+ *     of those is a model number or an abbreviation; almost all of them is a mashed keyboard.
+ */
+export function looksLikeMashedKeys(text: string): boolean {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  // 40 letters with no space is not a word in any language written in this alphabet.
+  if (tokens.some((t) => t.replace(/[^a-z]/gi, '').length > 40)) return true;
+
+  // Short tokens are skipped: "SEQ", "Pty", "H4", "m" are all normal and prove nothing either way.
+  const words = tokens.map((t) => t.replace(/[^a-z]/gi, '')).filter((t) => t.length >= 4);
+  if (words.length < 4) return false;
+
+  const wordlike = words.filter((w) => /[aeiou]/i.test(w) && !/[^aeiou\W]{5}/i.test(w));
+  return wordlike.length / words.length < 0.4;
 }
 
 /**
@@ -89,6 +106,34 @@ export async function runOnboarding(
   const submissionId = randomUUID();
   const spend = () => Number(stages.reduce((sum, s) => sum + s.costUsd, 0).toFixed(6));
 
+  /**
+   * "There is no price list here" - the same answer whether code spotted it or the model did, so
+   * the screen renders one panel either way. Reached from two places: mashed keys, caught here for
+   * nothing, and the model's own not_a_price_list verdict further down.
+   */
+  const notAPriceList = (extraStages: StageUsage[] = stages) => ({
+    data: {
+      approved: false,
+      status: 'unverified',
+      business: {
+        opening: MESSAGES.notAPriceList.opening,
+        fixes: [],
+        whatToSend: WHAT_TO_SEND[input.trade],
+        notUsed: unread,
+        source: { documents: source.documents },
+        nextStep: MESSAGES.notAPriceList.nextStep,
+      },
+      admin: {
+        submissionId,
+        decision: 'not_a_price_list',
+        fixCounts: { missing: 0, unclear: 0 },
+        sourceText: text,
+        textChars: text.length,
+      },
+    },
+    meta: { ...meta(), stages: extraStages },
+  });
+
   // `meta` is request telemetry - how the answer was produced, not part of the answer.
   const meta = () => ({
     trade: input.trade,
@@ -103,6 +148,20 @@ export async function runOnboarding(
       throw new AppError(429, 'This submission exceeded its processing budget', 'cost_limit');
     }
   };
+
+  // Caught in code, so this costs nothing and the model is never asked to judge a keyboard mash.
+  if (looksLikeMashedKeys(stripProvenance(text))) {
+    await repo.addSubmission({
+      id: submissionId,
+      uid,
+      trade: input.trade,
+      approved: false,
+      status: 'unverified',
+      ratesSaved: 0,
+      createdAt: new Date().toISOString(),
+    });
+    return notAPriceList();
+  }
 
   // --- stage 1: review ---------------------------------------------------------------------
   const review = await ai.callStructured({
@@ -130,9 +189,10 @@ export async function runOnboarding(
       createdAt: now(),
     });
 
+    if (review.data.outcome === 'not_a_price_list') return notAPriceList();
+
     const fixes = review.data.fixes;
-    const message =
-      review.data.outcome === 'not_a_price_list' ? MESSAGES.notAPriceList : MESSAGES.rejected;
+    const message = MESSAGES.rejected;
 
     // Nothing is written to the profile on the reject path - an incomplete price list must not
     // overwrite figures the business already had approved.

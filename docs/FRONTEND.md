@@ -325,12 +325,57 @@ different for the third one:
 |---|---|---|
 | `approved` | it passed | the approved screen |
 | `needs_updates` | a real attempt, but something is missing or unclear | the fix list |
-| `not_a_price_list` | gibberish, a greeting, a question, the wrong trade | **one** fix, no numbered list — this is closer to an empty state than a rejection |
+| `not_a_price_list` | gibberish, a greeting, a question, the wrong trade | no fixes at all — render `whatToSend` as an empty state, see below |
 
-On `not_a_price_list` the opening reads *"We could not find any pricing in what you sent, so there is
-nothing for us to check yet."* Rendering that under a heading like "What needs updating" with a
-numbered list of one reads as though the system misunderstood them. Show the single fix as a plain
-sentence.
+### `not_a_price_list` carries a checklist, not a fix list
+
+When there was nothing to assess, `fixes` is **empty** and `business.whatToSend` is present instead:
+
+```jsonc
+"business": {
+  "opening": "This page is for your pricing, and we could not find any in what you sent. Here is what we need before your profile can go live.",
+  "fixes": [],
+  "whatToSend": {
+    "need": [
+      "Each fence type you install, and your price per metre at every height you do it at",
+      "Whether those prices include GST",
+      "The suburb or postcode you work out from, and how far you travel",
+      "The smallest job you will take on, and what you charge for it"
+    ],
+    "helpful": [
+      "Gate prices, per gate",
+      "What you charge to pull down and take away an old fence",
+      "Any extra for sloped blocks, rock, or tight access",
+      "Anything not included in your prices - permits, painting, stump removal"
+    ],
+    "example": "TREATED PINE\n1.8m high - $85 per metre\n…"
+  },
+  "notUsed": [],
+  "source": { "…": "…" },
+  "nextStep": "Type it in, or attach your price list as a PDF or a photo — whichever is easier. …"
+}
+```
+
+Render it as the empty-state it is, not as a rejection:
+
+```
+{opening}
+
+## What we need                ← whatToSend.need, as a checklist
+## Also helpful                ← whatToSend.helpful, smaller / collapsed
+## For example                 ← whatToSend.example, in a monospace block
+
+{nextStep}
+[ Edit and send again ]  [ Contact our team ]
+```
+
+`whatToSend` comes from the same SOP rules the review stage judges against, so nobody is asked for
+one thing and marked against another. It is **only present** on `not_a_price_list` — a
+`needs_updates` response has specific fixes instead, which are more useful than a generic list.
+
+Some of these are caught in code with no model call at all (a mashed keyboard), and some by the
+model (a customer enquiry, the wrong trade). The response is identical either way, so the UI needs
+one branch, not two.
 
 ### `notUsed` on both paths
 
@@ -530,7 +575,12 @@ export type SubmitResult =
       status: 'unverified';
       business: {
         opening: string;
-        fixes: Fix[];
+        fixes: Fix[];                       // empty when decision is "not_a_price_list"
+        whatToSend?: {                      // present ONLY when decision is "not_a_price_list"
+          need: string[];
+          helpful: string[];
+          example: string;
+        };
         notUsed: string[];
         source: { documents: SourceDocument[] };
         nextStep: string;

@@ -113,13 +113,23 @@ describe('input handling', () => {
     });
   }
 
-  it('turns away a mashed-keyboard blob in code, before any model call', async () => {
-    const blob = 'heekadszcscxfeeddffddfffffsfdsdffddfdfdfsdsfdfsdsggdfgffd'.repeat(6) + ' 12 241';
-    const res = await call({ businessUid: 'biz-x', text: blob });
+  it('answers a mashed keyboard with the checklist, and pays nothing to do it', async () => {
+    const res = await call({
+      businessUid: 'biz-mash',
+      text: 'wbjsdabjdsajkdajksdjkfadsjk asdkjhaskjdh kjsdfhkjsdf jkhsdfkjh sdkfjhsdkjf 12 241',
+    });
 
-    expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe('unprocessable');
-    expect(res.body.error.message).toMatch(/could not read that/i);
+    expect(res.status).toBe(200);
+    expect(res.body.data.admin.decision).toBe('not_a_price_list');
+    expect(res.body.meta.stages).toHaveLength(0); // the model was never asked
+    expect(res.body.meta.costUsd).toBe(0);
+    expect(res.body.data.business.whatToSend.need.length).toBeGreaterThan(3);
+    expect(res.body.data.business.whatToSend.example).toContain('per metre');
+  });
+
+  it('does not mistake a real price list for mashed keys', async () => {
+    const res = await call({ businessUid: 'biz-real', text: good });
+    expect(res.body.data.approved).toBe(true);
   });
 
   it('says something different when there was no price list to assess at all', async () => {
@@ -132,8 +142,9 @@ describe('input handling', () => {
     expect(res.body.data.approved).toBe(false);
     expect(res.body.data.admin.decision).toBe('not_a_price_list');
     // not "a few things need updating" - that would read as though we had not looked
-    expect(res.body.data.business.opening).toMatch(/could not find any pricing/i);
-    expect(res.body.data.business.fixes).toHaveLength(1);
+    expect(res.body.data.business.opening).toMatch(/this page is for your pricing/i);
+    // and it says what to send, taken from the same SOP rules the review judges against
+    expect(res.body.data.business.whatToSend.need[0]).toMatch(/price per metre/i);
   });
 
   it('rejects an unknown trade with a field-level message', async () => {
