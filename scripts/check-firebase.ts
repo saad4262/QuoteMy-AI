@@ -1,9 +1,14 @@
 /**
- * Is the key the right one, and can we actually reach this project?
+ * Is the key the right one, can we reach this project, and can we do the three things the service
+ * actually needs?
  *
- * Run this BEFORE flipping STORE=firestore. The first key tried here was for a different project
- * entirely - it authenticated perfectly and returned an empty database, which looks identical to
- * "nothing has been created yet". This says which project it is and whether anything is in it.
+ * Run this BEFORE flipping STORE=firestore. Two failures have already happened here and both look
+ * like something else at first glance:
+ *   - a key for a different project authenticates perfectly and returns an empty database, which
+ *     is indistinguishable from "nothing has been created yet"
+ *   - a key with Storage but no Firestore IAM role fails on the first read with a stack trace that
+ *     says nothing about IAM
+ * So each capability is probed separately and named.
  *
  *   npm run firebase:check
  */
@@ -31,29 +36,68 @@ console.log(`  service acct ${sa.client_email}`);
 console.log(`  bucket       ${bucketName}\n`);
 
 const db = getFirestore();
+let denied = false;
 
-const businesses = await db.collection('businesses').limit(5).get();
-console.log(`  businesses/  ${businesses.size} document(s) found${businesses.size ? '' : '  <-- is this the right project?'}`);
-
-for (const doc of businesses.docs) {
-  const name = doc.get('businessName') ?? '(no businessName)';
-  const collections = await doc.ref.listCollections();
-  console.log(`    ${doc.id}  ${name}  [${collections.map((c) => c.id).join(', ') || 'no subcollections'}]`);
+async function probe(label: string, fn: () => Promise<string>): Promise<boolean> {
+  try {
+    console.log(`  ${label.padEnd(24)} ok      ${await fn()}`);
+    return true;
+  } catch (err) {
+    const e = err as { code?: number; message?: string };
+    if (e.code === 7) denied = true;
+    console.log(`  ${label.padEnd(24)} FAILED  ${String(e.message).split('\n')[0]}`);
+    return false;
+  }
 }
 
-// The one the service will actually read from.
-const raws = await db.collectionGroup('description').limit(5).get();
-const pending = raws.docs.filter((d) => d.ref.id === 'raw' && d.get('status') === 'pending');
-console.log(`\n  description/raw docs   ${raws.docs.filter((d) => d.ref.id === 'raw').length}`);
-console.log(`  waiting on us          ${pending.length}`);
-for (const doc of pending) console.log(`    ${doc.ref.path}`);
+const canRead = await probe('firestore read', async () => {
+  const snap = await db.collection('businesses').limit(5).get();
+  return `businesses/ has ${snap.size} document(s)${snap.size ? '' : '  <-- right project?'}`;
+});
 
-try {
+await probe('firestore write', async () => {
+  const ref = db.collection('_preflight').doc('probe');
+  await ref.set({ at: Date.now() });
+  await ref.delete();
+  return 'wrote and deleted a scratch document';
+});
+
+await probe('storage bucket', async () => {
   const [exists] = await getStorage().bucket().exists();
-  console.log(`\n  storage bucket         ${exists ? 'reachable' : 'NOT FOUND - check FIREBASE_STORAGE_BUCKET'}`);
-} catch (err) {
-  console.log(`\n  storage bucket         could not be checked: ${(err as Error).message}`);
+  if (!exists) throw new Error('bucket not found - check FIREBASE_STORAGE_BUCKET');
+  return 'reachable';
+});
+
+if (denied) {
+  console.log(`
+  Firestore says PERMISSION_DENIED. The credentials are fine - if Storage passed above, they
+  reach the right project. This service account is missing the Firestore IAM role.
+
+    Google Cloud Console -> IAM & Admin -> IAM
+    find  ${sa.client_email}
+    Edit -> Add another role -> "Cloud Datastore User"   (roles/datastore.user)
+    Save, wait about a minute, run this again.
+
+  Note: Firestore security rules are NOT the cause. The Admin SDK bypasses rules entirely; this
+  is IAM, one level above them.
+`);
+  process.exit(1);
 }
 
-console.log('\n  If the project and businesses look right, set STORE=firestore and WORKER_ENABLED=true.\n');
+if (canRead) {
+  const raws = (await db.collectionGroup('description').limit(20).get()).docs.filter((d) => d.ref.id === 'raw');
+  const pending = raws.filter((d) => d.get('status') === 'pending');
+  console.log(`\n  description/raw docs     ${raws.length}`);
+  console.log(`  waiting on us            ${pending.length}`);
+  for (const doc of pending) console.log(`    ${doc.ref.path}`);
+
+  const businesses = await db.collection('businesses').limit(5).get();
+  for (const doc of businesses.docs) {
+    const collections = await doc.ref.listCollections();
+    console.log(`\n  ${doc.id}  ${doc.get('businessName') ?? '(no businessName)'}`);
+    console.log(`    subcollections: ${collections.map((c) => c.id).join(', ') || 'none'}`);
+  }
+}
+
+console.log('\n  All good. Set STORE=firestore and WORKER_ENABLED=true.\n');
 process.exit(0);
