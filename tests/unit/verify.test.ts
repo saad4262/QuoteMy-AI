@@ -13,6 +13,9 @@ const empty: Extraction = {
   removals: [],
   gates: [],
   siteConditions: [],
+  specs: [],
+  permits: { included: null, fee: null, sourceQuote: null },
+  warranty: { years: null, text: null, sourceQuote: null },
   extras: [],
   inclusions: [],
   exclusions: [],
@@ -151,5 +154,135 @@ describe('the long tail', () => {
 
     const shown = verifyExtraction(offering({ slug: 'bamboo-fence' }), line, 'fencing', ['bamboo-fence']);
     expect(shown.otherOfferings[0]?.slug).toBe('bamboo-fence'); // it was on the list, so it stands
+  });
+});
+
+describe('consistency checks', () => {
+  it('never lets one of two prices for the same thing vanish silently', () => {
+    const text = 'Treated pine 1.8m - $85 per metre\nTreated pine 1.8m - $95 per metre';
+    const r = verifyExtraction(
+      withRate({
+        rates: [
+          { material: 'timber_pine', heightM: 1.8, pricePerMetre: 85, sourceQuote: 'Treated pine 1.8m - $85 per metre' },
+          { material: 'timber_pine', heightM: 1.8, pricePerMetre: 95, sourceQuote: 'Treated pine 1.8m - $95 per metre' },
+        ],
+      }),
+      text,
+      'fencing',
+    );
+
+    expect(r.pricing.rates.timber_pine).toEqual({ '1.8m': 85 }); // the first stands
+    expect(r.couldNotUse.join(' ')).toContain('twice');
+    expect(r.couldNotUse.join(' ')).toContain('which one is right');
+  });
+
+  it('flags a taller fence that costs less, without throwing the figure away', () => {
+    const text = 'Treated pine 1.8m - $85 per metre\nTreated pine 2.1m - $62 per metre';
+    const r = verifyExtraction(
+      withRate({
+        rates: [
+          { material: 'timber_pine', heightM: 1.8, pricePerMetre: 85, sourceQuote: 'Treated pine 1.8m - $85 per metre' },
+          { material: 'timber_pine', heightM: 2.1, pricePerMetre: 62, sourceQuote: 'Treated pine 2.1m - $62 per metre' },
+        ],
+      }),
+      text,
+      'fencing',
+    );
+
+    expect(r.pricing.rates.timber_pine).toEqual({ '1.8m': 85, '2.1m': 62 }); // both kept
+    expect(r.couldNotUse.join(' ')).toContain('the taller one costs less');
+  });
+
+  it('says nothing when prices rise with height, as they should', () => {
+    const text = 'Treated pine 1.8m - $85 per metre\nTreated pine 2.1m - $104 per metre';
+    const r = verifyExtraction(
+      withRate({
+        rates: [
+          { material: 'timber_pine', heightM: 1.8, pricePerMetre: 85, sourceQuote: 'Treated pine 1.8m - $85 per metre' },
+          { material: 'timber_pine', heightM: 2.1, pricePerMetre: 104, sourceQuote: 'Treated pine 2.1m - $104 per metre' },
+        ],
+      }),
+      text,
+      'fencing',
+    );
+    expect(r.couldNotUse.join(' ')).not.toContain('taller');
+  });
+
+  it('flags removal costing more than putting a fence up', () => {
+    const line = 'Timber 1.8m $85/m. Removal of old fence $120 per metre.';
+    const r = verifyExtraction(
+      withRate({
+        rates: [{ material: 'timber_pine', heightM: 1.8, pricePerMetre: 85, sourceQuote: line }],
+        removals: [{ removes: 'timber', pricePerMetre: 120, sourceQuote: line }],
+      }),
+      line,
+      'fencing',
+    );
+
+    expect(r.pricing.removals).toHaveLength(1); // kept, not dropped
+    expect(r.couldNotUse.join(' ')).toContain('more than your cheapest fence');
+  });
+});
+
+describe('build specs', () => {
+  const line = 'Posts are 100x100mm H4 pine, 3 rails of 75x50mm per bay.';
+  const depth = 'Posts go 700mm deep at 2.4m centres as standard.';
+
+  it('merges a spec written across several sentences into one entry per material', () => {
+    const r = verifyExtraction(
+      withRate({
+        specs: [
+          { material: 'timber_pine', postSize: '100x100mm H4 pine', postSpacingM: null, postDepthMm: null,
+            holeDiameterMm: null, footing: null, railCount: 3, railSize: '75x50mm', infill: null,
+            cappingSize: null, cappingExtraPerMetre: null, sourceQuote: line },
+          { material: 'timber_pine', postSize: null, postSpacingM: 2.4, postDepthMm: 700,
+            holeDiameterMm: null, footing: null, railCount: null, railSize: null, infill: null,
+            cappingSize: null, cappingExtraPerMetre: null, sourceQuote: depth },
+        ],
+      } as never),
+      `${line}\n${depth}`,
+      'fencing',
+    );
+
+    expect(r.capabilities.specs).toHaveLength(1);
+    // a later null must never wipe a value already found
+    expect(r.capabilities.specs[0]).toMatchObject({
+      material: 'timber_pine', postSize: '100x100mm H4 pine', railCount: 3, postSpacingM: 2.4, postDepthMm: 700,
+    });
+  });
+
+  it('keeps a spec whose sentence is not in the text out entirely', () => {
+    const r = verifyExtraction(
+      withRate({
+        specs: [
+          { material: 'timber_pine', postSize: '90x90mm', postSpacingM: null, postDepthMm: null,
+            holeDiameterMm: null, footing: null, railCount: null, railSize: null, infill: null,
+            cappingSize: null, cappingExtraPerMetre: null, sourceQuote: 'Posts are 90x90mm' },
+        ],
+      } as never),
+      line,
+      'fencing',
+    );
+    expect(r.capabilities.specs).toHaveLength(0);
+  });
+});
+
+describe('surcharge stated two ways', () => {
+  it('keeps the first and asks which is right, rather than applying both', () => {
+    const text = 'Sloped blocks add $14 per metre.\nSloped blocks are charged at 10% instead.';
+    const r = verifyExtraction(
+      withRate({
+        siteConditions: [
+          { condition: 'sloped', extraPerMetre: 14, extraPercent: null, sourceQuote: 'Sloped blocks add $14 per metre.' },
+          { condition: 'sloped', extraPerMetre: null, extraPercent: 10, sourceQuote: 'Sloped blocks are charged at 10% instead.' },
+        ],
+      } as never),
+      text,
+      'fencing',
+    );
+
+    expect(r.pricing.siteConditions).toHaveLength(1);
+    expect(r.pricing.siteConditions[0]).toEqual({ condition: 'sloped', extraPerMetre: 14, extraPercent: null });
+    expect(r.couldNotUse.join(' ')).toContain('twice');
   });
 });

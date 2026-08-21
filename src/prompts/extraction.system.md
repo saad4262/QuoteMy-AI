@@ -92,7 +92,35 @@ taken away: timber, metal, or any if they do not distinguish. This is NEVER fold
 gates - priced per gate, not per metre. material is the gate's own material where stated, otherwise
 null. Gate motors and automation are gateType motor_automation.
 
-siteConditions - per-metre surcharges for difficult sites. Only where a number is given.
+siteConditions - surcharges for difficult sites, where a number is given. A surcharge is stated
+EITHER as an amount per metre OR as a percentage: "Rocky soil +$40/pm" is extraPerMetre 40, "Slope
++10%" is extraPercent 10. Fill in the one they stated and leave the other null. NEVER convert
+between them - you cannot know what 10% is worth without doing arithmetic on their rates, and you
+do not do arithmetic.
+
+specs - how they actually build it, one entry per material they describe. Every field is optional
+and it is completely normal for most of them to be null: take what is written and nothing more.
+  postSize        "100x100mm H4 treated pine"          postSpacingM   2.4
+  postDepthMm     700   (600-700mm -> take the larger)  holeDiameterMm 300
+  footing         "concrete"                            railCount      3
+  railSize        "75x50mm"                             infill         "150x12mm palings"
+  cappingSize     "150x25mm"                            cappingExtraPerMetre  5
+  A RANGE like "600-700mm" is not a problem here the way it is for a rate - take the upper figure.
+
+  WHICH MATERIAL A SPEC BELONGS TO. Only record a spec against a material it was actually written
+  about. "Timber posts are 100x100mm H4 treated pine" describes treated pine, and copying it onto
+  hardwood states something about their hardwood fences that they never said - hardwood posts are
+  not treated pine.
+  A spec is shared across materials ONLY when the text itself is general: "posts go 700mm deep at
+  2.4m centres as standard", "all footings are concrete". A sentence naming a material, a timber
+  grade or a product is about that material alone.
+  When in doubt, leave it null. A missing spec costs nothing; a wrong one is a false claim about
+  how they build.
+
+permits - council permits and inspections. included true when they say they arrange or cover them,
+false when they say it is the customer's, null when unstated. fee only where a number is given.
+
+warranty - years where a number is stated, and their own words in text. Null when unstated.
 
 extras - any other priced add-on that is not a fence rate, removal, gate or site condition: a
 compliance certificate, powder coating, a callout fee. unit says what the price buys.

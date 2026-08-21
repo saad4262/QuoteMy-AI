@@ -1,5 +1,6 @@
 FENCING PUBLISH RULES - what a fencing price description must contain before it can be published.
 Check these first; the background knowledge further down is context, not a checklist.
+Rules F1-F7 are blocking. F8 is not.
 
 (DUMMY CONTENT - realistic placeholders. Replace with your own wording when you're ready.)
 
@@ -41,6 +42,17 @@ RULE F6 - POOL FENCING NEEDS ITS COMPLIANCE POSITION STATED.
 If pool fencing is offered, the description must say whether a compliance inspection/certificate is
 included or charged separately. Pool work carries a legal obligation the customer must not be
 surprised by.
+
+RULE F8 - BUILD SPECS ARE WANTED, AND ARE NOT BLOCKING.
+Post size and spacing, post depth, hole diameter, footings, rails per bay, paling or sheet size,
+capping, permits and warranty. Customers see a spec summary beside the price, and a profile without
+one looks thinner than the businesses that list theirs.
+
+These are NEVER a reason on their own to send a submission back. A price list where every rate is
+right and no spec is given is a PASS. Mention the missing specs only when you already have another
+blocking problem to report, and when you do, put them in one line as something worth adding rather
+than something wrong - "worth adding next time: your post size and rail sizes, so customers can see
+how you build". Never spend one of your three-to-five fixes on specs alone.
 
 RULE F7 - HEIGHTS MUST BE IN METRES OR MILLIMETRES, CONSISTENTLY.
 1.8, 1800mm, 1.8m and 6ft may all mean the same fence, but a description that mixes them is

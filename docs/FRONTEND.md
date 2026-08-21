@@ -154,7 +154,8 @@ show a progress state, and do not set a fetch timeout under 60s.
         "removals":       [{ "removes": "timber", "pricePerMetre": 18 }],
         "gates":          [{ "gateType": "driveway_double", "material": "colorbond",
                              "price": 1480, "isFromPrice": false }],
-        "siteConditions": [{ "condition": "sloped", "extraPerMetre": 14 }],
+        "siteConditions": [{ "condition": "sloped", "extraPerMetre": 14, "extraPercent": null },
+                           { "condition": "rock",   "extraPerMetre": null, "extraPercent": 10 }],
         "serviceArea":    { "baseLocation": "Berwick",
                             "resolved": { "suburb": "Berwick", "state": "VIC", "postcode": "3806",
                                           "lat": -38.0294, "lng": 145.3441, "source": "google" },
@@ -163,6 +164,13 @@ show a progress state, and do not set a fetch timeout under 60s.
       },
       "capabilities": {
         "businessName": "Southeast Fencing",       // string | null
+        "specs": [{ "material": "timber_pine", "postSize": "100x100mm H4 treated pine",
+                    "postSpacingM": 2.4, "postDepthMm": 700, "holeDiameterMm": 300,
+                    "footing": "concrete", "railCount": 3, "railSize": "75x50mm",
+                    "infill": "150x12mm palings", "cappingSize": "150x25mm",
+                    "cappingExtraPerMetre": 5 }],
+        "permits":  { "included": false, "fee": null },
+        "warranty": { "years": 7, "text": "All our workmanship is warranted for 7 years." },
         "tags": ["insured", "custom-gates"],
         "extras": [{ "label": "Pool compliance certificate", "price": 290,
                      "unit": "per_item", "isFromPrice": false }],
@@ -303,6 +311,31 @@ const rows = Object.entries(pricing.rates).flatMap(([material, bands]) =>
   })),
 );
 ```
+
+### `specs` — how they build it
+
+One entry per material, and **every field can be null**. This is what the customer-facing spec
+summary is built from — *"100×100 H4 posts at 2.4m spacing, 700mm deep in concrete, 3 rails per
+bay"* — so show whatever is there and skip what is not.
+
+**Specs never block approval.** A quote is calculated from rates, not from post depth, and the best
+real submission we have states only about half of these. Refusing a business whose prices are all
+correct because they left out a hole diameter would lose a good business and save nothing. Expect
+most profiles to have some fields filled and many empty.
+
+Their SOP describes a **form** for this, and that is the right shape: asking a tradesperson to type
+"hole diameter 250–300mm" into a paragraph is a poor way to collect it. Extraction will still pick
+specs out of free text when they are written, but per-type form fields would fill this properly.
+
+### `siteConditions` — dollars **or** a percentage
+
+```jsonc
+{ "condition": "sloped", "extraPerMetre": null, "extraPercent": 10 }
+{ "condition": "rock",   "extraPerMetre": 22,   "extraPercent": null }
+```
+
+Exactly one is filled in. Render whichever it is — `+$22/m` or `+10%` — and never convert between
+them.
 
 ### `otherOfferings` — the long tail
 

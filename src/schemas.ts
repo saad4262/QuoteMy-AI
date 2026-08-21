@@ -96,8 +96,18 @@ export const extractionSchema = z.object({
     })
     .array(),
 
+  /**
+   * A surcharge is stated either as a rate per metre or as a percentage - the client SOP has both
+   * ("Slope +10%", "Rocky soil +$40/pm"). Exactly one is filled in; the other is null. Storing a
+   * percentage as if it were dollars would be a silent, permanent error in every quote.
+   */
   siteConditions: z
-    .object({ condition: z.enum(CONDITIONS), extraPerMetre: z.number(), sourceQuote: z.string() })
+    .object({
+      condition: z.enum(CONDITIONS),
+      extraPerMetre: z.number().nullable(),
+      extraPercent: z.number().nullable(),
+      sourceQuote: z.string(),
+    })
     .array(),
 
   extras: z
@@ -109,6 +119,46 @@ export const extractionSchema = z.object({
       sourceQuote: z.string().nullable(),
     })
     .array(),
+
+  /**
+   * How they actually build it. From the client SOP, which wants a spec summary shown next to the
+   * price: "100x100 H4 posts at 2.4m spacing, 600mm deep in concrete, 3 rails per bay".
+   *
+   * COLLECTED, NOT BLOCKING. A quote is calculated from rates, never from post depth, and the best
+   * real submission we have states only about half of these. Refusing a business whose prices are
+   * all correct because they did not give a hole diameter loses a good business and saves nothing.
+   * Every field is nullable and every one is normal to be null.
+   */
+  specs: z
+    .object({
+      material: z.enum(MATERIALS),
+      postSize: z.string().nullable(),
+      postSpacingM: z.number().nullable(),
+      postDepthMm: z.number().nullable(),
+      holeDiameterMm: z.number().nullable(),
+      footing: z.string().nullable(),
+      railCount: z.number().nullable(),
+      railSize: z.string().nullable(),
+      infill: z.string().nullable(),
+      cappingSize: z.string().nullable(),
+      cappingExtraPerMetre: z.number().nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Council permits and inspections: who arranges them, who pays. Collected, not blocking. */
+  permits: z.object({
+    included: z.boolean().nullable(),
+    fee: z.number().nullable(),
+    sourceQuote: z.string().nullable(),
+  }),
+
+  /** Workmanship warranty, where stated. Collected, not blocking. */
+  warranty: z.object({
+    years: z.number().nullable(),
+    text: z.string().nullable(),
+    sourceQuote: z.string().nullable(),
+  }),
 
   inclusions: z.string().array(),
   exclusions: z.string().array(),
