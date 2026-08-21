@@ -120,6 +120,35 @@ function reviewFromResult(
 }
 
 /**
+ * A missing Firestore index is a setup step, not a crash, and it repeats every tick until someone
+ * does it. Forty lines of grpc stack every two minutes buries everything else in the log and reads
+ * like the service is broken when it is running perfectly well - so it gets one line, with the
+ * thing to actually do, and then goes quiet.
+ */
+let indexWarningShown = false;
+
+function reportTickFailure(err: unknown): void {
+  const e = err as { code?: number; message?: string };
+  const missingIndex = e?.code === 9 && /index/i.test(e.message ?? '');
+
+  if (!missingIndex) {
+    logger.error({ err }, 'worker tick failed');
+    return;
+  }
+
+  if (indexWarningShown) return; // said once; saying it 720 times a day helps nobody
+  indexWarningShown = true;
+
+  const link = /https:\/\/\S+/.exec(e.message ?? '')?.[0];
+  logger.warn(
+    { create: link },
+    'Sweeper is off: Firestore needs a collection-group index on description.status. ' +
+      'Open the link above, or run: firebase deploy --only firestore:indexes. ' +
+      'Everything else keeps working - only the retry safety net is down.',
+  );
+}
+
+/**
  * The sweeper. Its whole job is that a submission is never lost because one HTTP call failed, or
  * because this process died halfway through a review.
  */
@@ -140,7 +169,7 @@ export function startWorker(): void {
         await processSubmission(item.uid, item.trade);
       }
     } catch (err) {
-      logger.error({ err }, 'worker tick failed');
+      reportTickFailure(err);
     } finally {
       running = false;
     }
