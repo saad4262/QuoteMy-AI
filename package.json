@@ -12,7 +12,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "firebase:check": "tsx scripts/check-firebase.ts"
   },
   "keywords": [],
   "author": "",
