@@ -56,7 +56,10 @@ export async function geocode(baseLocation: string | null): Promise<ResolvedLoca
 
     const hit = body.results?.[0];
     if (body.status !== 'OK' || !hit) {
-      logger.info({ baseLocation, status: body.status }, 'could not geocode base location');
+      // REQUEST_DENIED almost always means a key restricted to HTTP referrers - one made for the
+      // browser. A server needs an IP-restricted key, or none. It is not a billing problem.
+      const level = body.status === 'REQUEST_DENIED' ? 'error' : 'info';
+      logger[level]({ baseLocation, status: body.status }, 'could not geocode base location');
       cache.set(key, null);
       return null;
     }

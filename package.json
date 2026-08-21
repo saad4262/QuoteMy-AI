@@ -13,7 +13,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "firebase:check": "tsx scripts/check-firebase.ts"
+    "firebase:check": "tsx scripts/check-firebase.ts",
+    "geocode:check": "tsx scripts/check-geocode.ts"
   },
   "keywords": [],
   "author": "",
