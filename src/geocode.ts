@@ -35,6 +35,31 @@ interface GoogleComponent {
   types: string[];
 }
 
+interface GoogleResult {
+  types: string[];
+  geometry: { location: { lat: number; lng: number } };
+  address_components: GoogleComponent[];
+}
+
+async function lookup(address: string): Promise<GoogleResult | null> {
+  const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+  url.searchParams.set('address', address);
+  url.searchParams.set('components', 'country:AU'); // an Australian marketplace
+  url.searchParams.set('key', env.GEOCODING_API_KEY!);
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  const body = (await res.json()) as { status: string; results?: GoogleResult[] };
+
+  if (body.status !== 'OK' || !body.results?.length) {
+    // REQUEST_DENIED almost always means a key restricted to HTTP referrers - one made for the
+    // browser. A server needs an IP-restricted key, or none. It is not a billing problem.
+    const level = body.status === 'REQUEST_DENIED' ? 'error' : 'info';
+    logger[level]({ address, status: body.status }, 'could not geocode');
+    return null;
+  }
+  return body.results[0]!;
+}
+
 export async function geocode(baseLocation: string | null): Promise<ResolvedLocation | null> {
   if (!baseLocation?.trim()) return null;
   if (!env.GEOCODING_API_KEY) return null; // not configured: leave it null rather than guess
@@ -43,23 +68,25 @@ export async function geocode(baseLocation: string | null): Promise<ResolvedLoca
   if (cache.has(key)) return cache.get(key) ?? null;
 
   try {
-    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
-    url.searchParams.set('address', baseLocation);
-    url.searchParams.set('components', 'country:AU'); // an Australian marketplace
-    url.searchParams.set('key', env.GEOCODING_API_KEY);
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    const body = (await res.json()) as {
-      status: string;
-      results?: { geometry: { location: { lat: number; lng: number } }; address_components: GoogleComponent[] }[];
-    };
+    let hit = await lookup(baseLocation);
 
-    const hit = body.results?.[0];
-    if (body.status !== 'OK' || !hit) {
-      // REQUEST_DENIED almost always means a key restricted to HTTP referrers - one made for the
-      // browser. A server needs an IP-restricted key, or none. It is not a billing problem.
-      const level = body.status === 'REQUEST_DENIED' ? 'error' : 'info';
-      logger[level]({ baseLocation, status: body.status }, 'could not geocode base location');
+    /**
+     * A postcode wins over a suburb name, and returns the postcode's centroid - so "Berwick VIC
+     * 3806" comes back as Harkaway, a different suburb that shares 3806. The distance is off by
+     * about a kilometre, which does not matter, but the suburb is simply wrong, which does.
+     *
+     * The business wrote the suburb, so ask for the suburb: drop the digits and look again. Only
+     * happens when a postcode was included, and the answer is cached like any other.
+     */
+    if (hit?.types.includes('postal_code')) {
+      const withoutPostcode = baseLocation.replace(/\b\d{4}\b/g, '').trim();
+      if (withoutPostcode && /[a-z]/i.test(withoutPostcode)) {
+        const bySuburb = await lookup(withoutPostcode);
+        if (bySuburb?.types.includes('locality')) hit = bySuburb;
+      }
+    }
+    if (!hit) {
       cache.set(key, null);
       return null;
     }

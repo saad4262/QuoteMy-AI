@@ -29,10 +29,14 @@ for (const input of inputs) {
   );
 }
 
-const first = await geocode(inputs[0]!);
-const last = await geocode(inputs[2]!);
-const same = first && last && first.lat === last.lat && first.lng === last.lng;
+// All of them, not just the ends - the middle one is the postcode case, which is the one that
+// used to come back as a different suburb entirely.
+const all = await Promise.all(inputs.map((i) => geocode(i)));
+const first = all[0];
+const same =
+  all.every((r) => r) &&
+  new Set(all.map((r) => `${r!.suburb}|${r!.lat.toFixed(3)}|${r!.lng.toFixed(3)}`)).size === 1;
 
-console.log(`\n  cache: all three spellings agree  ${same ? 'yes' : 'NO - check the cache key'}`);
+console.log(`\n  all three spellings agree  ${same ? 'yes' : 'NO - they resolve to different places'}`);
 console.log(`  ${first ? 'Working. serviceArea.resolved will be filled in from now on.' : 'Not working - see the message above.'}\n`);
 process.exit(first ? 0 : 1);
