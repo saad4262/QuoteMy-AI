@@ -12,7 +12,7 @@ import { processSubmission } from '../../src/worker.js';
 import { setAiClient } from '../../src/ai.js';
 import { MockAiClient } from '../../src/ai.js';
 
-const good = readFileSync('tests/fixtures/description-GOOD-southeast-fencing.txt', 'utf8');
+const good = readFileSync('tests/fixtures/description-COMPLETE-fencing.txt', 'utf8');
 const bad = readFileSync('tests/fixtures/description-BAD-daves-fencing.txt', 'utf8');
 
 /**

@@ -355,6 +355,19 @@ export class MockAiClient implements AiClient {
     const hasMinimum = /minimum charge/i.test(text);
     const vague = /\bpoa\b|call (?:us|for pricing)|from \$\d/i.test(text);
 
+    // The blocking checklist, as far as a regex can see it. Crude on purpose - the mock exists to
+    // catch regressions in the pipeline, not to reproduce the model's judgement - but without it
+    // the offline score cannot tell a complete submission from a thin one.
+    const stated = (re: RegExp) => re.test(text);
+    const missingChecklist: [RegExp, string][] = [
+      [/gate/i, 'Add your gate prices - single and double separately, or say you do not fit gates.'],
+      [/remov|pull down|cart away/i, 'Add what you charge per metre to take away an old fence.'],
+      [/slope|sloped|rock|hand.dig|access/i, 'Say what you charge extra for sloped, rocky or restricted sites, or that you charge nothing.'],
+      [/post[s]? (are|go)|hole diameter|rails? of|footing/i, 'Add how you build: post size, spacing, depth, hole diameter, footings, rails and capping.'],
+      [/permit/i, 'Say who arranges and pays for council permits, and any fee.'],
+      [/warrant/i, 'Add how long your workmanship is warranted for.'],
+    ];
+
     const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
     if (rates.length < 3) {
       fixes.push({
@@ -371,6 +384,10 @@ export class MockAiClient implements AiClient {
         example: 'Minimum charge $850',
       });
     }
+    for (const [re, what] of missingChecklist) {
+      if (!stated(re)) fixes.push({ kind: 'missing', what, example: null });
+    }
+
     if (vague && rates.length >= 3) {
       fixes.push({
         kind: 'unclear',

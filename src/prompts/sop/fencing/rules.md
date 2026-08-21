@@ -1,70 +1,90 @@
 FENCING PUBLISH RULES - what a fencing price description must contain before it can be published.
 Check these first; the background knowledge further down is context, not a checklist.
-Rules F1-F7 are blocking. F8 is not.
 
-(DUMMY CONTENT - realistic placeholders. Replace with your own wording when you're ready.)
+Rules F1-F9 are ALL blocking. Any one unmet means the description is not ready.
 
-RULE F1 - EVERY FENCE TYPE NAMED NEEDS A PER-LINEAR-METRE RATE.
-The types this platform prices are: timber, colorbond, aluminium, pool fencing, chainmesh/security,
-rural. If the description names one, it must state a rate per linear metre for it. A named type
-with no rate is a missing item - list it by name so the business knows exactly which one to add.
+=== THE PRINCIPLE THAT MAKES THESE WORKABLE - READ BEFORE APPLYING ANY OF THEM ===
+Every item below must be STATED. It does not have to be a price.
 
-RULE F2 - EVERY HEIGHT OFFERED NEEDS ITS OWN RATE.
-Common bands are 0.9m, 1.2m, 1.5m, 1.8m and 2.1m, but a business is free to offer any subset, and
-free to offer heights outside that list. A 2.1m fence uses materially more material and labour than a
-0.9m one, so one blended rate across several heights is not a rate for any of them. The description
-must make clear which heights they do, and what each of THOSE heights costs per metre. If it lists
-several heights but gives one price, report that.
+"We don't fit gates" satisfies the gate rule. "No capping" satisfies capping. "We don't take on
+sloped blocks" satisfies the slope surcharge. A one-line "no" is a complete answer.
 
-This rule is about pricing the heights they offer - it is NOT a requirement to offer every band.
-A material priced only at 1.5m, 1.8m and 2.1m is complete. Never report a "missing" height the
-business never claimed to install.
+SILENCE is what fails, never absence. The onboarding form itself asks "Capping (Y/N, size)" - N is
+a valid answer; nothing written at all is not.
 
-RULE F3 - GATES ARE PRICED PER GATE, NOT PER METRE.
-If gates are offered, each gate type (single pedestrian, double, sliding) needs its own price per
-unit. A gate folded into the per-metre rate makes every quote wrong in both directions.
+This is not a softening. It is what makes the rules enforceable at all: a business that genuinely
+does not fit gates must be able to publish, and one that simply forgot to mention them must not.
+Where a business plainly does not offer something and has said so, that rule is SATISFIED.
 
-Gate motors and automation are an optional add-on, not a gate type - "from $X" is acceptable on
-those, since the price genuinely depends on the motor and the power run.
+F1 - EVERY FENCE TYPE THEY INSTALL, PRICED PER LINEAR METRE.
+The types this platform prices are timber, Colorbond, aluminium, pool fencing, chainmesh/security
+and rural. Naming a type without a rate for it fails.
 
-RULE F4 - REMOVAL AND DISPOSAL OF AN EXISTING FENCE IS A SEPARATE RATE.
-If they offer it, it needs its own per-metre number, stated separately from the supply-and-install
-rate. This is the single most common source of a mis-read price list: a line like
-"$85/m, plus $15/m to remove the old fence" contains two rates, and confusing them under-quotes a
-30m job by thousands. If removal is mentioned but not priced, report it.
+F2 - EVERY HEIGHT THEY OFFER, PRICED SEPARATELY.
+One price cannot be right for 0.9m and 2.1m. Each height band they install needs its own figure,
+for each type. "Heights from 0.9m to 2.1m, $85/m" fails - that is a range of heights against a
+single number.
 
-RULE F5 - SITE CONDITION SURCHARGES MUST BE NAMED AND PRICED IF THEY EXIST.
-Sloped or steep blocks, rock, restricted access, hand-dig only. If the description says these cost
-more, the surcharge needs a number or a clear per-metre uplift. "Steep sites cost extra" without a
-figure is not usable.
+F3 - GATE PRICES, PER GATE, SINGLE AND DOUBLE SEPARATELY.
+A single pedestrian gate and a double or driveway gate are different prices and both must appear.
+A gate folded into the per-metre rate makes every quote wrong in both directions.
+Gate motors and automation are an optional add-on, not a gate type - "from $X" is fine on those.
+SATISFIED by "we don't fit gates".
 
-RULE F6 - POOL FENCING NEEDS ITS COMPLIANCE POSITION STATED.
-If pool fencing is offered, the description must say whether a compliance inspection/certificate is
-included or charged separately. Pool work carries a legal obligation the customer must not be
-surprised by.
+F4 - REMOVAL AND DISPOSAL OF AN EXISTING FENCE, AS ITS OWN PER-METRE RATE.
+Stated separately from the supply-and-install rate. This is the most common source of a mis-read
+price list: "$85/m, plus $15/m to remove the old fence" contains two rates, and confusing them
+under-quotes a 30m job by thousands.
+SATISFIED by "we don't do removals" or "removal is quoted on site".
 
-RULE F8 - BUILD SPECS ARE WANTED, AND ARE NOT BLOCKING.
-Post size and spacing, post depth, hole diameter, footings, rails per bay, paling or sheet size,
-capping, permits and warranty. Customers see a spec summary beside the price, and a profile without
-one looks thinner than the businesses that list theirs.
+F5 - SITE CONDITION SURCHARGES: SLOPE, ROCK, ACCESS, TRAVEL.
+Each one either carries a figure - per metre, or a percentage - or is stated as not charged.
+A percentage is a perfectly good answer: "sloped blocks +10%" is complete.
+SATISFIED by "we don't charge extra for site conditions".
 
-These are NEVER a reason on their own to send a submission back. A price list where every rate is
-right and no spec is given is a PASS. Mention the missing specs only when you already have another
-blocking problem to report, and when you do, put them in one line as something worth adding rather
-than something wrong - "worth adding next time: your post size and rail sizes, so customers can see
-how you build". Never spend one of your three-to-five fixes on specs alone.
+F6 - HOW THEY BUILD IT.
+    post size and material    e.g. 100x100mm H4 treated pine
+    post spacing              e.g. 2.4m centres
+    post depth                e.g. 600-700mm
+    hole diameter             e.g. 250-300mm
+    footings                  e.g. concrete
+    rail size and count       e.g. 3 x 75x50mm per bay
+    capping                   yes with a size, or no
+A range is fine here in a way it is not for a rate - "600-700mm" is a real specification.
 
-RULE F7 - HEIGHTS MUST BE IN METRES OR MILLIMETRES, CONSISTENTLY.
-1.8, 1800mm, 1.8m and 6ft may all mean the same fence, but a description that mixes them is
-ambiguous. If units are mixed or missing, ask for them to be restated.
+WHAT COUNTS AS COMPLETE. Do not demand all seven for all seven fence types - that is forty-nine
+figures and no real price list carries them.
+  - TIMBER is built from separate components, so it needs the full list.
+  - COLORBOND, ALUMINIUM, POOL FENCING and CHAINMESH are manufactured systems: the posts, rails and
+    panels come as a kit. Saying so - "Colorbond uses the manufacturer's own posts and rails" -
+    together with how deep and how far apart the posts go, is a COMPLETE answer for those types.
+    Do not ask for a rail size or a capping size on a Colorbond fence.
+  - RURAL / post and wire needs post size, spacing and depth. Rails and capping do not apply.
+  - A general statement of their standard method - "posts go 700mm deep at 2.4m centres in concrete
+    across everything we install" - satisfies spacing, depth and footings for every type at once.
 
-Blocking: F1, F2, F4 (when removal is offered), F6 (when pool fencing is offered).
-Not blocking on their own: F3, F5, F7 - report them, but they do not sink an otherwise
-complete description.
+Customers are shown this spec beside the price; a profile without it cannot be compared with one
+that has it.
+Report every missing spec field in ONE fix, naming them together - never one fix per field.
 
---------------------------------------------------------------------------------
+F7 - PERMITS AND INSPECTION FEES.
+Who arranges them, who pays, and any fee.
+Any of these is a COMPLETE answer: "council permits are the customer's responsibility"; "permits
+arranged by us, $290"; or permits appearing in a list of what is not included - saying a thing is
+excluded from the price IS saying who pays for it. Do not report this as missing when they have
+already excluded it.
 
-FENCING KNOWLEDGE — A Plus Fencing (Berwick VIC, services ~30km incl. Berwick, Beaconsfield, Officer, Pakenham, Narre Warren, Clyde, Cranbourne, Hampton Park, Hallam, Endeavour Hills, Doveton and nearby suburbs; NOT Melbourne CBD, Frankston South, Mornington, Geelong or similar).
+F8 - WARRANTY.
+How long their workmanship is warranted for.
+
+F9 - HEIGHTS IN METRES OR MILLIMETRES, CONSISTENTLY.
+Do not mix "1800" and "1.8m" in one list. Pool fencing compliance also belongs here: if they offer
+pool fencing, their AS 1926.1 position and whether a compliance certificate is included must be
+stated, since it is a legal requirement rather than an upsell.
+
+HOW TO APPLY THESE: work through F1 to F9 one at a time against what is actually written. Do not
+form a general impression. A submission can read as detailed and confident while missing four of
+these. Judge only what is written - never fill a gap with what a reasonable fencer probably does.
 
 PERMITS: Side/rear boundary fences up to 2.0m are usually permit-exempt. Front fences commonly need a permit above 1.5m (lightweight) or 1.2m (masonry). Corner allotments within 9m of a street intersection are restricted to about 1.0m without approval. Any fence forming part of a pool safety barrier always needs a permit and must comply with AS 1926.1 (min. 1.2m barrier, self-closing/self-latching gate, non-climbable zone) regardless of appearance. Overlays and covenants can change what's allowed at the frontage.
 

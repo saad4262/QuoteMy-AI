@@ -6,6 +6,9 @@ import { MemoryRepository, setRepository } from '../../src/store.js';
 import { clearTranscriptCache } from '../../src/ingest.js';
 
 const app = createApp();
+// `complete` satisfies every blocking rule. `good` is a well-written price list that does NOT -
+// no build specs, no permits position, no warranty - and is kept for exactly that contrast.
+const complete = readFileSync('tests/fixtures/description-COMPLETE-fencing.txt', 'utf8');
 const good = readFileSync('tests/fixtures/description-GOOD-southeast-fencing.txt', 'utf8');
 const bad = readFileSync('tests/fixtures/description-BAD-daves-fencing.txt', 'utf8');
 
@@ -16,7 +19,7 @@ beforeEach(() => setRepository(new MemoryRepository()));
 
 describe('action: submit', () => {
   it('approves a complete price list, stores it, and returns what was extracted', async () => {
-    const res = await call({ businessUid: 'biz-good', trade: 'fencing', text: good });
+    const res = await call({ businessUid: 'biz-good', trade: 'fencing', text: complete });
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -37,7 +40,7 @@ describe('action: submit', () => {
   });
 
   it('defaults to submit when no action is given', async () => {
-    const res = await call({ businessUid: 'biz-default', text: good });
+    const res = await call({ businessUid: 'biz-default', text: complete });
     expect(res.body.data.approved).toBe(true);
   });
 
@@ -72,14 +75,23 @@ describe('action: submit', () => {
     }));
 
   it('returns the identical shape for a ten-item and a two-item business', async () => {
+    // Fewer rates than `complete`, but it still answers every blocking item - which is the point:
+    // a small profile and a large one must come back in the same shape.
     const small = [
       'Treated pine 1.8m - $85 per metre',
+      'Treated pine 2.1m - $104 per metre',
       'Colorbond 1.8m - $110 per metre',
-      'Aluminium slat 1.2m - $165 per metre',
-      'All prices include GST. Minimum charge is $850.',
+      'All prices include GST. Minimum charge is $850. Based in Berwick, we travel 30km,',
+      'no travel charge inside that.',
+      'Gates: single pedestrian $480, double driveway $1,340.',
+      'Removal of an old timber fence: $18 per metre.',
+      'Sloped blocks +$14/m. Rock or hand-dig +$22/m. Restricted access +$9/m.',
+      'Posts are 100x100mm H4 pine at 2.4m centres, 700mm deep in concrete, 300mm holes,',
+      '3 rails of 75x50mm per bay, no capping. Colorbond uses the manufacturer system.',
+      'Council permits are the customer\'s responsibility. Workmanship warranted 7 years.',
     ].join('\n');
 
-    const a = await call({ businessUid: 'biz-a', text: good });
+    const a = await call({ businessUid: 'biz-a', text: complete });
     const b = await call({ businessUid: 'biz-b', text: small });
 
     expect(a.body.data.approved).toBe(true);
@@ -91,7 +103,7 @@ describe('action: submit', () => {
   });
 
   it('keeps two businesses data apart', async () => {
-    await call({ businessUid: 'biz-one', text: good });
+    await call({ businessUid: 'biz-one', text: complete });
 
     expect((await call({ action: 'profile', businessUid: 'biz-two' })).status).toBe(404);
     expect((await call({ action: 'profile', businessUid: 'biz-one' })).status).toBe(200);
@@ -130,7 +142,7 @@ describe('input handling', () => {
   });
 
   it('does not mistake a real price list for mashed keys', async () => {
-    const res = await call({ businessUid: 'biz-real', text: good });
+    const res = await call({ businessUid: 'biz-real', text: complete });
     expect(res.body.data.approved).toBe(true);
   });
 
@@ -150,20 +162,20 @@ describe('input handling', () => {
   });
 
   it('rejects an unknown trade with a field-level message', async () => {
-    const res = await call({ businessUid: 'biz-x', trade: 'plumbing', text: good });
+    const res = await call({ businessUid: 'biz-x', trade: 'plumbing', text: complete });
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('bad_request');
   });
 
   it('rejects an unknown action', async () => {
-    const res = await call({ businessUid: 'biz-x', action: 'delete-everything', text: good });
+    const res = await call({ businessUid: 'biz-x', action: 'delete-everything', text: complete });
     expect(res.status).toBe(400);
   });
 });
 
 describe('status lifecycle', () => {
   it('goes verified -> confirmed only through an explicit confirm', async () => {
-    await call({ businessUid: 'biz-c', text: good });
+    await call({ businessUid: 'biz-c', text: complete });
 
     const before = await call({ action: 'profile', businessUid: 'biz-c' });
     expect(before.body.data.pricing.confirmedAt).toBeNull();
@@ -178,9 +190,9 @@ describe('status lifecycle', () => {
   });
 
   it('clears a previous confirmation when new pricing is submitted', async () => {
-    await call({ businessUid: 'biz-d', text: good });
+    await call({ businessUid: 'biz-d', text: complete });
     await call({ action: 'confirm', businessUid: 'biz-d' });
-    await call({ businessUid: 'biz-d', text: good });
+    await call({ businessUid: 'biz-d', text: complete });
 
     const profile = await call({ action: 'profile', businessUid: 'biz-d' });
     expect(profile.body.data.pricing.confirmedAt).toBeNull();
@@ -255,12 +267,7 @@ describe('file uploads', () => {
 
   it('names a file it could not read instead of quietly ignoring it', async () => {
     const res = await attach('rate-card.png', {
-      text: [
-        'Treated pine 1.8m - $85 per metre',
-        'Colorbond 1.8m - $110 per metre',
-        'Aluminium slat 1.2m - $165 per metre',
-        'All prices include GST. Minimum charge is $850.',
-      ].join('\n'),
+      text: complete,
     });
 
     expect(res.body.data.approved).toBe(true);
@@ -277,7 +284,7 @@ describe('file uploads', () => {
   });
 
   it('still accepts a plain JSON submission with no files at all', async () => {
-    const res = await call({ businessUid: 'biz-json', text: good });
+    const res = await call({ businessUid: 'biz-json', text: complete });
     expect(res.body.data.approved).toBe(true);
     expect(res.body.data.business.source.documents).toEqual([
       { label: 'typed', kind: 'text', readBy: 'text', chars: expect.any(Number), unreadable: false },
@@ -334,7 +341,7 @@ describe('what would make the profile stronger', () => {
   });
 
   it('is present on an approved submission too - that is the one nothing else tells', async () => {
-    const res = await call({ businessUid: 'biz-approved-thin', text: good });
+    const res = await call({ businessUid: 'biz-approved-thin', text: complete });
     expect(res.body.data.approved).toBe(true);
     expect(res.body.data.business).toHaveProperty('alsoWorthAdding');
   });

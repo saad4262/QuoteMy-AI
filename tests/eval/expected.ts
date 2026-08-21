@@ -27,7 +27,8 @@ export interface Expectation {
 
 export const EXPECTATIONS: Expectation[] = [
   {
-    file: 'description-GOOD-southeast-fencing.txt',
+    /** Everything the client's checklist asks for. This is what a pass looks like now. */
+    file: 'description-COMPLETE-fencing.txt',
     approved: true,
     pricing: {
       gstIncluded: true,
@@ -53,6 +54,16 @@ export const EXPECTATIONS: Expectation[] = [
       // otherwise be quoted without the surcharge. Corrected after the first eval run.
       siteConditionCount: 4,
     },
+  },
+  {
+    /**
+     * This used to be the pass. It stopped being one on 2026-08-21, when the client's checklist
+     * made build specs, permits, warranty and a travel position blocking - and this fixture states
+     * none of them. It is kept precisely because it is a good, well-written price list that now
+     * fails: if it ever passes again, a blocking rule has quietly stopped working.
+     */
+    file: 'description-GOOD-southeast-fencing.txt',
+    approved: false,
   },
   {
     // Deliberately longer and more charming than the good one, with almost no usable price.
