@@ -39,10 +39,49 @@ export function transcribePrompt(): string {
   return transcribeSystem;
 }
 
-export function reviewPrompt(trade: Trade): string {
-  return [reviewSystem, '=== GENERAL PUBLISH RULES ===', generalSop, `=== ${trade.toUpperCase()} RULES ===`, tradeRules[trade]].join(
-    '\n\n',
-  );
+export function reviewPrompt(trade: Trade, previousFixes: string[] = []): string {
+  return [
+    reviewSystem,
+    '=== GENERAL PUBLISH RULES ===',
+    generalSop,
+    `=== ${trade.toUpperCase()} RULES ===`,
+    tradeRules[trade],
+    previousReviewBlock(previousFixes),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/**
+ * What we asked this business for last time, when there was a last time.
+ *
+ * The rules around it are the whole point. Handing a model its own previous answer invites it to
+ * repeat that answer, and the failure this guards against is real: a business fixes all three
+ * things, resubmits, and gets told the same three things again. It is also why the block insists
+ * on a fresh check - a rewrite very often fixes the old problems and drops something that was fine
+ * before.
+ */
+function previousReviewBlock(fixes: string[]): string {
+  if (!fixes.length) return '';
+
+  return [
+    '=== WHAT WE ASKED FOR LAST TIME ===',
+    'This business has sent their details before. These are the changes we asked for:',
+    ...fixes.map((f) => `  - ${f}`),
+    '',
+    'HOW TO USE THIS. Read it, then set it aside and judge the submission in front of you from',
+    'scratch, against the rules above, exactly as you would if there were no previous review. This',
+    'list is context, never a conclusion.',
+    '  - Do NOT assume any of it was addressed. Check each one in the new text like everything else.',
+    '  - Do NOT repeat an item from this list unless it is still a problem in the text you can see',
+    '    now. Telling someone to add a rate they have just added is the worst thing you can do here.',
+    '  - Do NOT limit yourself to this list either. Rewriting a price list very often fixes the old',
+    '    problems and breaks something new - a rate that was there last time can be missing now.',
+    '    Everything gets checked again, every time.',
+    '  - DO use it so your wording can acknowledge what they have done: "the GST line is sorted -',
+    '    the minimum charge is the last thing we need."',
+    '=== END ===',
+  ].join('\n');
 }
 
 export function extractionPrompt(_trade: Trade): string {

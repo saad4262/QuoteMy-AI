@@ -632,12 +632,125 @@ Defaults need no API key: `AI_PROVIDER=mock` is a deterministic offline reader t
 whole UI flow can be built and tested for free; set `AI_PROVIDER=openai` and `OPENAI_API_KEY` for
 real behaviour.
 
-Storage is in memory and clears on restart, so a `profile` call after a restart returns `404`. That
-is expected until Firestore is wired up.
+Storage is in memory unless `STORE=firestore`. A `profile` call after a memory-store restart returns `404`.
 
 `GET /health` reports which provider is live:
 
 ```jsonc
 { "ok": true, "data": { "status": "ok", "uptime": 1092.6, "provider": "mock", "model": "mock",
+                        "store": "memory",
                         "prompts": { "review": 5235, "extraction": 1934, "transcribe": 597 } } }
 ```
+
+---
+
+## 13. Firestore save path (`action: "process"`)
+
+This is how the live product works. The business screen does **not** wait for the model — the
+answer arrives as a document.
+
+```
+businesses/{uid}/services/{trade}
+  ├─ (root doc)                { trade, lastSubmittedAt }
+  ├─ description/raw           ← you write
+  ├─ description/lastaireview  ← the service writes; you listen
+  ├─ jsondata/extracted        ← the service writes; customer search reads it
+  └─ submissions/{id}          ← the service appends; admin history
+```
+
+### On Save
+
+1. Upload files to Storage at `businesses/{uid}/services/{trade}/{submissionId}/{filename}`. Keep
+   both `path` and `url` on each file — the service reads by `path`.
+2. Write `description/raw`:
+
+```jsonc
+{
+  "submissionId": "uuid",            // NEW value every Save. This is the work ticket.
+  "uid": "…", "trade": "fencing",
+  "text": "…",                       // may be empty when only files were attached
+  "files": [{ "name", "path", "url", "contentType", "size" }],
+  "status": "pending",               // pending | accepted | rejected | failed
+  "createdAt": <serverTimestamp>,
+  "updatedAt": <serverTimestamp>
+}
+```
+
+3. Merge `description/lastaireview` with `{ displayState: "pending", updatedAt }` — **merge, do not
+   overwrite**. The previous review body stays where it is, which is what lets the service tell a
+   resubmit from a first attempt.
+4. Create `jsondata/extracted` as `{ data: null, updatedAt: null }` if it does not exist.
+5. `POST /api/v1/business` `{ "action": "process", "businessUid", "trade" }`. The response is
+   `{ accepted: true, submissionId }` — **not the review**. Fire and forget: if this call fails, the
+   Save still succeeded and the sweeper picks the document up within two minutes.
+6. `onSnapshot` on `description/lastaireview`.
+
+### Reading the answer
+
+**Show the panel only when `displayState === "ready"`.** While it is `"pending"`, show "we are
+reading your details" and leave the old review body hidden — it belongs to the previous submission.
+
+Also ignore a `ready` document whose `submissionId` is not the one you just wrote; that is the
+previous review still in place.
+
+The document carries the same `data` object `action: "submit"` returns, so the panels in section 5
+work unchanged:
+
+```jsonc
+{
+  "displayState": "ready",
+  "submissionId": "…",
+  "approved": true,
+  "status": "verified",
+  "business": { "opening", "fixes", "whatToSend", "notUsed", "source", "nextStep",
+                "pricing", "capabilities", "ratesSaved", "labels" },
+  "admin":    { "decision", "submissionId", "coverage", "sourceText", "textChars" },
+  "model": "gpt-5.6-terra", "costUsd": 0.046,
+  "updatedAt": <serverTimestamp>
+}
+```
+
+### `raw.status` — four values, not three
+
+| value | meaning | panel |
+|---|---|---|
+| `pending` | waiting on us | "reading your details" |
+| `accepted` | the review approved it | approved panel |
+| `rejected` | changes needed, **or** the submission was unreadable | fix list / checklist |
+| `failed` | we could not process it after several tries — **our** fault, not theirs | failure panel |
+
+`failed` matters. Without it a broken submission would sit on "Approval pending" forever and the
+business would never learn why. `lastaireview` comes back with `decision: "failed"` and an opening
+that says so plainly: *"Something went wrong on our end reading your details. Nothing you sent has
+been lost — send it through again, or use the contact button and we will sort it out."*
+
+The service also writes its own `aiWorkStatus`, `aiAttempts`, `aiSubmissionId` fields on that
+document. They are its bookkeeping for retries — ignore them, and never write them.
+
+### Confirm still gates going live
+
+Approval is the machine's judgement; going live is the business's decision. On approval the service
+writes `jsondata/extracted` with `status: "verified"` — present, but **not** visible to customers.
+`{ "action": "confirm", … }` sets `status: "confirmed"`, and customer search filters on that.
+
+Show Confirm only when `decision === "approved"` and `status !== "unverified"`.
+
+### Resubmitting
+
+The service reads the previous `lastaireview` and passes what was asked for last time into the
+review as *context* — so the wording can acknowledge progress ("the GST line is sorted, the minimum
+charge is the last thing we need"). It is not a shortcut: every submission is judged from scratch
+against the rules, because a rewrite very often fixes the old problems and breaks something new.
+
+This is exactly why step 3 says merge rather than overwrite.
+
+### Do not
+
+- Write `lastaireview.business` / `admin`, or `jsondata/extracted.data`, from the client. The rules
+  in `firestore.rules` refuse it — a business that could write those could approve its own prices.
+- Send text or files in the `process` body. The service reads Firestore.
+- Wait on the `process` response for the review.
+- Forget `displayState`. Without `"ready"` the panel never opens.
+
+`action: "submit"` still accepts text and files in the HTTP body and returns the review in the
+response. That path is unchanged and is how Postman and the tests run with no Firebase credentials.

@@ -6,8 +6,20 @@ import { assertSomethingArrived, readSource, stripProvenance, type UploadedFile 
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
 import { LABELS, MESSAGES, WHAT_TO_SEND } from './messages.js';
-import { getRepository, SCHEMA_VERSION, type BusinessRepository } from './store.js';
+import { getRepository, SCHEMA_VERSION, type BusinessRepository, type ReviewDoc } from './store.js';
 import { verifyExtraction } from './verify.js';
+
+/**
+ * The `what` lines from the last review, or nothing when this is a first submission.
+ *
+ * Only the actions are carried across - not the decision, not the opening, not the counts. The
+ * model is being told what was asked for last time so its wording can acknowledge progress; it is
+ * emphatically not being told what to conclude.
+ */
+function previousFixes(review: ReviewDoc | null | undefined): string[] {
+  const business = review?.business as { fixes?: { what?: string }[] } | undefined;
+  return (business?.fixes ?? []).map((f) => f.what).filter((w): w is string => Boolean(w));
+}
 
 const FENCE = /<<<\s*(?:END\s*)?DESCRIPTION\s*>>>/gi;
 // Control characters, zero-width joiners and bidi overrides: a classic way to hide instructions
@@ -78,7 +90,13 @@ export async function runOnboarding(
   uid: string,
   input: BusinessBody,
   files: UploadedFile[] = [],
-  deps: { ai?: AiClient; repo?: BusinessRepository } = {},
+  deps: {
+    ai?: AiClient;
+    repo?: BusinessRepository;
+    submissionId?: string;
+    /** The last review this business got, when this is a resubmit. Context only - see prompts.ts. */
+    previousReview?: ReviewDoc | null;
+  } = {},
 ) {
   const ai = deps.ai ?? getAiClient();
   const repo = deps.repo ?? getRepository();
@@ -103,7 +121,7 @@ export async function runOnboarding(
         `We could not read anything from ${d.label}. If it has pricing in it, send a clearer photo or type those figures in.`,
     );
 
-  const submissionId = randomUUID();
+  const submissionId = deps.submissionId ?? randomUUID();
   const spend = () => Number(stages.reduce((sum, s) => sum + s.costUsd, 0).toFixed(6));
 
   /**
@@ -167,7 +185,7 @@ export async function runOnboarding(
   const review = await ai.callStructured({
     name: 'review',
     schema: reviewSchema,
-    system: reviewPrompt(input.trade),
+    system: reviewPrompt(input.trade, previousFixes(deps.previousReview)),
     user: wrapDescription(input.trade, text),
     maxOutputTokens: 4000,
   });
@@ -248,8 +266,8 @@ export async function runOnboarding(
     status: verified.status,
     schemaVersion: SCHEMA_VERSION,
     updatedAt: at,
-    // Re-submitting always clears a previous confirmation: the business confirms the NEW figures.
     confirmedAt: null,
+    ratesSaved: verified.ratesKept,
   });
   await repo.saveCapabilities(uid, {
     ...verified.capabilities,

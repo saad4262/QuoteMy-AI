@@ -9,7 +9,7 @@ import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS } from 
  * choice - when Firebase is wired up it comes from the verified token instead.
  */
 export const businessBody = z.object({
-  action: z.enum(['submit', 'confirm', 'profile', 'review', 'extract']).default('submit'),
+  action: z.enum(['submit', 'confirm', 'profile', 'review', 'extract', 'process']).default('submit'),
   businessUid: z.string().trim().min(1).default('test-business'),
   trade: z.enum(TRADES).default('fencing'),
   // Optional because attached files are a submission on their own. Whether anything usable

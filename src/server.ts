@@ -3,8 +3,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env, logger } from './config.js';
 import { errorHandler, notFound, requestId, requestLog } from './http.js';
+import { FirestoreRepository } from './firestore.store.js';
 import { assertPromptBudgets, promptSizes } from './prompts.js';
 import { routes } from './routes.js';
+import { setRepository } from './store.js';
+import { startWorker } from './worker.js';
 
 export function createApp() {
   const app = express();
@@ -28,10 +31,16 @@ export function createApp() {
 
 // Only start listening when run directly, so tests can import createApp without a port.
 if (process.env.NODE_ENV !== 'test') {
-  assertPromptBudgets(); // a fat SOP fails the boot, not next month's bill
+  assertPromptBudgets();
+
+  if (env.STORE === 'firestore') setRepository(new FirestoreRepository());
+  if (env.WORKER_ENABLED) startWorker();
 
   const server = createApp().listen(env.PORT, () => {
-    logger.info({ port: env.PORT, env: env.NODE_ENV, provider: env.AI_PROVIDER, prompts: promptSizes() }, 'api listening');
+    logger.info(
+      { port: env.PORT, env: env.NODE_ENV, provider: env.AI_PROVIDER, store: env.STORE, prompts: promptSizes() },
+      'api listening',
+    );
   });
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

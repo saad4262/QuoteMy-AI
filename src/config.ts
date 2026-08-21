@@ -24,6 +24,20 @@ const schema = z.object({
 
   MIN_TEXT_CHARS: z.coerce.number().default(40),
   MAX_TEXT_CHARS: z.coerce.number().default(60_000),
+
+  // memory    = in-process, cleared on restart. Tests and Postman use this and need no credentials.
+  // firestore = the real thing; the frontend writes submissions, this service answers them.
+  STORE: z.enum(['memory', 'firestore']).default('memory'),
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_STORAGE_BUCKET: z.string().optional(),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+
+  // The sweeper. Its whole job is that a submission is never lost because one HTTP call failed.
+  WORKER_ENABLED: z.stringbool().default(false),
+  WORKER_INTERVAL_MS: z.coerce.number().default(120_000),
+  WORKER_MAX_ATTEMPTS: z.coerce.number().default(3),
+  WORKER_STALE_MS: z.coerce.number().default(600_000),
+  WORKER_BATCH: z.coerce.number().default(5),
 });
 
 // An empty value in .env means "not set", not "the empty string".
@@ -40,6 +54,18 @@ export const isProd = env.NODE_ENV === 'production';
 
 if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {
   console.error('AI_PROVIDER=openai but OPENAI_API_KEY is not set');
+  process.exit(1);
+}
+
+if (env.STORE === 'firestore' && !env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.error('STORE=firestore but GOOGLE_APPLICATION_CREDENTIALS is not set');
+  process.exit(1);
+}
+
+// The sweeper reads and writes Firestore. Enabling it against the memory store would busy-loop
+// over nothing, which looks like it is working and is not.
+if (env.WORKER_ENABLED && env.STORE !== 'firestore') {
+  console.error('WORKER_ENABLED=true requires STORE=firestore');
   process.exit(1);
 }
 

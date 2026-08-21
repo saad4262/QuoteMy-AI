@@ -4,6 +4,7 @@ import {
   assertWithinLimits,
   clearTranscriptCache,
   detectKind,
+  filesFromStorage,
   readSource,
   safeName,
   stripProvenance,
@@ -126,5 +127,17 @@ describe('stripProvenance', () => {
   it('leaves real content that merely looks bracketed alone', () => {
     const text = 'Timber [treated pine] 1.8m - $85 per metre';
     expect(stripProvenance(text)).toBe(text);
+  });
+});
+
+describe('filesFromStorage', () => {
+  it('downloads by path into the same shape multer would have given us', async () => {
+    const files = await filesFromStorage(
+      [{ name: 'rates.txt', path: 'businesses/u1/fencing/s1/rates.txt', contentType: 'text/plain' }],
+      async () => txt,
+    );
+    expect(files).toHaveLength(1);
+    expect(files[0]?.originalname).toBe('rates.txt');
+    expect(files[0]?.buffer.equals(txt)).toBe(true);
   });
 });

@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { getAiClient, type AiClient, type ModelFile, type StageUsage } from './ai.js';
+import { downloadFile } from './firebase.js';
 import { AppError, unprocessable } from './http.js';
 import { transcribePrompt } from './prompts.js';
 import { transcriptSchema } from './schemas.js';
+import type { SubmissionFile } from './store.js';
 
 /**
  * Turning whatever the business attached into one piece of text.
@@ -143,6 +145,27 @@ export function assertWithinLimits(files: UploadedFile[]): void {
   if (total > LIMITS.perRequest) {
     throw new AppError(413, `Those files add up to more than ${LIMITS.perRequest / 1024 / 1024} MB`, 'payload_too_large');
   }
+}
+
+/**
+ * Turn Storage PATHS (what the frontend wrote) into the same in-memory files multer would have
+ * given us. Downstream — magic bytes, limits, transcription — is unchanged.
+ */
+export async function filesFromStorage(
+  files: SubmissionFile[],
+  download: (path: string) => Promise<Buffer> = downloadFile,
+): Promise<UploadedFile[]> {
+  const out: UploadedFile[] = [];
+  for (const file of files) {
+    if (!file.path) continue;
+    const buffer = await download(file.path);
+    out.push({
+      originalname: file.name || file.path.split('/').pop() || 'file',
+      mimetype: file.contentType || 'application/octet-stream',
+      buffer,
+    });
+  }
+  return out;
 }
 
 /**

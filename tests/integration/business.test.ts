@@ -288,6 +288,15 @@ describe('health', () => {
     const res = await request(app).get('/api/v1/health');
     expect(res.body.data.status).toBe('ok');
     expect(res.body.data.provider).toBe('mock');
+    expect(res.body.data.store).toBe('memory');
+  });
+});
+
+describe('action: process', () => {
+  it('refuses to run against the memory store', async () => {
+    const res = await call({ action: 'process', businessUid: 'biz-p' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('bad_request');
   });
 });
 

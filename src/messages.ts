@@ -60,6 +60,11 @@ export const MESSAGES = {
     nextStep:
       'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
   },
+  failed: {
+    opening:
+      'Something went wrong on our end reading your details. Nothing you sent has been lost — send it through again, or use the contact button and we will sort it out.',
+    nextStep: 'Send your details through again, or use the contact button below and we will sort it out.',
+  },
 } as const;
 
 /**

@@ -24,3 +24,28 @@ describe('prompt assembly', () => {
     expect(wrapped).toContain('<<<END DESCRIPTION>>>');
   });
 });
+
+describe('previous review block', () => {
+  const fixes = ['Say whether your prices include GST.', 'Add the smallest job you will take on.'];
+
+  it('is absent on a first submission', () => {
+    expect(reviewPrompt('fencing')).not.toContain('WHAT WE ASKED FOR LAST TIME');
+    expect(reviewPrompt('fencing', [])).not.toContain('WHAT WE ASKED FOR LAST TIME');
+  });
+
+  it('carries what we asked for last time, and the rules that stop it being parroted back', () => {
+    const prompt = reviewPrompt('fencing', fixes);
+
+    expect(prompt).toContain('WHAT WE ASKED FOR LAST TIME');
+    for (const fix of fixes) expect(prompt).toContain(fix);
+
+    // the three guards that make this context rather than a conclusion
+    expect(prompt).toMatch(/judge the submission in front of you from\s*\n?scratch/i);
+    expect(prompt).toMatch(/do NOT assume any of it was addressed/i);
+    expect(prompt).toMatch(/breaks something new/i);
+  });
+
+  it('still fits the token budget with the block attached', () => {
+    expect(estimateTokens(reviewPrompt('fencing', fixes))).toBeLessThan(PROMPT_TOKEN_BUDGET.review);
+  });
+});

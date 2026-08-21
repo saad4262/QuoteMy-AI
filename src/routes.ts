@@ -26,6 +26,7 @@ routes.get('/health', (req, res) =>
     uptime: process.uptime(),
     provider: env.AI_PROVIDER,
     model: env.AI_PROVIDER === 'mock' ? 'mock' : env.OPENAI_MODEL,
+    store: env.STORE,
     prompts: promptSizes(),
   }),
 );
@@ -33,6 +34,7 @@ routes.get('/health', (req, res) =>
 /**
  * Everything the business side does goes here. The `action` field in the body picks the job:
  *   submit  (default) - send details for approval, as text, files, or both
+ *   process           - frontend already wrote Firestore; nudge this service to read it
  *   profile           - read back what is stored
  *   confirm           - the business confirms the figures, which makes them live
  *   review / extract  - one stage only, for prompt tuning (ENABLE_DEV_ROUTES=true)

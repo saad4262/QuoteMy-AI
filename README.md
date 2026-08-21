@@ -14,7 +14,7 @@ stores it, and the business confirms it to go live.
 | | |
 |---|---|
 | Pipeline | ✅ review → extract → verify → store → report, running end to end |
-| Storage | in-memory. Firestore is a second class in `store.ts` — nothing else changes |
+| Storage | `STORE=memory` (default) or `STORE=firestore`. Frontend writes `services/{trade}/submission/description`; this service writes `lastAiReview` and `extracted/current`. Legacy `pricing/{trade}` is not touched. |
 | Auth | none yet — `businessUid` comes from the body. Firebase token verification replaces it later |
 | Model | `AI_PROVIDER=mock` (offline, deterministic, free) or `openai` with `gpt-5.6-terra` |
 | File uploads | ✅ PDF, images, Word, spreadsheets, plain text — read into one transcript before anything else runs |
@@ -24,7 +24,7 @@ stores it, and the business confirms it to go live.
 ```bash
 cp .env.example .env
 npm run dev        # http://localhost:8787
-npm test           # 44 unit + integration tests, no API key needed
+npm test           # 72 unit + integration tests, no API key needed
 npm run typecheck
 ```
 
@@ -47,7 +47,7 @@ Two, and only one of them does anything interesting.
 | `POST` | `/api/v1/business` | everything else — `action` in the body picks the job |
 
 ```jsonc
-{ "action": "submit",          // submit | profile | confirm | review | extract
+{ "action": "submit",          // submit | process | profile | confirm | review | extract
   "businessUid": "demo-1",
   "trade": "fencing",
   "text": "…their price list…" }
@@ -90,7 +90,9 @@ src/
   pipeline.ts    the actual flow: ingest -> sanitise -> review -> extract -> verify -> store
   verify.ts      quote matching, vocabulary re-check, plausibility bounds (no model involved)
   messages.ts    the fixed opening and next-step lines, and the slug -> label map
-  store.ts       where data lives (in-memory today, Firestore later - same interface)
+  store.ts       repository interface: MemoryRepository + FirestoreRepository (`firestore.store.ts`)
+  worker.ts      claim a queued description, run the pipeline, write lastAiReview
+  firebase.ts    Admin SDK, lazy — only when STORE=firestore
   ai.ts          the ONLY file that talks to OpenAI, plus the offline mock
   schemas.ts     zod schemas -> strict JSON Schema, validation and types from one definition
   prompts.ts     loads and assembles the prompt files

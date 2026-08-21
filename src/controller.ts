@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { getAiClient } from './ai.js';
-import { env } from './config.js';
+import { env, logger } from './config.js';
 import { badRequest, notFound, send } from './http.js';
 import { assertSomethingArrived, readSource, type UploadedFile } from './ingest.js';
 import { assertSubmittable, runOnboarding, sanitizeText } from './pipeline.js';
@@ -8,6 +8,7 @@ import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
 import { getRepository } from './store.js';
 import { verifyExtraction } from './verify.js';
+import { processSubmission } from './worker.js';
 
 /**
  * One route, one handler. `action` in the body decides what happens, so the frontend calls a single
@@ -23,6 +24,8 @@ export async function business(req: Request, res: Response) {
       return profile(req, res, body);
     case 'confirm':
       return confirm(req, res, body);
+    case 'process':
+      return process(req, res, body);
     case 'review':
     case 'extract':
       if (!env.ENABLE_DEV_ROUTES) throw notFound(`Action "${body.action}" is not available`);
@@ -69,6 +72,25 @@ async function confirm(req: Request, res: Response, body: BusinessBody) {
 
   const confirmed = await repo.confirm(body.businessUid, body.trade, new Date().toISOString());
   send(req, res, { pricing: confirmed, alreadyConfirmed: false }, { trade: body.trade, live: true });
+}
+
+/**
+ * A nudge, not a request. The frontend already wrote submission/description. We claim it in the
+ * background and write lastAiReview; the HTTP body is only "we heard you".
+ */
+async function process(req: Request, res: Response, body: BusinessBody) {
+  if (getRepository().kind !== 'firestore') {
+    throw badRequest('action "process" needs STORE=firestore');
+  }
+
+  const description = await getRepository().getDescription(body.businessUid, body.trade);
+  if (!description) throw notFound('Nothing has been saved for this trade yet');
+
+  void processSubmission(body.businessUid, body.trade).catch((err) =>
+    logger.error({ err, uid: body.businessUid, trade: body.trade }, 'process nudge failed'),
+  );
+
+  send(req, res, { accepted: true, submissionId: description.submissionId });
 }
 
 /** One stage at a time, for tuning a prompt. Nothing is stored. ENABLE_DEV_ROUTES only. */

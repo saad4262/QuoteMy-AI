@@ -1,0 +1,64 @@
+rules_version = '2';
+
+// Security rules for the services onboarding path.
+//
+// These are not defence in depth here - they are THE defence. This service runs with no auth of
+// its own and the frontend writes to Firestore directly, so what a signed-in business can and
+// cannot write is decided entirely by this file.
+//
+// The Admin SDK ignores rules, which is why the Node service can write the documents below that
+// every client is forbidden from touching.
+//
+// Merge this into your existing firestore.rules - it only covers businesses/{uid}/services/**.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /businesses/{uid}/services/{trade} {
+      function isOwner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+
+      allow read: if isOwner();
+      // The frontend stamps lastSubmittedAt on save; the trade root holds nothing sensitive.
+      allow write: if isOwner();
+
+      // The business's own words and files. Theirs to write, and the one thing that must survive
+      // whatever the AI later decides.
+      match /description/raw {
+        allow read: if isOwner();
+        allow create, update: if isOwner();
+        allow delete: if false;
+      }
+
+      // Our answer. The business may only flip displayState to "pending" while waiting - it may
+      // never write the review body, or it could approve itself.
+      match /description/lastaireview {
+        allow read: if isOwner();
+        allow create, update: if isOwner()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['displayState', 'updatedAt'])
+          && request.resource.data.displayState == 'pending';
+        allow delete: if false;
+      }
+
+      // What customers search. Written by the service only. A business that could write this could
+      // publish any price it liked, with an "approved" stamp on it, and the entire review pipeline
+      // would be decorative.
+      match /jsondata/extracted {
+        allow read: if isOwner();
+        // The frontend creates an empty stub once; after that only the server writes.
+        allow create: if isOwner()
+          && request.resource.data.keys().hasOnly(['data', 'updatedAt'])
+          && request.resource.data.data == null;
+        allow update, delete: if false;
+      }
+
+      // Review history, for the admin view.
+      match /submissions/{submissionId} {
+        allow read: if isOwner();
+        allow write: if false;
+      }
+    }
+  }
+}
