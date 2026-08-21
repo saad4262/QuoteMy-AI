@@ -14,6 +14,8 @@ import {
   type Unit,
 } from './vocab.js';
 import type { Extraction } from './schemas.js';
+import { slugify } from './vocabulary.js';
+import type { ResolvedLocation } from './geocode.js';
 
 /**
  * Ported from the n8n `Format Extraction` Code node, near-verbatim, because it was tested.
@@ -33,7 +35,13 @@ export interface VerifiedPricing {
   removals: { removes: Removes; pricePerMetre: number }[];
   gates: { gateType: GateType; material: Material | null; price: number; isFromPrice: boolean }[];
   siteConditions: { condition: Condition; extraPerMetre: number }[];
-  serviceArea: { baseLocation: string | null; radiusKm: number | null; excludedAreas: string[] };
+  serviceArea: {
+    baseLocation: string | null;
+    /** Filled in after verification by src/geocode.ts. Null when it could not be resolved. */
+    resolved: ResolvedLocation | null;
+    radiusKm: number | null;
+    excludedAreas: string[];
+  };
   minimumCharge: number | null;
 }
 
@@ -45,21 +53,39 @@ export interface VerifiedCapabilities {
   exclusions: string[];
 }
 
+/**
+ * The long tail: what this business sells that has no core value. Looser about vocabulary, never
+ * about numbers - every price here passed the same source-quote and bounds checks as a core rate.
+ */
+export interface VerifiedOffering {
+  slug: string;
+  label: string;
+  pricePerMetre: number | null;
+  heightM: number | null;
+  unit: Unit | null;
+}
+
 export interface VerifiedResult {
   trade: Trade;
   status: 'verified' | 'unverified';
   pricing: VerifiedPricing;
   capabilities: VerifiedCapabilities;
-  unmapped: string[];
+  otherOfferings: VerifiedOffering[];
+  couldNotUse: string[];
   ratesKept: number;
   coverage: Record<string, number>;
 }
 
 const MAX_ENTRIES = 200;
 
-export function verifyExtraction(x: Extraction, sourceText: string, trade: Trade): VerifiedResult {
+export function verifyExtraction(
+  x: Extraction,
+  sourceText: string,
+  trade: Trade,
+  knownSlugs: readonly string[] = [],
+): VerifiedResult {
   const rawText = sourceText.toLowerCase();
-  const unmapped = [...x.unmapped];
+  const unmapped = [...x.couldNotUse];
 
   const quoted = (q: string | null | undefined) => {
     const s = String(q ?? '').trim();
@@ -205,6 +231,7 @@ export function verifyExtraction(x: Extraction, sourceText: string, trade: Trade
     siteConditions,
     serviceArea: {
       baseLocation: str(sa.baseLocation),
+      resolved: null, // the pipeline fills this in; verification does no network calls
       radiusKm,
       excludedAreas: strList(sa.excludedAreas, 40),
     },
@@ -219,12 +246,47 @@ export function verifyExtraction(x: Extraction, sourceText: string, trade: Trade
     exclusions: strList(x.exclusions, 40),
   };
 
+  // ---- the long tail ------------------------------------------------------------------------
+  // Same gates as a core rate. The tier is looser about WHAT can be named, never about the numbers
+  // attached to it - an unverifiable price here would reach a customer exactly like any other.
+  const otherOfferings: VerifiedOffering[] = [];
+  for (const o of take(x.otherOfferings, 40)) {
+    const label = str(o.label);
+    if (!label) continue;
+
+    if (!quoted(o.sourceQuote)) {
+      unmapped.push(`Could not find "${label}" in your description, so it was not saved.`);
+      continue;
+    }
+    if (o.pricePerMetre != null && !num(o.pricePerMetre, BOUNDS.pricePerMetre.max)) {
+      unmapped.push(`Dropped the ${label} price - ${o.pricePerMetre} per metre is outside the range we accept.`);
+      continue;
+    }
+    if (o.heightM != null && (!num(o.heightM, BOUNDS.heightM.max) || o.heightM < BOUNDS.heightM.min)) {
+      unmapped.push(`Dropped a ${label} entry - ${o.heightM}m is not a height we can store.`);
+      continue;
+    }
+
+    // The model may only reuse a slug it was actually shown; anything else is built here from the
+    // label, so a slug can never be something the model made up.
+    const slug = o.slug && knownSlugs.includes(o.slug) ? o.slug : slugify(label);
+
+    otherOfferings.push({
+      slug,
+      label,
+      pricePerMetre: o.pricePerMetre ?? null,
+      heightM: o.heightM ?? null,
+      unit: o.unit && UNITS.includes(o.unit) ? o.unit : null,
+    });
+  }
+
   return {
     trade,
     status,
     pricing,
     capabilities,
-    unmapped,
+    otherOfferings,
+    couldNotUse: unmapped,
     ratesKept,
     // Computed in code, never by the model: what actually landed, so "is this profile usable?"
     // is answerable without re-reading the whole document (docs/FLOW.md §14b).
@@ -235,7 +297,8 @@ export function verifyExtraction(x: Extraction, sourceText: string, trade: Trade
       siteConditions: siteConditions.length,
       extras: extras.length,
       tags: capabilities.tags.length,
-      unmapped: unmapped.length,
+      otherOfferings: otherOfferings.length,
+      couldNotUse: unmapped.length,
     },
   };
 }

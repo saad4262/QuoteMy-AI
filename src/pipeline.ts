@@ -8,6 +8,8 @@ import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js'
 import { LABELS, MESSAGES, WHAT_TO_SEND } from './messages.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository, type ReviewDoc } from './store.js';
 import { verifyExtraction } from './verify.js';
+import { extrasForPrompt, extrasPromptBlock, loadVocabulary, recordExtras } from './vocabulary.js';
+import { geocode } from './geocode.js';
 
 /**
  * The `what` lines from the last review, or nothing when this is a first submission.
@@ -243,10 +245,16 @@ export async function runOnboarding(
   }
 
   // --- stage 2: extract --------------------------------------------------------------------
+  // The trade's learned vocabulary: the core comes from vocab.ts, the extras from what other
+  // businesses have already offered. Showing them is what stops the second business inventing a
+  // second spelling for the same thing.
+  const vocabulary = await loadVocabulary(input.trade);
+  const knownExtras = extrasForPrompt(vocabulary, text);
+
   const extraction = await ai.callStructured({
     name: 'extraction',
     schema: extractionSchema,
-    system: extractionPrompt(input.trade),
+    system: extractionPrompt(input.trade, extrasPromptBlock(knownExtras)),
     user: wrapDescription(input.trade, text),
     maxOutputTokens: 8000,
   });
@@ -256,7 +264,21 @@ export async function runOnboarding(
   // --- stage 3: verify (no model involved) -------------------------------------------------
   // Matched against the transcript with the [filename] headers removed, so a header can never
   // stand in for a source quote.
-  const verified = verifyExtraction(extraction.data, stripProvenance(text), input.trade);
+  const verified = verifyExtraction(
+    extraction.data,
+    stripProvenance(text),
+    input.trade,
+    knownExtras.map(([slug]) => slug),
+  );
+
+  // Resolve their service area to a point, and fold anything new back into the trade vocabulary.
+  // Neither can fail the submission: a geocoding outage leaves `resolved` null, and a failed merge
+  // costs the NEXT business a duplicate slug, not this one their answer.
+  verified.pricing.serviceArea.resolved = await geocode(verified.pricing.serviceArea.baseLocation);
+  await recordExtras(
+    input.trade,
+    verified.otherOfferings.map((o) => ({ slug: o.slug, label: o.label })),
+  );
 
   // --- stage 4: store ----------------------------------------------------------------------
   const at = now();
@@ -272,7 +294,8 @@ export async function runOnboarding(
   await repo.saveCapabilities(uid, {
     ...verified.capabilities,
     trade: input.trade,
-    unmapped: verified.unmapped,
+    couldNotUse: verified.couldNotUse,
+    otherOfferings: verified.otherOfferings,
     schemaVersion: SCHEMA_VERSION,
     updatedAt: at,
   });
@@ -300,9 +323,10 @@ export async function runOnboarding(
         pricing: verified.pricing,
         capabilities: verified.capabilities,
         ratesSaved: verified.ratesKept,
+        otherOfferings: verified.otherOfferings,
         // Anything we could not keep, in plain English - including any file we read nothing from.
         // They do need to know this.
-        notUsed: [...unread, ...verified.unmapped],
+        notUsed: [...unread, ...verified.couldNotUse],
         // Slug -> human label, so the screen shows "Treated pine" and never keeps its own copy
         // of a list that would drift from vocab.ts.
         labels: LABELS,

@@ -22,6 +22,10 @@ const schema = z.object({
   MODEL_TIMEOUT_MS: z.coerce.number().default(45_000),
   MAX_COST_PER_REQUEST_USD: z.coerce.number().default(0.5),
 
+  // Resolves serviceArea.baseLocation to a point so the customer side can match by distance.
+  // Unset means the field stays null - never a guessed coordinate.
+  GEOCODING_API_KEY: z.string().optional(),
+
   MIN_TEXT_CHARS: z.coerce.number().default(40),
   MAX_TEXT_CHARS: z.coerce.number().default(60_000),
 

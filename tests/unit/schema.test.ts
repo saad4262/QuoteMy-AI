@@ -49,7 +49,8 @@ describe('extraction schema', () => {
       inclusions: [],
       exclusions: [],
       tags: [],
-      unmapped: [],
+      otherOfferings: [],
+  couldNotUse: [],
     });
     expect(parsed.success).toBe(true);
   });

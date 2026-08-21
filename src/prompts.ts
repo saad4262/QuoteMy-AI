@@ -84,10 +84,11 @@ function previousReviewBlock(fixes: string[]): string {
   ].join('\n');
 }
 
-export function extractionPrompt(_trade: Trade): string {
-  // Extraction needs the vocabulary mapping, which is already inside its own prompt — not the
-  // publish rules, which are the review stage's business.
-  return extractionSystem;
+export function extractionPrompt(_trade: Trade, knownExtras = ''): string {
+  // Extraction needs the vocabulary mapping, which is already inside its own prompt - not the
+  // publish rules, which are the review stage's business. `knownExtras` is what other businesses
+  // in this trade have already offered, so the same thing is filed under the same slug twice.
+  return [extractionSystem, knownExtras].filter(Boolean).join('\n\n');
 }
 
 /** Untrusted text always arrives fenced, and the fence markers are stripped from it upstream. */

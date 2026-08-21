@@ -109,6 +109,20 @@ phrases, in the business's own words.
 tags - capability labels from the closed list above, and only where the submission actually supports
 them. Never put a price in a tag.
 
-unmapped - everything the business states that has no home above. Use it freely and without
-hesitation: a line here is visible to a human who can act on it, and is far better than a value
-forced into the wrong field or dropped silently. Quote or closely paraphrase so it is actionable.
+otherOfferings - types of work they sell that have NO value on the material list: bamboo screening,
+brushwood, picket, wrought iron, privacy screens. This is not a bin for leftovers - it is where the
+long tail of what fencers actually sell is recorded, and it is stored and searchable exactly like a
+core rate.
+  slug - ONLY a slug from the "things other businesses offer" list, if one of those is the same
+    thing. Otherwise null. Never invent a slug; the system builds one from your label.
+  label - what it is, in plain words, as the business would recognise it: "Bamboo screening".
+  pricePerMetre / heightM / unit - only where stated, null otherwise. Never inferred.
+  sourceQuote - the exact sentence, same rule as every other number. An entry whose quote is not
+    found in the text is discarded, exactly like a core rate.
+  A material that IS on the list must never come here - "treated pine" is timber_pine, not an
+  offering. This is only for things the list has no home for.
+
+couldNotUse - anything else the business states that could not be stored at all: a policy, a note, a
+figure with no unit, something you could not make sense of. Use it freely and without hesitation: a
+line here is visible to a human who can act on it, and is far better than a value forced into the
+wrong field or dropped silently. Quote or closely paraphrase so it is actionable.

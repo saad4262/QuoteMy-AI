@@ -11,7 +11,8 @@ import type {
   SubmissionRecord,
   SubmissionStatus,
 } from './store.js';
-import { TRADES, type Trade } from './vocab.js';
+import type { ExtraValue } from './vocabulary.js';
+import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
 
 /**
  * The Firestore side of the contract the frontend already ships against:
@@ -268,6 +269,60 @@ export class FirestoreRepository implements BusinessRepository {
       .map((d) => pathToSubmission(d.ref.path))
       .filter((s): s is PendingSubmission => s !== null)
       .slice(0, limit);
+  }
+
+  // --- the per-trade vocabulary ----------------------------------------------------------------
+
+  private vocabRef = (trade: Trade) => db().collection('schema').doc(trade);
+
+  async getTradeVocabulary(trade: Trade): Promise<{ extras: Record<string, ExtraValue> } | null> {
+    const snap = await this.vocabRef(trade).get();
+    if (!snap.exists) return null;
+    return { extras: (snap.get('extras') as Record<string, ExtraValue>) ?? {} };
+  }
+
+  /**
+   * Merged in a transaction, never overwritten. Two businesses submitting at the same moment must
+   * both be counted, and one must not erase the other's aliases - the aliases are the whole reason
+   * the next business recognises the same offering however they phrase it.
+   *
+   * `core` is written here too, from vocab.ts, so the document is readable on its own by the
+   * customer side without importing TypeScript. It is a mirror, never an input.
+   */
+  async mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void> {
+    const ref = this.vocabRef(trade);
+    const at = new Date().toISOString();
+
+    await db().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const extras = ((snap.exists ? snap.get('extras') : {}) ?? {}) as Record<string, ExtraValue>;
+
+      for (const { slug, label } of seen) {
+        const existing = extras[slug];
+        extras[slug] = existing
+          ? {
+              ...existing,
+              aliases: [...new Set([...(existing.aliases ?? []), label.toLowerCase()])].slice(0, 12),
+              businessCount: (existing.businessCount ?? 0) + 1,
+              lastSeen: at,
+            }
+          : { label, aliases: [label.toLowerCase()], businessCount: 1, firstSeen: at, lastSeen: at };
+      }
+
+      tx.set(
+        ref,
+        {
+          trade,
+          core: {
+            materials: [...MATERIALS], gateTypes: [...GATE_TYPES], conditions: [...CONDITIONS],
+            removes: [...REMOVES], units: [...UNITS], tags: [...TAGS],
+          },
+          extras,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    });
   }
 }
 

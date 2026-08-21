@@ -113,7 +113,33 @@ export const extractionSchema = z.object({
   inclusions: z.string().array(),
   exclusions: z.string().array(),
   tags: z.enum(TAGS).array(),
-  unmapped: z.string().array(),
+
+  /**
+   * The long tail: things this business sells that have no value in the closed list - bamboo
+   * screening, brushwood, picket, wrought iron.
+   *
+   * Splitting these out of the old `unmapped` prose is what makes them usable at all. Before, a
+   * business offering bamboo screening got a sentence nobody could count, and their pricing was
+   * invisible to customer search forever. Now it is stored, searchable by text, and the next
+   * business to offer the same thing is shown this one's slug so it does not invent a second
+   * spelling.
+   *
+   * `slug` is only ever an EXISTING slug the model was shown. New things return null, and code
+   * builds the slug from the label - the same rule that keeps height bands honest.
+   */
+  otherOfferings: z
+    .object({
+      slug: z.string().nullable(),
+      label: z.string(),
+      pricePerMetre: z.number().nullable(),
+      heightM: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Anything stated that could not be stored at all, in plain English, for a human to read. */
+  couldNotUse: z.string().array(),
 });
 export type Extraction = z.infer<typeof extractionSchema>;
 

@@ -427,7 +427,8 @@ export class MockAiClient implements AiClient {
       inclusions: [],
       exclusions: [],
       tags: [],
-      unmapped: ['Read by the offline mock reader — gates, removals and surcharges are not extracted in mock mode.'],
+      otherOfferings: [],
+      couldNotUse: ['Read by the offline mock reader - gates, removals and surcharges are not extracted in mock mode.'],
     };
   }
 }

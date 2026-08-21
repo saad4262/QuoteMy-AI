@@ -155,8 +155,10 @@ show a progress state, and do not set a fetch timeout under 60s.
         "gates":          [{ "gateType": "driveway_double", "material": "colorbond",
                              "price": 1480, "isFromPrice": false }],
         "siteConditions": [{ "condition": "sloped", "extraPerMetre": 14 }],
-        "serviceArea":    { "baseLocation": "Berwick", "radiusKm": 30,
-                            "excludedAreas": ["CBD"] },
+        "serviceArea":    { "baseLocation": "Berwick",
+                            "resolved": { "suburb": "Berwick", "state": "VIC", "postcode": "3806",
+                                          "lat": -38.0294, "lng": 145.3441, "source": "google" },
+                            "radiusKm": 30, "excludedAreas": ["CBD"] },
         "minimumCharge": 850                       // number | null
       },
       "capabilities": {
@@ -168,7 +170,11 @@ show a progress state, and do not set a fetch timeout under 60s.
         "exclusions": ["Council permits"]
       },
       "ratesSaved": 20,
-      "notUsed": ["We could not save your bamboo screening pricing…"],
+      "otherOfferings": [
+        { "slug": "bamboo-screening", "label": "Bamboo screening",
+          "pricePerMetre": 70, "heightM": 1.8, "unit": "per_metre" }
+      ],
+      "notUsed": ["…anything that could not be stored at all…"],
       "labels": { "timber_pine": "Treated pine", "driveway_double": "Double driveway gate" },
       "source": { "documents": [
         { "label": "pricelist.pdf", "kind": "pdf",  "readBy": "model", "chars": 4210, "unreadable": false },
@@ -297,6 +303,40 @@ const rows = Object.entries(pricing.rates).flatMap(([material, bands]) =>
   })),
 );
 ```
+
+### `otherOfferings` — the long tail
+
+Fencing has a closed list of materials (`timber_pine`, `colorbond`, …) because customer search
+filters on those strings exactly. Everything else a business sells — bamboo screening, brushwood,
+picket, wrought iron — comes back here instead:
+
+```jsonc
+"otherOfferings": [
+  { "slug": "bamboo-screening", "label": "Bamboo screening",
+    "pricePerMetre": 70, "heightM": 1.8, "unit": "per_metre" }
+]
+```
+
+Show it beside the rates table, using **`label`** — that is the business's own wording. `slug` is
+shared across businesses so search can group them; the label is theirs.
+
+These prices passed exactly the same checks as a core rate: the source sentence had to really appear
+in what they wrote, and the number had to be plausible. The long tail is looser about *what can be
+named*, never about the numbers attached to it.
+
+### `serviceArea.resolved`
+
+`baseLocation` is the business's own words ("Berwick"). `resolved` is that turned into a point, so
+the customer side can match by distance:
+
+```jsonc
+"resolved": { "suburb": "Berwick", "state": "VIC", "postcode": "3806",
+              "lat": -38.0294, "lng": 145.3441, "source": "google" }
+```
+
+It is `null` when the location could not be resolved — never a guessed coordinate, because an
+invented one would put a business in front of customers it cannot reach and nothing would report it.
+Show `baseLocation` to the business either way; `resolved` is for matching, not for display.
 
 ### `labels` — use it, do not keep your own copy
 

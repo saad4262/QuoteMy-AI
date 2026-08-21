@@ -17,7 +17,8 @@ const empty: Extraction = {
   inclusions: [],
   exclusions: [],
   tags: [],
-  unmapped: [],
+  otherOfferings: [],
+  couldNotUse: [],
 };
 
 const withRate = (over: Partial<Extraction>): Extraction => ({ ...empty, ...over });
@@ -48,7 +49,7 @@ describe('quote verification', () => {
     );
     expect(r.pricing.rates).toEqual({});
     expect(r.status).toBe('unverified');
-    expect(r.unmapped.join(' ')).toContain('could not find that figure');
+    expect(r.couldNotUse.join(' ')).toContain('could not find that figure');
   });
 
   it('drops an implausible rate even when its source sentence is genuine', () => {
@@ -60,7 +61,7 @@ describe('quote verification', () => {
       'fencing',
     );
     expect(r.pricing.rates).toEqual({});
-    expect(r.unmapped.join(' ')).toContain('outside the range we accept');
+    expect(r.couldNotUse.join(' ')).toContain('outside the range we accept');
   });
 
   it('never lets a height band key come from model text', () => {
@@ -84,7 +85,7 @@ describe('vocabulary', () => {
       'fencing',
     );
     expect(r.pricing.rates).toEqual({});
-    expect(r.unmapped.join(' ')).toContain('bamboo_screening');
+    expect(r.couldNotUse.join(' ')).toContain('bamboo_screening');
   });
 
   it('drops tags outside the closed list', () => {
@@ -97,7 +98,7 @@ describe('status', () => {
   it('is unverified when no core rate survives, even though review approved', () => {
     const r = verifyExtraction(empty, 'some text', 'fencing');
     expect(r.status).toBe('unverified');
-    expect(r.unmapped.join(' ')).toContain('No usable rates');
+    expect(r.couldNotUse.join(' ')).toContain('No usable rates');
   });
 });
 
@@ -114,5 +115,41 @@ describe('conflation guard', () => {
     );
     expect(r.pricing.rates.timber_pine).toEqual({ '1.8m': 85 });
     expect(r.pricing.removals).toEqual([{ removes: 'timber', pricePerMetre: 15 }]);
+  });
+});
+
+describe('the long tail', () => {
+  const line = 'Bamboo screening 1.8m high - $70 per metre';
+
+  const offering = (over: Record<string, unknown> = {}) =>
+    withRate({
+      otherOfferings: [
+        { slug: null, label: 'Bamboo screening', pricePerMetre: 70, heightM: 1.8, unit: 'per_metre', sourceQuote: line, ...over },
+      ],
+    } as never);
+
+  it('keeps what the closed list has no home for, instead of losing it', () => {
+    const r = verifyExtraction(offering(), line, 'fencing');
+    expect(r.otherOfferings).toEqual([
+      { slug: 'bamboo-screening', label: 'Bamboo screening', pricePerMetre: 70, heightM: 1.8, unit: 'per_metre' },
+    ]);
+  });
+
+  it('applies the same number gates as a core rate', () => {
+    const invented = verifyExtraction(offering({ sourceQuote: 'Bamboo screening - $70 per metre' }), line, 'fencing');
+    expect(invented.otherOfferings).toHaveLength(0);
+    expect(invented.couldNotUse.join(' ')).toContain('Could not find');
+
+    const absurd = verifyExtraction(offering({ pricePerMetre: 8500 }), line, 'fencing');
+    expect(absurd.otherOfferings).toHaveLength(0);
+    expect(absurd.couldNotUse.join(' ')).toContain('outside the range');
+  });
+
+  it('will not let the model invent a slug - only reuse one it was shown', () => {
+    const madeUp = verifyExtraction(offering({ slug: 'something-the-model-made-up' }), line, 'fencing');
+    expect(madeUp.otherOfferings[0]?.slug).toBe('bamboo-screening'); // built from the label instead
+
+    const shown = verifyExtraction(offering({ slug: 'bamboo-fence' }), line, 'fencing', ['bamboo-fence']);
+    expect(shown.otherOfferings[0]?.slug).toBe('bamboo-fence'); // it was on the list, so it stands
   });
 });

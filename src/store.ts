@@ -1,5 +1,6 @@
+import type { ExtraValue } from './vocabulary.js';
 import type { Trade } from './vocab.js';
-import type { VerifiedCapabilities, VerifiedPricing } from './verify.js';
+import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
 
 /**
  * Status lifecycle (CONTEXT.md §7.3 — no price goes live without a human confirming it):
@@ -25,7 +26,9 @@ export interface PricingDoc extends VerifiedPricing {
 
 export interface CapabilitiesDoc extends VerifiedCapabilities {
   trade: Trade;
-  unmapped: string[];
+  /** The long tail: what they offer that has no core value. Searched by text, not by exact match. */
+  otherOfferings: VerifiedOffering[];
+  couldNotUse: string[];
   schemaVersion: number;
   updatedAt: string;
 }
@@ -141,6 +144,13 @@ export interface BusinessRepository {
   requeueSubmission(uid: string, trade: Trade): Promise<void>;
   /** Everything pending, including anything a dead process left mid-run for longer than `staleMs`. */
   findPending(limit: number, staleMs: number): Promise<PendingSubmission[]>;
+
+  // --- the per-trade vocabulary (src/vocabulary.ts) ---
+
+  /** `schema/{trade}`. Null when the trade has learned nothing yet - core still works. */
+  getTradeVocabulary(trade: Trade): Promise<{ extras: Record<string, ExtraValue> } | null>;
+  /** Merge, never overwrite: two submissions in flight must both be counted. */
+  mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void>;
 }
 
 export const SCHEMA_VERSION = 1;
@@ -217,11 +227,38 @@ export class MemoryRepository implements BusinessRepository {
     return [];
   }
 
+  // In memory the vocabulary is whatever this process has seen, which is what makes the
+  // second-business behaviour testable without Firestore.
+  private extras = new Map<Trade, Record<string, ExtraValue>>();
+
+  async getTradeVocabulary(trade: Trade) {
+    const extras = this.extras.get(trade);
+    return extras ? { extras } : null;
+  }
+
+  async mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void> {
+    const extras = this.extras.get(trade) ?? {};
+    const at = new Date().toISOString();
+    for (const { slug, label } of seen) {
+      const existing = extras[slug];
+      extras[slug] = existing
+        ? {
+            ...existing,
+            aliases: [...new Set([...existing.aliases, label.toLowerCase()])],
+            businessCount: existing.businessCount + 1,
+            lastSeen: at,
+          }
+        : { label, aliases: [label.toLowerCase()], businessCount: 1, firstSeen: at, lastSeen: at };
+    }
+    this.extras.set(trade, extras);
+  }
+
   /** Tests only. */
   clear(): void {
     this.pricing.clear();
     this.capabilities.clear();
     this.submissions = [];
+    this.extras.clear();
   }
 }
 
