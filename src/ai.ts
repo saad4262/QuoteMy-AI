@@ -385,6 +385,7 @@ export class MockAiClient implements AiClient {
     if (!looksLikeAPriceList) {
       return {
         outcome: 'not_a_price_list',
+        alsoWorthAdding: [],
         fixes: [
           {
             kind: 'missing',
@@ -394,9 +395,18 @@ export class MockAiClient implements AiClient {
         ],
       };
     }
+    // A rough stand-in: the mock cannot judge what a profile is missing, so it names the two
+    // things almost every thin submission lacks.
+    const alsoWorthAdding: string[] = [];
+    if (!/gate/i.test(text)) alsoWorthAdding.push('Add your gate prices - most fencing jobs include at least one.');
+    if (!/remov|pull down|take away/i.test(text)) {
+      alsoWorthAdding.push('Add what you charge to pull down and take away an old fence.');
+    }
+
     return {
       outcome: fixes.length === 0 ? 'approved' : 'needs_updates',
       fixes: fixes.slice(0, 5),
+      alsoWorthAdding,
     };
   }
 

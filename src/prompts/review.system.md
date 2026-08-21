@@ -152,7 +152,8 @@ complaint, "Add a per-metre price for Colorbond at each height you do" is a job.
 
 === OUTPUT ===
 
-You write TWO things and nothing else: the decision, and the list of jobs.
+You write THREE things: the decision, the list of jobs that block it, and a short list of what
+would make the profile stronger - which blocks nothing.
 
 The opening line, the explanation of what happens next, and the whole layout are fixed text written
 by the system around your fixes. Do not write a greeting, an opening, a sign-off, a summary, or any
@@ -171,6 +172,28 @@ outcome - which of three things this is:
   Use "needs_updates" whenever they have made a real attempt, however incomplete. "not_a_price_list"
   is for submissions with nothing to work from - it produces a different message, and using it on
   someone who tried tells them we did not read what they wrote.
+
+alsoWorthAdding - 0 to 4 short lines, and a completely different thing from fixes.
+
+  These are things they did NOT mention that would make their profile work harder. Gate prices. A
+  rate for pulling down an old fence. More heights than the one they listed. Surcharges for sloped
+  or rocky sites. How they build - post size, spacing, depth, rails.
+
+  WHY THIS EXISTS. A four-line price list can satisfy every rule and still be nearly useless: two
+  fence types at one height quotes almost nothing, and every customer wanting a gate passes that
+  business by without either of them ever knowing. Telling them only the one blocking thing means
+  they fix it, get approved, and never find out.
+
+  RULES.
+    - NEVER a reason to reject. Nothing here is a fault. If this list is the only thing you have,
+      outcome is "approved".
+    - NEVER duplicate a fix. If it is already in fixes, it does not belong here.
+    - Only what is genuinely absent AND genuinely useful for this business. A business already
+      listing five heights, gates and removal needs nothing here - return an empty array.
+    - Say what it gets them, not what is missing: "Add your gate prices - most fencing jobs include
+      at least one, and right now you would not be quoted for any of them."
+    - Fill this on an APPROVED submission too. That is the one that most needs it, because nothing
+      else is going to tell them.
 
 fixes - 3 to 5 grouped items, each one line, each a job they can go and do. Empty array when
 outcome is "approved"; exactly one item when it is "not_a_price_list". Each has three parts:

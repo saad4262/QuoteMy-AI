@@ -58,7 +58,9 @@ describe('action: submit', () => {
     call({ businessUid: 'biz-bad', text: bad }).then((res) => {
       const { business, admin } = res.body.data;
 
-      expect(Object.keys(business).sort()).toEqual(['fixes', 'nextStep', 'notUsed', 'opening', 'source']);
+      expect(Object.keys(business).sort()).toEqual(
+        ['alsoWorthAdding', 'fixes', 'nextStep', 'notUsed', 'opening', 'source'],
+      );
       expect(business.opening).toBeTruthy();
       expect(business.nextStep).toContain('contact button below');
 
@@ -306,5 +308,34 @@ describe('unknown routes', () => {
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe('not_found');
     expect(res.body.error.message).toContain('GET /');
+  });
+});
+
+describe('what would make the profile stronger', () => {
+  it('tells a thin submission what it is missing beyond the one blocking rule', async () => {
+    const thin = [
+      'Southeast Fencing - rate card',
+      'Treated pine 1.8m high - $85 per metre',
+      'Colorbond 1.8m high - $110 per metre',
+      'All prices include GST. Minimum charge is $850.',
+    ].join('\n');
+
+    const res = await call({ businessUid: 'biz-thin', text: thin });
+    const { business } = res.body.data;
+
+    // the point: one blocking fix is not the whole story for a four-line price list
+    expect(business.alsoWorthAdding.length).toBeGreaterThan(0);
+    expect(business.alsoWorthAdding.join(' ')).toMatch(/gate/i);
+
+    // and it must never be counted as a reason the submission was sent back
+    for (const item of business.alsoWorthAdding) {
+      expect(business.fixes.map((f: { what: string }) => f.what)).not.toContain(item);
+    }
+  });
+
+  it('is present on an approved submission too - that is the one nothing else tells', async () => {
+    const res = await call({ businessUid: 'biz-approved-thin', text: good });
+    expect(res.body.data.approved).toBe(true);
+    expect(res.body.data.business).toHaveProperty('alsoWorthAdding');
   });
 });

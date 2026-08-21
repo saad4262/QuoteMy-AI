@@ -48,6 +48,20 @@ export const reviewSchema = z.object({
       example: z.string().nullable(),
     })
     .array(),
+
+  /**
+   * Things absent from the submission that are NOT blocking, but would make the profile actually
+   * work: gate prices, a removal rate, more height bands, site surcharges, build specs.
+   *
+   * Why this is a separate field rather than more fixes. A four-line price list can satisfy every
+   * blocking rule and still be commercially useless - it quotes two fence types at one height and
+   * silently loses every customer who wants a gate. Under the old shape the business was told the
+   * one blocking thing, fixed it, was approved, and never learned the rest.
+   *
+   * It must never compete with `fixes` for space or attention: these are opportunities, not faults,
+   * and a business is never sent away over one.
+   */
+  alsoWorthAdding: z.string().array(),
 });
 export type ReviewResult = z.infer<typeof reviewSchema>;
 

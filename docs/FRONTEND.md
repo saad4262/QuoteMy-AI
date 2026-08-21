@@ -230,6 +230,7 @@ to a tradesperson.** `meta` is telemetry — useful on an admin page, never on t
         { "kind": "unclear", "what": "Give one set price per metre for each fence type and height you do…",
           "example": "Colorbond 1.8m - $110/m (your figure)" }
       ],
+      "alsoWorthAdding": ["Add your gate prices - most fencing jobs include at least one…"],
       "notUsed": ["We could not read anything from rate-card.png. …"],   // usually empty
       "source": { "documents": [ /* same shape as above */ ] },
       "nextStep": "Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you."
@@ -450,6 +451,29 @@ Some of these are caught in code with no model call at all (a mashed keyboard), 
 model (a customer enquiry, the wrong trade). The response is identical either way, so the UI needs
 one branch, not two.
 
+### `alsoWorthAdding` — opportunities, not faults
+
+Present on **both** paths, approved and rejected, and often the more useful half of the response:
+
+```jsonc
+"alsoWorthAdding": [
+  "Add your gate prices - most fencing jobs include at least one, and right now you would not be quoted for them.",
+  "Add your old-fence removal rate so customers can include demolition in their quote.",
+  "Add build details such as post size, depth and rail count so customers can compare how you build."
+]
+```
+
+**Render these separately from `fixes`, and never in the same list.** `fixes` are why the submission
+was sent back; these block nothing. A four-line price list can satisfy every rule and still quote
+almost nothing — the business fixes the one blocking item, gets approved, and would otherwise never
+learn that every customer wanting a gate passes them by.
+
+Suggested heading: **"Worth adding"** or **"Make your profile stronger"**, visually lighter than the
+fix list. On an approved profile it is the only thing telling them anything, so do not hide it there.
+
+Expect it to be empty or near-empty for a complete profile — a business already listing five
+heights, gates, removals and surcharges gets nothing here, which is itself worth showing.
+
 ### `notUsed` on both paths
 
 `business.notUsed` is present on approved **and** rejected responses. It names anything we could not
@@ -649,6 +673,7 @@ export type SubmitResult =
       business: {
         opening: string;
         fixes: Fix[];                       // empty when decision is "not_a_price_list"
+        alsoWorthAdding: string[];          // non-blocking; render apart from fixes
         whatToSend?: {                      // present ONLY when decision is "not_a_price_list"
           need: string[];
           helpful: string[];
@@ -691,6 +716,8 @@ export interface ConfirmResult {
 6. **Confirm is the only thing that makes prices live.** Do not imply a submission is live before it.
 7. **Send `businessUid` on every call.** Two businesses are kept entirely separate by it.
 8. **Always show `notUsed` when it is non-empty** — it is where an unreadable attachment is named.
+9. **Never merge `alsoWorthAdding` into `fixes`.** One is why they were sent back; the other blocks
+   nothing. Merging them makes an approved business think it failed.
 
 ## 12. Running the backend locally
 

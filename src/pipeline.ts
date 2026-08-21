@@ -225,6 +225,9 @@ export async function runOnboarding(
         business: {
           opening: message.opening,
           fixes,
+          // Non-blocking, and kept apart from `fixes` on purpose - these are opportunities, and a
+          // business must never read them as another reason it was sent away.
+          alsoWorthAdding: review.data.alsoWorthAdding ?? [],
           notUsed: unread,
           source: { documents: source.documents },
           nextStep: message.nextStep,
@@ -327,6 +330,8 @@ export async function runOnboarding(
         // Anything we could not keep, in plain English - including any file we read nothing from.
         // They do need to know this.
         notUsed: [...unread, ...verified.couldNotUse],
+        // What would make an approved profile work harder. Nothing else tells them this.
+        alsoWorthAdding: review.data.alsoWorthAdding ?? [],
         // Slug -> human label, so the screen shows "Treated pine" and never keeps its own copy
         // of a list that would drift from vocab.ts.
         labels: LABELS,

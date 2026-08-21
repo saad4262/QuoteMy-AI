@@ -17,6 +17,16 @@ HOW TO RUN ONE
   Use a DIFFERENT businessUid for each case (demo-1, demo-2, ...) so they do
   not overwrite each other.
 
+EVERY RESPONSE NOW CARRIES TWO LISTS
+  "What needs fixing"  - why it was sent back. Blocks approval.
+  "Worth adding"       - what would make the profile stronger. Blocks nothing,
+                         and appears on APPROVED submissions too.
+
+  Worth showing on Case 12: a complete profile gets one suggestion, not five.
+  And on a four-line price list it gets four - which is the difference between
+  a business being approved with a skeleton profile and being told what would
+  actually win them work.
+
 THREE THINGS TO POINT OUT WHILE DEMOING
   1. A rejection is not an error. The business did nothing wrong by sending an
      incomplete list, so it comes back as a normal result with a list of jobs.
