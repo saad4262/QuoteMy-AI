@@ -151,6 +151,8 @@ export interface BusinessRepository {
   getTradeVocabulary(trade: Trade): Promise<{ extras: Record<string, ExtraValue> } | null>;
   /** Merge, never overwrite: two submissions in flight must both be counted. */
   mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void>;
+  /** Publish core, labels and questions so the customer side can read the whole vocabulary. */
+  syncTradeSchema(trade: Trade): Promise<void>;
 }
 
 export const SCHEMA_VERSION = 1;
@@ -252,6 +254,8 @@ export class MemoryRepository implements BusinessRepository {
     }
     this.extras.set(trade, extras);
   }
+
+  async syncTradeSchema(): Promise<void> {} // nothing to publish to, in memory
 
   /** Tests only. */
   clear(): void {

@@ -7,37 +7,78 @@ import type { Trade } from './vocab.js';
  * second copy would drift from vocab.ts the first time a value is added, and nothing would report
  * the mismatch - the screen would just start showing a raw slug.
  */
-export const LABELS: Record<string, string> = {
-  timber_pine: 'Treated pine',
-  timber_hardwood: 'Hardwood / merbau',
-  colorbond: 'Colorbond',
-  aluminium: 'Aluminium slat',
-  pool_aluminium: 'Pool fencing (aluminium)',
-  pool_glass: 'Pool fencing (glass)',
-  chainmesh: 'Chainmesh / security',
-  rural_wire: 'Rural / post and wire',
-  pedestrian_single: 'Single pedestrian gate',
-  driveway_double: 'Double driveway gate',
-  driveway_sliding: 'Sliding driveway gate',
-  motor_automation: 'Gate motor / automation',
-  sloped: 'Sloped or stepped block',
-  rock: 'Rock',
-  restricted_access: 'Restricted access',
-  hand_dig: 'Hand dig only',
-  timber: 'Old timber fence',
-  metal: 'Old metal fence',
-  any: 'Existing fence',
-  per_metre: 'per metre',
-  per_item: 'each',
-  per_job: 'per job',
-  per_sqm: 'per m2',
+/**
+ * Slug -> the words a person reads. Grouped by field, because the customer-side chat needs to know
+ * WHICH question a label belongs to - it cannot offer "Sloped block" as an answer to "what type of
+ * fence".
+ *
+ * One definition, two consumers: this is published to `schema/{trade}.labels` for the customer
+ * chat, and flattened into `LABELS` for the business-side response. A second hand-kept copy is
+ * exactly the drift the closed vocabulary exists to prevent.
+ */
+export const LABEL_GROUPS = {
+  materials: {
+    timber_pine: 'Treated pine',
+    timber_hardwood: 'Hardwood timber',
+    colorbond: 'Colorbond',
+    aluminium: 'Aluminium',
+    pool_aluminium: 'Pool fencing — aluminium',
+    pool_glass: 'Pool fencing — glass',
+    chainmesh: 'Chainmesh',
+    rural_wire: 'Rural wire',
+  },
+  gateTypes: {
+    pedestrian_single: 'Single pedestrian gate',
+    driveway_double: 'Double driveway gate',
+    driveway_sliding: 'Sliding driveway gate',
+    motor_automation: 'Motorised / automation',
+  },
+  conditions: {
+    sloped: 'Sloped block',
+    rock: 'Rocky ground',
+    restricted_access: 'Restricted access',
+    hand_dig: 'Hand dig needed',
+  },
+  removes: {
+    timber: 'Timber fence',
+    metal: 'Metal fence',
+    // "any" is a business-side wildcard - "we take away whatever is there". It is not something a
+    // customer can pick, so it is left out of what the chat is offered. See CUSTOMER_LABEL_GROUPS.
+    any: 'Existing fence',
+  },
+  units: {
+    per_metre: 'per metre',
+    per_item: 'each',
+    per_job: 'per job',
+    per_sqm: 'per m2',
+  },
+} as const;
+
+/** What the customer chat is given: the same labels, minus answers no customer can give. */
+export const CUSTOMER_LABEL_GROUPS = {
+  materials: LABEL_GROUPS.materials,
+  gateTypes: LABEL_GROUPS.gateTypes,
+  conditions: LABEL_GROUPS.conditions,
+  removes: { timber: LABEL_GROUPS.removes.timber, metal: LABEL_GROUPS.removes.metal },
 };
 
+/** Flattened, for the business-side response. Derived - never edited by hand. */
+export const LABELS: Record<string, string> = Object.assign({}, ...Object.values(LABEL_GROUPS));
+
 /**
- * Everything the business reads apart from the fixes themselves is fixed text. It says the same
- * thing every time on purpose: it names what the buttons under it do, and that instruction must not
- * drift with the model's mood.
+ * The question the customer chat asks for each field it has to fill. Here rather than in the chat
+ * so the wording changes in one place, and so a new trade brings its own questions with it.
  */
+export const QUESTIONS: Record<string, string> = {
+  material: 'What type of fence are you after?',
+  heightKey: 'What height are you after?',
+  lengthMeters: 'How long is the fence?',
+  removal: 'Is there an old fence to remove?',
+  conditions: 'Anything tricky about the site?',
+  gateType: 'Do you need any gates?',
+  gateQty: 'How many of those gates?',
+};
+
 export const MESSAGES = {
   approved: {
     opening: 'Your details have been approved. Below is what we have saved from them.',

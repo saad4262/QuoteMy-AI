@@ -120,7 +120,10 @@ and it is completely normal for most of them to be null: take what is written an
 permits - council permits and inspections. included true when they say they arrange or cover them,
 false when they say it is the customer's, null when unstated. fee only where a number is given.
 
-warranty - years where a number is stated, and their own words in text. Null when unstated.
+warranty - years, and their own words in text. Null when unstated.
+  A warranty given in MONTHS is converted: "12-month warranty" is years 1, "18 months" is 1.5.
+  This is the same unit conversion you already do on heights - rewriting the unit of a figure that
+  IS stated. Putting 12 in the years field for a 12-month warranty turns one year into twelve.
 
 extras - any other priced add-on that is not a fence rate, removal, gate or site condition: a
 compliance certificate, powder coating, a callout fee. unit says what the price buys.

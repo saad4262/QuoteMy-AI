@@ -11,6 +11,8 @@ import type {
   SubmissionRecord,
   SubmissionStatus,
 } from './store.js';
+import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
+import { SCHEMA_VERSION } from './store.js';
 import type { ExtraValue } from './vocabulary.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
 
@@ -54,6 +56,20 @@ export class FirestoreRepository implements BusinessRepository {
    * `data` is the frontend contract's field; its shape is ours. `status` and `confirmedAt` sit at
    * the root so the customer query stays a top-level filter.
    */
+  /**
+   * `mergeFields`, not `merge: true`.
+   *
+   * Firestore's plain merge MERGES a nested map instead of replacing it, so `data.pricing.rates`
+   * accumulated across submissions: a business that listed chainmesh once and then dropped it from
+   * their price list kept a chainmesh rate forever, and would be quoted for a fence they no longer
+   * build. It also left `rates` and `enabledMaterials` disagreeing, which is how this was found.
+   *
+   * Naming the field paths makes each one a replacement while leaving everything else on the
+   * document alone - so this write cannot clobber `capabilities`, and that one cannot clobber this.
+   *
+   * Each submission is a complete price list, so replacing is the correct reading: what the
+   * business sent this time is what they sell, and nothing is live until they confirm it.
+   */
   async savePricing(uid: string, doc: PricingDoc): Promise<void> {
     const { trade, status, schemaVersion, updatedAt, confirmedAt, ratesSaved, ...pricing } = doc;
     await this.extractedRef(uid, trade).set(
@@ -63,7 +79,12 @@ export class FirestoreRepository implements BusinessRepository {
         confirmedAt: confirmedAt ?? null,
         updatedAt: updatedAt ?? FieldValue.serverTimestamp(),
       },
-      { merge: true },
+      {
+        mergeFields: [
+          'data.trade', 'data.schemaVersion', 'data.pricing', 'data.ratesSaved',
+          'status', 'confirmedAt', 'updatedAt',
+        ],
+      },
     );
     await this.service(uid, trade).set({ trade, status, lastReviewedAt: updatedAt }, { merge: true });
   }
@@ -72,7 +93,7 @@ export class FirestoreRepository implements BusinessRepository {
     const { trade, schemaVersion, updatedAt, ...capabilities } = doc;
     await this.extractedRef(uid, trade).set(
       { data: { trade, schemaVersion, capabilities }, updatedAt },
-      { merge: true },
+      { mergeFields: ['data.trade', 'data.schemaVersion', 'data.capabilities', 'updatedAt'] },
     );
   }
 
@@ -274,6 +295,33 @@ export class FirestoreRepository implements BusinessRepository {
   // --- the per-trade vocabulary ----------------------------------------------------------------
 
   private vocabRef = (trade: Trade) => db().collection('schema').doc(trade);
+
+  /**
+   * Publish everything the customer side needs to read a trade's vocabulary without importing any
+   * TypeScript: the closed lists, the words to show a homeowner, and the question text.
+   *
+   * Written at boot rather than only when a business introduces an extra - otherwise a trade that
+   * nobody has extended has no document at all, and the chat has nothing to read.
+   *
+   * `extras` is deliberately absent from this write: it belongs to the businesses, and a boot must
+   * never overwrite what they have taught the system.
+   */
+  async syncTradeSchema(trade: Trade): Promise<void> {
+    await this.vocabRef(trade).set(
+      {
+        trade,
+        core: {
+          materials: [...MATERIALS], gateTypes: [...GATE_TYPES], conditions: [...CONDITIONS],
+          removes: [...REMOVES], units: [...UNITS], tags: [...TAGS],
+        },
+        labels: CUSTOMER_LABEL_GROUPS,
+        questions: QUESTIONS,
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { mergeFields: ['trade', 'core', 'labels', 'questions', 'schemaVersion', 'updatedAt'] },
+    );
+  }
 
   async getTradeVocabulary(trade: Trade): Promise<{ extras: Record<string, ExtraValue> } | null> {
     const snap = await this.vocabRef(trade).get();

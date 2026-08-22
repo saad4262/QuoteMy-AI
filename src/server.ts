@@ -6,6 +6,7 @@ import { errorHandler, notFound, requestId, requestLog } from './http.js';
 import { FirestoreRepository } from './firestore.store.js';
 import { assertPromptBudgets, promptSizes } from './prompts.js';
 import { routes } from './routes.js';
+import { TRADES } from './vocab.js';
 import { setRepository } from './store.js';
 import { startWorker } from './worker.js';
 
@@ -33,7 +34,15 @@ export function createApp() {
 if (process.env.NODE_ENV !== 'test') {
   assertPromptBudgets();
 
-  if (env.STORE === 'firestore') setRepository(new FirestoreRepository());
+  if (env.STORE === 'firestore') {
+    const repo = new FirestoreRepository();
+    setRepository(repo);
+    // Publish each trade's vocabulary so the customer side always has a document to read, even for
+    // a trade no business has extended yet.
+    for (const trade of TRADES) {
+      void repo.syncTradeSchema(trade).catch((err) => logger.warn({ err, trade }, 'could not publish trade schema'));
+    }
+  }
   if (env.WORKER_ENABLED) startWorker();
 
   const server = createApp().listen(env.PORT, () => {
