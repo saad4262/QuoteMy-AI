@@ -30,8 +30,12 @@ export function createApp() {
   return app;
 }
 
-// Only start listening when run directly, so tests can import createApp without a port.
-if (process.env.NODE_ENV !== 'test') {
+/**
+ * Everything that must happen before the first request, on any host: prompt budgets checked, the
+ * store wired up. No port and no worker, because a serverless host owns the first and cannot run
+ * the second - see api/index.ts.
+ */
+export function initialize(): void {
   assertPromptBudgets();
 
   if (env.STORE === 'firestore') {
@@ -43,6 +47,12 @@ if (process.env.NODE_ENV !== 'test') {
       void repo.syncTradeSchema(trade).catch((err) => logger.warn({ err, trade }, 'could not publish trade schema'));
     }
   }
+}
+
+// Only start listening when run directly, so tests can import createApp without a port - and so a
+// serverless host, which imports this module to get the app, never tries to bind one.
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  initialize();
   if (env.WORKER_ENABLED) startWorker();
 
   const server = createApp().listen(env.PORT, () => {

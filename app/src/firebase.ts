@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { cert, getApps, initializeApp, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { env } from './config.js';
@@ -18,6 +18,20 @@ import { env } from './config.js';
 
 let app: App | null = null;
 
+/**
+ * The key reaches us one of two ways, and never through the repo: a file on disk, or - where the
+ * host has no writable disk, as on Vercel - the same JSON base64 encoded into an env var.
+ */
+function serviceAccountJson(): ServiceAccount & { project_id: string } {
+  if (env.FIREBASE_SERVICE_ACCOUNT_B64) {
+    return JSON.parse(Buffer.from(env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8'));
+  }
+  if (env.GOOGLE_APPLICATION_CREDENTIALS) {
+    return JSON.parse(readFileSync(env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+  }
+  throw new Error('Neither FIREBASE_SERVICE_ACCOUNT_B64 nor GOOGLE_APPLICATION_CREDENTIALS is set');
+}
+
 function firebase(): App {
   if (app) return app;
 
@@ -27,11 +41,7 @@ function firebase(): App {
     return app;
   }
 
-  if (!env.GOOGLE_APPLICATION_CREDENTIALS) {
-    throw new Error('GOOGLE_APPLICATION_CREDENTIALS is not set');
-  }
-
-  const serviceAccount = JSON.parse(readFileSync(env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+  const serviceAccount = serviceAccountJson();
   app = initializeApp({
     credential: cert(serviceAccount),
     projectId: env.FIREBASE_PROJECT_ID ?? serviceAccount.project_id,

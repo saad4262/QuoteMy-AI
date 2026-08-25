@@ -4,7 +4,25 @@ import { fileURLToPath } from 'node:url';
 import type { Trade } from './vocab.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (...p: string[]) => readFileSync(join(here, 'prompts', ...p), 'utf8').trim();
+
+/**
+ * Prompts are data, not code, so nothing carries them into a build unless something copies them:
+ * `npm run build` does, and on Vercel vercel.json's includeFiles does. The extra candidates cover a
+ * host that rewrites import.meta.url to a bundle path that is no longer next to the prompt files -
+ * a missing prompt is a boot failure, and one that is hard to read from a stack trace.
+ */
+const roots = [join(here, 'prompts'), join(process.cwd(), 'src', 'prompts'), join(process.cwd(), 'dist', 'prompts')];
+
+const read = (...p: string[]) => {
+  for (const root of roots) {
+    try {
+      return readFileSync(join(root, ...p), 'utf8').trim();
+    } catch {
+      // try the next root
+    }
+  }
+  throw new Error(`prompt file not found: ${join(...p)} (looked in ${roots.join(', ')})`);
+};
 
 /**
  * Prompt assembly.

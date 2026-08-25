@@ -149,6 +149,20 @@ function reportTickFailure(err: unknown): void {
 }
 
 /**
+ * One pass of the sweeper: pick up whatever is pending and work through it.
+ *
+ * Separated from the interval below because a serverless host has no long-lived process to hold an
+ * interval - there, a scheduled request calls this instead (see api/cron.ts).
+ */
+export async function sweepOnce(): Promise<number> {
+  const pending = await getRepository().findPending(env.WORKER_BATCH, env.WORKER_STALE_MS);
+  for (const item of pending) {
+    await processSubmission(item.uid, item.trade);
+  }
+  return pending.length;
+}
+
+/**
  * The sweeper. Its whole job is that a submission is never lost because one HTTP call failed, or
  * because this process died halfway through a review.
  */
@@ -164,10 +178,7 @@ export function startWorker(): void {
     if (running) return; // a slow batch must not overlap the next tick
     running = true;
     try {
-      const pending = await getRepository().findPending(env.WORKER_BATCH, env.WORKER_STALE_MS);
-      for (const item of pending) {
-        await processSubmission(item.uid, item.trade);
-      }
+      await sweepOnce();
     } catch (err) {
       reportTickFailure(err);
     } finally {

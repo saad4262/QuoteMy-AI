@@ -44,6 +44,9 @@ const schema = z.object({
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_STORAGE_BUCKET: z.string().optional(),
   GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+  // Same JSON as the file above, base64 encoded. For hosts with no writable disk
+  // (Vercel, and any other serverless target) where a key file cannot exist.
+  FIREBASE_SERVICE_ACCOUNT_B64: z.string().optional(),
 
   // The sweeper. Its whole job is that a submission is never lost because one HTTP call failed.
   WORKER_ENABLED: z.stringbool().default(false),
@@ -70,8 +73,8 @@ if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) {
   process.exit(1);
 }
 
-if (env.STORE === 'firestore' && !env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error('STORE=firestore but GOOGLE_APPLICATION_CREDENTIALS is not set');
+if (env.STORE === 'firestore' && !env.GOOGLE_APPLICATION_CREDENTIALS && !env.FIREBASE_SERVICE_ACCOUNT_B64) {
+  console.error('STORE=firestore needs GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_B64');
   process.exit(1);
 }
 
@@ -84,6 +87,9 @@ if (env.WORKER_ENABLED && env.STORE !== 'firestore') {
 
 export const logger = pino({
   level: env.LOG_LEVEL,
-  ...(isProd ? {} : { transport: { target: 'pino-pretty' } }),
-  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY'],
+  // pino-pretty is a devDependency, so it does not exist on a production host. VERCEL is checked
+  // separately because an uploaded .env can carry NODE_ENV=development there, and a missing
+  // transport takes the whole process down at boot.
+  ...(isProd || process.env.VERCEL ? {} : { transport: { target: 'pino-pretty' } }),
+  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64'],
 });

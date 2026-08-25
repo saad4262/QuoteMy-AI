@@ -1,7 +1,7 @@
 {
   "name": "quotemy-ai-api",
   "version": "0.1.0",
-  "description": "QuoteMy AI — business onboarding API (Express + TypeScript)",
+  "description": "QuoteMy AI \u2014 business onboarding API (Express + TypeScript)",
   "main": "index.js",
   "directories": {
     "doc": "docs",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc && cp -r src/prompts dist/prompts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
