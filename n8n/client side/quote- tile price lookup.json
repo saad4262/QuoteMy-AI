@@ -1,0 +1,301 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "4eb3f4ca-cf06-4aff-8fb7-020ac351ae8a",
+      "name": "When Called by Agent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1248,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nconst clean = (value) => {\n  const text = String(value == null ? '' : value).trim();\n  if (!text || text === 'undefined' || text === 'null') return '';\n  return text;\n};\n\nconst description = clean(input.query || input.description);\nconst tileSize = clean(input.tileSize);\nconst site = clean(input.site).toLowerCase().replace(/^www\\./, '');\n\nif (!description) {\n  return [{ json: { skip: true, reason: 'empty', options: [], description, tileSize, site } }];\n}\n\nconst key = ('tile_' + [description, tileSize, site].join(' '))\n  .toLowerCase()\n  .replace(/[^a-z0-9]+/g, ' ')\n  .trim()\n  .split(' ')\n  .filter(Boolean)\n  .sort()\n  .join('-')\n  .slice(0, 180);\n\nreturn [{ json: { cacheKey: key, description, tileSize, site, skip: false } }];"
+      },
+      "id": "e93144e2-bc57-42ae-baa1-14ae8c1b460b",
+      "name": "Build Cache Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "projectId": "quotemy-ai",
+        "collection": "tiles",
+        "documentId": "={{ $json.cacheKey }}"
+      },
+      "id": "67e89423-1231-4c7d-b970-7bac54762793",
+      "name": "Cache Check",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        -800,
+        1568
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleFirebaseCloudFirestoreOAuth2Api": {
+          "id": "xNLb8t0yYKmPmXuX",
+          "name": "QuoteAI"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;\nconst key = $('Build Cache Key').first().json;\nconst doc = $input.first().json || {};\n\nif (key.skip) {\n  return [{ json: { ...key, fresh: true, cached: [] } }];\n}\n\nconst fetchedAt = Number(doc.fetchedAt);\nconst options = Array.isArray(doc.options) ? doc.options : null;\nconst fresh = Boolean(options && options.length && Number.isFinite(fetchedAt) && Date.now() - fetchedAt < SEVEN_DAYS);\n\nreturn [{\n  json: {\n    ...key,\n    fresh,\n    cached: fresh ? options : [],\n  },\n}];"
+      },
+      "id": "5cd82bf8-4e30-472b-abec-dc428291c06c",
+      "name": "Evaluate Cache",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "tl-cond-fresh",
+              "leftValue": "={{ $json.fresh }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8faf1ff1-e894-4007-ae92-381a87651beb",
+      "name": "Fresh Hit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -368,
+        1568
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{ json: { options: item.cached, source: 'cache' } }];"
+      },
+      "id": "5328519b-1eba-493b-a9dd-90fb581722e5",
+      "name": "Return Cached",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "messages": {
+          "message": [
+            {
+              "content": "You look up real tile products sold in Australia and report their current listed price. Use web search. Only report products you can see on a retailer page. Never estimate, never invent a price. Prefer returning 1–3 real matches over an empty list. Reply with raw JSON only, no markdown: {\"products\":[{\"name\":..,\"sizeMm\":..,\"finish\":..,\"price\":..,\"priceUnit\":\"sqm\"|\"box\"|\"piece\",\"boxCoverageSqm\":..,\"retailer\":..,\"url\":..}]}",
+              "role": "system"
+            },
+            {
+              "content": "={{ \"Find up to 3 real tile products currently sold in Australia matching: \" + $json.description + ($json.tileSize ? \" (size \" + $json.tileSize + \")\" : \"\") + ($json.site ? \". Search ONLY on \" + $json.site + \" (use site:\" + $json.site + \"). Do not use other retailers.\" : \". Search any Australian tile retailer, not only Beaumont / National Tiles / Bunnings / Tile Republic.\") }}"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.perplexity",
+      "typeVersion": 2,
+      "id": "db728b22-0fdb-46d2-9a5f-2d7f8abba556",
+      "name": "Perplexity Sonar",
+      "position": [
+        -144,
+        1664
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true,
+      "credentials": {
+        "perplexityApi": {
+          "id": "0xJKZf1FP06QoXrn",
+          "name": "Perplexity account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const key = $('Build Cache Key').first().json;\nconst response = $input.first().json || {};\n\nconst unwrap = (value) => {\n  if (value === null || value === undefined) return null;\n  if (typeof value === 'object') return value;\n  if (typeof value !== 'string') return null;\n  const cleaned = value.replace(/```json|```/g, '').trim();\n  if (!cleaned) return null;\n  try { return JSON.parse(cleaned); } catch (error) { return null; }\n};\n\nconst candidates = [\n  response.output,\n  response.products ? response : null,\n  response.message?.content,\n  response.choices?.[0]?.message?.content,\n  response.content,\n  response.text,\n  response.response,\n  response.data,\n];\n\nlet products = [];\nfor (const candidate of candidates) {\n  const parsed = unwrap(candidate);\n  if (parsed && Array.isArray(parsed.products)) { products = parsed.products; break; }\n  if (Array.isArray(parsed)) { products = parsed; break; }\n}\n\nconst citations = [\n  ...(Array.isArray(response.citations) ? response.citations : []),\n  ...(Array.isArray(response.search_results) ? response.search_results.map((r) => r.url) : []),\n].filter(Boolean);\n\nconst num = (value) => {\n  const parsed = Number(String(value == null ? '' : value).replace(/[^0-9.]/g, ''));\n  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;\n};\n\nconst toPerSqm = (product) => {\n  const price = num(product.price);\n  if (price === null) return null;\n  const unit = String(product.priceUnit || 'sqm').toLowerCase();\n  if (unit === 'sqm') return price;\n  if (unit === 'box') {\n    const coverage = num(product.boxCoverageSqm);\n    return coverage === null ? null : Math.round((price / coverage) * 100) / 100;\n  }\n  return null;\n};\n\nconst PLAUSIBLE_MIN = 15;\nconst PLAUSIBLE_MAX = 250;\n\nconst options = products\n  .map((product) => {\n    const pricePerSqm = toPerSqm(product);\n    if (pricePerSqm === null || pricePerSqm < PLAUSIBLE_MIN || pricePerSqm > PLAUSIBLE_MAX) return null;\n    const url = String(product.url || '').trim();\n    return {\n      tileName: String(product.name || '').trim().slice(0, 120),\n      sizeMm: String(product.sizeMm || product.size || '').trim(),\n      finish: String(product.finish || '').trim(),\n      pricePerSqm,\n      retailer: String(product.retailer || '').trim(),\n      sourceUrl: /^https?:\\/\\//i.test(url) ? url : (citations[0] || null),\n      confidence: 'extracted',\n    };\n  })\n  .filter((option) => option && option.tileName && option.sourceUrl)\n  .slice(0, 3);\n\nreturn [{\n  json: {\n    cacheKey: key.cacheKey,\n    found: options.length > 0,\n    options,\n    fetchedAt: Date.now(),\n    empty: options.length === 0,\n  },\n}];"
+      },
+      "id": "5691980d-8b31-4f2f-9bf0-9c11a74eae74",
+      "name": "Normalize Tiles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "projectId": "quotemy-ai",
+        "collection": "tiles",
+        "updateKey": "cacheKey",
+        "columns": "cacheKey, options, fetchedAt"
+      },
+      "id": "892122b1-5989-4658-8f69-7ab30eba495f",
+      "name": "Cache Write",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        304,
+        1664
+      ],
+      "credentials": {
+        "googleFirebaseCloudFirestoreOAuth2Api": {
+          "id": "xNLb8t0yYKmPmXuX",
+          "name": "QuoteAI"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = $('Normalize Tiles').first().json;\n\nif (!normalized.options.length) {\n  return [{ json: {\n    found: false,\n    message: 'No matching tile listing found. Use a category estimate instead and tell the customer the tile price is approximate.',\n    options: [],\n  } }];\n}\n\nreturn [{ json: {\n  found: true,\n  options: normalized.options.map((option) => ({\n    tileName: option.tileName,\n    pricePerSqm: option.pricePerSqm,\n    retailer: option.retailer,\n    sourceUrl: option.sourceUrl,\n  })),\n} }];"
+      },
+      "id": "2e077651-fbb0-460d-ab3c-15a232e37308",
+      "name": "Return Options",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        1664
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Agent": {
+      "main": [
+        [
+          {
+            "node": "Build Cache Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Cache Key": {
+      "main": [
+        [
+          {
+            "node": "Cache Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Check": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Cache",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Cache": {
+      "main": [
+        [
+          {
+            "node": "Fresh Hit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fresh Hit?": {
+      "main": [
+        [
+          {
+            "node": "Return Cached",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Perplexity Sonar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Sonar": {
+      "main": [
+        [
+          {
+            "node": "Normalize Tiles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Tiles": {
+      "main": [
+        [
+          {
+            "node": "Cache Write",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Write": {
+      "main": [
+        [
+          {
+            "node": "Return Options",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "886d78c3701091b0d47a11cec85a060077c03873e5f0d293e2535ab8adaace9d"
+  }
+}

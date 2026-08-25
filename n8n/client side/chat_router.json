@@ -1,0 +1,1178 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "quote-chat-api",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "binaryPropertyName": "quoteFile",
+          "rawBody": false
+        }
+      },
+      "id": "5ca58dc3-1b48-4210-8baa-dad442a08784",
+      "name": "Webhook (React Input)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        -3312,
+        1328
+      ],
+      "webhookId": "quote-chat-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rt-a-message",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.message || $json.chatInput || $json.body.message || \"\" }}"
+            },
+            {
+              "id": "rt-a-session",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $json.sessionId || $json.body.sessionId || \"\" }}"
+            },
+            {
+              "id": "rt-a-trade",
+              "name": "trade",
+              "type": "string",
+              "value": "={{ String($json.trade || $json.body.trade || \"\").trim() }}"
+            },
+            {
+              "id": "rt-a-known",
+              "name": "knownChecklist",
+              "type": "string",
+              "value": "={{ $json.knownChecklist || $json.body.knownChecklist || \"\" }}"
+            },
+            {
+              "id": "rt-a-place",
+              "name": "place",
+              "type": "string",
+              "value": "={{ $json.place || $json.body.place || \"\" }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "970a3c6c-2747-41d0-946c-e9ec616f3ae0",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3088,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst source = $('Normalize Input').first().json;\nconst binaryKeys = Object.keys(item.binary || {});\nconst base = {\n  message: source.message,\n  sessionId: source.sessionId,\n  trade: String(source.trade || '').trim(),\n  place: source.place || '',\n  knownChecklist: source.knownChecklist || '',\n};\n\nif (binaryKeys.length === 0) {\n  return [{ json: base }];\n}\n\nreturn binaryKeys.map((key) => {\n  const meta = item.binary[key];\n  return {\n    json: { ...base, mimeType: meta.mimeType },\n    binary: { data: meta },\n  };\n});"
+      },
+      "id": "c99a57b6-e5d7-42fb-8db1-6d43d7a1bedc",
+      "name": "Split Attachments by Binary Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2864,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rt-cond-pdf",
+                    "leftValue": "={{ $json.mimeType || '' }}",
+                    "rightValue": "pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rt-cond-image",
+                    "leftValue": "={{ $json.mimeType || '' }}",
+                    "rightValue": "image/",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Image"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "No Attachment / Other"
+        }
+      },
+      "id": "2603d426-82cb-401d-8944-7a05883cbb59",
+      "name": "Route by Attachment Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -2640,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "9d8badd2-1a75-419a-beb1-bce2f09f743a",
+      "name": "Extract Quote Text (PDF)",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -2432,
+        1184
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "text": "This may be a screenshot of a trade quote (fencing, tiling, decking, retaining wall), or a photo of a job site. Extract every readable detail as plain text: business name, total price, the type of work, all measurements with their units, suburb or address, materials named, and any other specs mentioned. Don't summarize away numbers, and don't guess at anything the image doesn't show.",
+        "inputType": "base64",
+        "options": {}
+      },
+      "id": "66f36750-c8f8-4579-a9b7-58f2a41ddffd",
+      "name": "Extract Quote Text (Image - Vision)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -2432,
+        1472
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "openAiApi": {
+          "id": "8ufzPHXJavKYlWMk",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rt-a-part",
+              "name": "extractedTextPart",
+              "type": "string",
+              "value": "={{ $json.text || $json.content || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "656949c7-0124-4515-a818-5f25e166802d",
+      "name": "Normalize Extraction Field",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2208,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "aggregateItems",
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "extractedTextPart",
+              "renameField": true,
+              "outputFieldName": "combinedExtractedText"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "be85b89d-0448-4ac2-a805-70b2bdb1f993",
+      "name": "Aggregate Extracted Text",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2.2,
+      "position": [
+        -1984,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Normalize Input').first().json;\nconst current = $input.first().json;\n\nconst combined = current.combinedExtractedText;\nconst documents = (Array.isArray(combined) ? combined : [current.text || current.data || current.content || ''])\n  .map((entry) => String(entry === null || entry === undefined ? '' : entry).trim())\n  .filter(Boolean);\n\nconst extractedText = (\n  documents.length > 1\n    ? documents.map((text, index) => `--- Document ${index + 1} of ${documents.length} ---\\n${text}`).join('\\n\\n')\n    : documents[0] || ''\n).slice(0, 4000);\n\nreturn [{\n  json: {\n    message: source.message,\n    sessionId: source.sessionId,\n    trade: String(source.trade || '').trim(),\n    place: source.place || '',\n    knownChecklist: source.knownChecklist || '',\n    extractedText,\n    extractionFailed: Array.isArray(combined) && documents.length === 0,\n  },\n}];"
+      },
+      "id": "81635935-95cf-484d-8062-2000ced8f037",
+      "name": "Collect Extracted Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rt-cond-trade-known",
+              "leftValue": "={{ $json.trade }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dc4bc4f9-7b70-4ed8-a2cb-aa8582c7c9c3",
+      "name": "Trade Known?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1552,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nconst FIELD_OWNERS = {\n  fencing: ['fenceType', 'lengthMeters', 'heightMm', 'removeOldFence', 'siteAccess'],\n  tiling: ['surface', 'room', 'floorAreaSqm', 'wallAreaSqm', 'removeOldTiles', 'substrate', 'tileSize', 'pattern'],\n  'retaining-wall': ['wallType', 'lengthMeters', 'heightBand', 'removeOldWall', 'siteAccess'],\n  decking: ['material', 'areaSqm', 'deckHeight', 'needsBalustrade', 'balustradeLm', 'needsStairs', 'stairFlights'],\n};\n\nlet known = {};\ntry { known = JSON.parse(item.knownChecklist || '{}') || {}; } catch (error) { known = {}; }\n\nconst answered = Object.keys(known).filter((key) => known[key] !== null && known[key] !== undefined && known[key] !== '');\nconst byField = Object.keys(FIELD_OWNERS).filter((trade) =>\n  FIELD_OWNERS[trade].some((field) => answered.includes(field)),\n);\nif (byField.length === 1) {\n  return [{ json: { ...item, trade: byField[0], resolvedBy: 'checklist' } }];\n}\n\nconst haystack = [item.message || '', item.extractedText || ''].join(' ');\n\nconst TRADE_HINTS = [\n  ['fencing', /fenc\\w*|paling|colou?rbond|chainmesh|chain ?wire|boundary fence|pool fence/i],\n  ['tiling', /til(?:e|es|ing|er)\\b|splashback|splash back|grout|waterproof\\w*|mosaic|porcelain/i],\n  ['retaining-wall', /retaining|retain(?:ing)?\\s*wall|sleeper wall|concrete sleeper|besser block/i],\n  ['decking', /deck(?:ing)?\\b|merbau deck|composite deck|balustrade|deck stairs|spotted gum deck/i],\n];\n\nconst hits = TRADE_HINTS.filter(([, pattern]) => pattern.test(haystack)).map(([trade]) => trade);\n\nreturn [{\n  json: {\n    ...item,\n    trade: hits.length === 1 ? hits[0] : '',\n    resolvedBy: hits.length === 1 ? 'keyword' : 'needsModel',\n  },\n}];"
+      },
+      "id": "9e7cc7b4-3f28-483d-928c-e10a6a2d3a9b",
+      "name": "Resolve Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1328,
+        1488
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rt-cond-resolved",
+              "leftValue": "={{ $json.trade }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8c88c5cc-4bfa-4042-8ab9-4268be772383",
+      "name": "Resolved by Keyword?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1104,
+        1488
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'gpt-4o-mini',\n  response_format: { type: 'json_object' },\n  max_tokens: 60,\n  temperature: 0,\n  messages: [\n    { role: 'system', content: 'You classify a home-improvement enquiry into one trade. Valid trades: fencing, tiling, retaining-wall, decking. Reply with raw JSON only: {\"trade\":\"fencing\"|\"tiling\"|\"retaining-wall\"|\"decking\"|null}. Return null whenever you are not confident, when the enquiry names neither trade, or when it names more than one — a wrong guess sends the customer into the wrong questionnaire and they have to start over, which is far worse than one extra question.' },\n    { role: 'user', content: String($json.message || '').slice(0, 600) + ($json.extractedText ? '\\n\\n--- attached document ---\\n' + String($json.extractedText).slice(0, 1200) : '') }\n  ]\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a87a0c4b-b27a-4bc5-a381-75c5f7235964",
+      "name": "Classify Trade",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -880,
+        1616
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1500,
+      "alwaysOutputData": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "8ufzPHXJavKYlWMk",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Resolve Trade').first().json;\nconst response = $input.first().json || {};\n\nlet trade = null;\ntry {\n  const raw = response.choices?.[0]?.message?.content || '';\n  const parsed = JSON.parse(String(raw).replace(/```json|```/g, '').trim());\n  const candidate = String(parsed.trade || '').toLowerCase().trim();\n  trade = ['fencing', 'tiling', 'retaining-wall', 'decking'].includes(candidate) ? candidate : null;\n} catch (error) {\n  trade = null;\n}\n\nreturn [{ json: { ...source, trade: trade || '', resolvedBy: trade ? 'model' : 'unresolved' } }];"
+      },
+      "id": "0f7c0f72-2101-4de1-8291-7e0cc9f6fcd6",
+      "name": "Read Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rt-cond-model-resolved",
+              "leftValue": "={{ $json.trade }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "71a41663-3e77-4cfe-a72e-9b2e6e294623",
+      "name": "Model Resolved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -448,
+        1616
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nreturn [{\n  json: {\n    sessionId: item.sessionId || null,\n    trade: '',\n    type: 'question',\n    message: 'Happy to help — what kind of job is it?',\n    options: [\n      { label: 'Fencing', value: 'fencing' },\n      { label: 'Tiling', value: 'tiling' },\n      { label: 'Retaining Wall', value: 'retaining-wall' },\n      { label: 'Decking', value: 'decking' },\n    ],\n    checklistComplete: false,\n    checklist: null,\n    results: [],\n  },\n}];"
+      },
+      "id": "3df9a5eb-5827-4de1-afdc-d54d44ba715d",
+      "name": "Ask Which Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        1728
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rt-cond-fencing",
+                    "leftValue": "={{ $json.trade }}",
+                    "rightValue": "fencing",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Fencing"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rt-cond-tiling",
+                    "leftValue": "={{ $json.trade }}",
+                    "rightValue": "tiling",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Tiling"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rt-cond-rw",
+                    "leftValue": "={{ $json.trade }}",
+                    "rightValue": "retaining-wall",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Retaining Wall"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "rt-cond-decking",
+                    "leftValue": "={{ $json.trade }}",
+                    "rightValue": "decking",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Decking"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Unknown"
+        }
+      },
+      "id": "b78f3d78-f7f7-4d4c-bea2-7fabdd6edc38",
+      "name": "Dispatch by Trade",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -224,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "IOhQT7SVSNC0DQRF",
+          "mode": "list",
+          "cachedResultName": "QuoteMy — Fencing Subagent",
+          "cachedResultUrl": "/workflow/IOhQT7SVSNC0DQRF"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "message": "={{ $json.message }}",
+            "sessionId": "={{ $json.sessionId }}",
+            "place": "={{ $json.place }}",
+            "knownChecklist": "={{ $json.knownChecklist }}",
+            "extractedText": "={{ $json.extractedText }}",
+            "schemaJson": "={{ $json.schemaJson }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "c525b71f-bc4b-4849-88e6-3c30afd534dd",
+      "name": "Call Fencing Subagent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1104
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "dZ2UieWvkDSEpVdP",
+          "mode": "list",
+          "cachedResultName": "QuoteMy — Tiling Subagent",
+          "cachedResultUrl": "/workflow/dZ2UieWvkDSEpVdP"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "message": "={{ $json.message }}",
+            "sessionId": "={{ $json.sessionId }}",
+            "place": "={{ $json.place }}",
+            "knownChecklist": "={{ $json.knownChecklist }}",
+            "extractedText": "={{ $json.extractedText }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "846880ed-2608-41a2-b35b-80e0f1e944c1",
+      "name": "Call Tiling Subagent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1264
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "jG1M0fVvR0U1whzo",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/jG1M0fVvR0U1whzo",
+          "cachedResultName": "QuoteMy — Retaining Wall Subagent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "message": "={{ $json.message }}",
+            "sessionId": "={{ $json.sessionId }}",
+            "place": "={{ $json.place }}",
+            "knownChecklist": "={{ $json.knownChecklist }}",
+            "extractedText": "={{ $json.extractedText }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "b3e5cb41-f7d4-4421-be3d-0c82ecfe74b8",
+      "name": "Call Retaining Wall Subagent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1424
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1Ws2XQSDEZ2W42Dz",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/1Ws2XQSDEZ2W42Dz",
+          "cachedResultName": "QuoteMy — Decking Subagent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "message": "={{ $json.message }}",
+            "sessionId": "={{ $json.sessionId }}",
+            "place": "={{ $json.place }}",
+            "knownChecklist": "={{ $json.knownChecklist }}",
+            "extractedText": "={{ $json.extractedText }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "06435b67-3a60-4a2b-8c4f-e46ee38ee5b3",
+      "name": "Call Decking Subagent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1584
+      ],
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dispatched = $('Dispatch by Trade').first()?.json || {};\nconst result = $input.first()?.json || {};\n\nif (!result || !result.type) {\n  return [{\n    json: {\n      sessionId: result.sessionId || dispatched.sessionId || null,\n      trade: result.trade || dispatched.trade || '',\n      type: 'message',\n      message: 'Sorry, something went wrong on my end — mind trying that again in a moment?',\n      options: [],\n      checklistComplete: false,\n      checklist: null,\n      results: [],\n    },\n  }];\n}\n\nreturn [{ json: { ...result, trade: result.trade || dispatched.trade || '' } }];\n"
+      },
+      "id": "0784fcb0-55ee-4231-9d6e-2c717ecf3f2b",
+      "name": "Finalize Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "f21edea9-f1c3-42ae-91a7-58ce04484c78",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        432,
+        1328
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The fencing conversation builds every question and every multiple choice out of\n// /schema/fencing — the materials, the site conditions, the gate types, and the wording that\n// goes with them. That makes it needed on every single turn, while it only actually changes\n// when a business registers something new, which is rare. A document read per message for data\n// that is identical all day is not worth paying for, so it is fetched once and kept here.\nconst TTL_MS = 60 * 60 * 1000;\nconst item = $input.first().json;\nconst trade = String(item.trade || '').toLowerCase().trim();\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.schema) staticData.schema = {};\nconst cached = staticData.schema[trade];\nconst fresh = !!(\n  cached &&\n  cached.json &&\n  Number.isFinite(Number(cached.fetchedAt)) &&\n  Date.now() - Number(cached.fetchedAt) < TTL_MS\n);\n\nreturn [{ json: { ...item, schemaJson: fresh ? cached.json : '', schemaFresh: fresh } }];"
+      },
+      "id": "rt-schema-cache",
+      "name": "Read Schema Cache",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -24,
+        1128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rt-cond-schema-fresh",
+              "leftValue": "={{ $json.schemaFresh }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "rt-schema-fresh",
+      "name": "Schema Cached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        176,
+        1128
+      ]
+    },
+    {
+      "parameters": {
+        "projectId": "quotemy-ai",
+        "collection": "schema",
+        "documentId": "={{ $json.trade }}"
+      },
+      "id": "rt-fetch-schema",
+      "name": "Fetch Trade Schema",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        376,
+        1208
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleFirebaseCloudFirestoreOAuth2Api": {
+          "id": "xNLb8t0yYKmPmXuX",
+          "name": "QuoteAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const TTL_MS = 60 * 60 * 1000;\nconst source = $('Read Schema Cache').first().json;\nconst trade = String(source.trade || '').toLowerCase().trim();\nconst document = $input.first().json || {};\n\n// A Firestore hiccup must not take the conversation down with it. The subagent carries its own\n// copy of the vocabulary for exactly this case, and an empty string is how it is told to fall\n// back to it — the conversation degrades to slightly worse wording rather than to nothing.\nconst usable = !!(document && !document.error && document.core && typeof document.core === 'object');\nconst schemaJson = usable\n  ? JSON.stringify({\n      core: document.core || {},\n      labels: document.labels || {},\n      questions: document.questions || {},\n      extras: document.extras || {},\n    })\n  : '';\n\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.schema) staticData.schema = {};\n// Only a real read is worth remembering. Caching the failure would keep the fallback in place\n// for a full hour after Firestore came back.\nif (schemaJson) staticData.schema[trade] = { json: schemaJson, fetchedAt: Date.now() };\n\nreturn [{ json: { ...source, schemaJson, schemaFresh: false } }];"
+      },
+      "id": "rt-store-schema",
+      "name": "Store Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        1208
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (React Input)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Split Attachments by Binary Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attachments by Binary Key": {
+      "main": [
+        [
+          {
+            "node": "Route by Attachment Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Attachment Type": {
+      "main": [
+        [
+          {
+            "node": "Extract Quote Text (PDF)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Quote Text (Image - Vision)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Quote Text (PDF)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Extraction Field",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Extraction Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Quote Text (Image - Vision)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Extraction Field",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize Extraction Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Extraction Field": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Extracted Text": {
+      "main": [
+        [
+          {
+            "node": "Collect Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Extracted Text": {
+      "main": [
+        [
+          {
+            "node": "Trade Known?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trade Known?": {
+      "main": [
+        [
+          {
+            "node": "Dispatch by Trade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolve Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Trade": {
+      "main": [
+        [
+          {
+            "node": "Resolved by Keyword?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolved by Keyword?": {
+      "main": [
+        [
+          {
+            "node": "Dispatch by Trade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Classify Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Trade": {
+      "main": [
+        [
+          {
+            "node": "Read Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Classification": {
+      "main": [
+        [
+          {
+            "node": "Model Resolved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Model Resolved?": {
+      "main": [
+        [
+          {
+            "node": "Dispatch by Trade",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask Which Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Which Trade": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatch by Trade": {
+      "main": [
+        [
+          {
+            "node": "Read Schema Cache",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Tiling Subagent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Retaining Wall Subagent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call Decking Subagent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask Which Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Fencing Subagent": {
+      "main": [
+        [
+          {
+            "node": "Finalize Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Tiling Subagent": {
+      "main": [
+        [
+          {
+            "node": "Finalize Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Retaining Wall Subagent": {
+      "main": [
+        [
+          {
+            "node": "Finalize Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Decking Subagent": {
+      "main": [
+        [
+          {
+            "node": "Finalize Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Schema Cache": {
+      "main": [
+        [
+          {
+            "node": "Schema Cached?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schema Cached?": {
+      "main": [
+        [
+          {
+            "node": "Call Fencing Subagent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Trade Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Trade Schema": {
+      "main": [
+        [
+          {
+            "node": "Store Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Schema": {
+      "main": [
+        [
+          {
+            "node": "Call Fencing Subagent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "886d78c3701091b0d47a11cec85a060077c03873e5f0d293e2535ab8adaace9d"
+  }
+}

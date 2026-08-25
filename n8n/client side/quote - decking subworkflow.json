@@ -1,0 +1,408 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "e08c952d-0217-4aec-938d-31c39d32701f",
+      "name": "When Called by Router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3536,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dk-message",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.message || '' }}"
+            },
+            {
+              "id": "dk-session",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $json.sessionId || '' }}"
+            },
+            {
+              "id": "dk-known",
+              "name": "knownChecklist",
+              "type": "string",
+              "value": "={{ $json.knownChecklist || '' }}"
+            },
+            {
+              "id": "dk-place",
+              "name": "place",
+              "type": "string",
+              "value": "={{ $json.place || '' }}"
+            },
+            {
+              "id": "dk-extracted",
+              "name": "extractedText",
+              "type": "string",
+              "value": "={{ $json.extractedText || '' }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "1cd12e07-6975-463b-bec3-3a956098e59b",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3312,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same instinct as fencing/tiling: what the page states outright is read here, deterministically,\n// rather than left to the model. Same document, same fields, every run.\nconst source = $('Normalize Input').first().json;\nconst extractedText = String(source.extractedText || '').slice(0, 4000);\nconst multipleDocuments = /^--- Document 1 of \\d+ ---/m.test(extractedText);\nconst documents = extractedText ? [extractedText] : [];\n\nconst num = (value) => {\n  const parsed = Number(value);\n  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;\n};\n\nconst MATERIALS = [\n  ['treated-pine', /treated pine|pine deck/i],\n  ['merbau', /merbau/i],\n  ['spotted-gum', /spotted gum/i],\n  ['composite', /composite/i],\n];\n\n// The job address, for the picker's benefit only. This is NOT checklist.suburb and never\n// becomes it — the agent's own prompt already says the same thing (\"never take it from a\n// document as fact\"). It only ever gives the picker a head start; Google's confirmation is\n// still what fills checklist.suburb. Labelled lines first, since a deck builder's letterhead\n// is also an address and quoting it would send the job to the wrong side of the city.\nconst ADDRESS = [\n  /^[^\\n]{0,40}\\b(?:property|site|job|install(?:ation)?)\\s*address\\s*[:\\-–]\\s*([^\\n]+)$/im,\n  /^[^\\n]{0,10}\\baddress\\s*[:\\-–]\\s*([^\\n]+)$/im,\n  /^[^\\n]{0,40}\\b(?:suburb|location)\\s*[:\\-–]\\s*([^\\n]+)$/im,\n  // Unlabelled last resort: a place written the way Australian addresses are written.\n  /\\b([A-Z][A-Za-z'’\\-]+(?:\\s+[A-Z][A-Za-z'’\\-]+){0,3}\\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\\s+\\d{4})\\b/,\n];\n\n// The contractor's own address is on the page too, usually at the top, and suggesting it would\n// send the job to whichever suburb the builder trades from. A labelled line says whose address\n// it is; an unlabelled one does not, so that line has to be clean of letterhead first.\nconst LETTERHEAD = /\\b(?:abn|acn|pty|ltd|p\\/l|phone|mobile|email|www\\.|@|decking|deck builders?|constructions?|carpentry|quotation|invoice|tax invoice)\\b/i;\n\nconst readAddress = (text) => {\n  for (let index = 0; index < ADDRESS.length; index += 1) {\n    const match = text.match(ADDRESS[index]);\n    if (!match) continue;\n    const line = String(match[1] || '').trim().replace(/\\s+/g, ' ').slice(0, 120);\n    // A label with nothing useful after it (\"Address: TBC\") is not a location. A street number\n    // or a state code is what makes it something Google can actually find.\n    if (!line || !/\\d|\\b(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\\b/i.test(line)) continue;\n    // Only the last pattern is unlabelled, and only it needs the letterhead check — a line that\n    // says \"Property address\" has already told us whose address it is.\n    const unlabelled = index === ADDRESS.length - 1;\n    if (unlabelled) {\n      const lineStart = text.lastIndexOf('\\n', match.index) + 1;\n      let lineEnd = text.indexOf('\\n', match.index);\n      if (lineEnd === -1) lineEnd = text.length;\n      if (LETTERHEAD.test(text.slice(lineStart, lineEnd))) continue;\n    }\n    return line;\n  }\n  return null;\n};\n\nconst readDocument = (text) => {\n  const facts = {};\n  const AREA = [\n    /(\\d+(?:\\.\\d+)?)\\s*(?:m2|m²|sqm|sq\\.?\\s*m|square\\s*met(?:re|er)s?)\\b/i,\n    /(?:deck|area)\\D{0,12}?(\\d+(?:\\.\\d+)?)\\s*(?:m2|m²|sqm)/i,\n  ];\n  for (const pattern of AREA) {\n    const match = text.match(pattern);\n    const value = match ? num(match[1]) : null;\n    if (value !== null && value >= 3 && value <= 500) { facts.areaSqm = value; break; }\n  }\n\n  const material = MATERIALS.find(([, re]) => re.test(text));\n  if (material) facts.material = material[0];\n\n  if (/raised|over 1m|elevated|high deck/i.test(text)) facts.deckHeight = 'raised';\n  else if (/ground level|low deck|flush/i.test(text)) facts.deckHeight = 'ground';\n\n  if (/balustrade|railing|handrail/i.test(text)) facts.needsBalustrade = true;\n  const balLm = text.match(/(\\d+(?:\\.\\d+)?)\\s*(?:lm|lineal|linear)\\s*(?:m\\b|metres?)?[^.\\n]{0,20}(?:balustrade|rail)/i)\n    || text.match(/balustrade[^.\\n]{0,30}?(\\d+(?:\\.\\d+)?)\\s*m\\b/i);\n  if (balLm) facts.balustradeLm = num(balLm[1]);\n\n  if (/stair|steps|flight/i.test(text)) facts.needsStairs = true;\n  const flights = text.match(/(\\d+)\\s*(?:flight|flights)/i);\n  if (flights) facts.stairFlights = num(flights[1]);\n\n  const totals = [...text.matchAll(/(sub[\\s-]*)?total\\b[^\\n$]{0,16}\\$\\s?([\\d,]+(?:\\.\\d{1,2})?)/gi)]\n    .filter((m) => !m[1])\n    .map((m) => Number(m[2].replace(/,/g, '')))\n    .filter((v) => Number.isFinite(v) && v > 0);\n  if (totals.length) facts.existingPrice = Math.max(...totals);\n\n  return facts;\n};\n\nconst singleDocument = documents.length === 1 && !multipleDocuments;\nconst docFacts = singleDocument ? readDocument(extractedText) : {};\n\n// Read on the same terms, and kept out of docFacts on purpose: everything in there is merged\n// straight into the checklist downstream, and this must never land in checklist.suburb.\nconst docSuburbHint = singleDocument ? readAddress(extractedText) : null;\n\n// Handed over under the heading the agent's prompt already treats as settled fact. The address\n// gets its own heading, worded the way the prompt's suburb rule already describes it, so the\n// agent suggests it rather than treating it as an answer.\nconst docFactsBlock =\n  (Object.keys(docFacts).length\n    ? '\\n\\n--- Already established for this job, do NOT ask about these again ---\\n' + JSON.stringify(docFacts)\n    : '') +\n  (docSuburbHint\n    ? '\\n\\n--- Job address on the document (this is suggestedSuburb ONLY — checklist.suburb stays null until the customer picks it from the list) ---\\n' +\n      docSuburbHint\n    : '');\n\nreturn [{\n  json: {\n    message: source.message,\n    sessionId: source.sessionId,\n    extractedText,\n    docFacts,\n    docSuburbHint,\n    docFactsBlock,\n    extractionFailed: false,\n  },\n}];"
+      },
+      "id": "7c1d8d81-f137-4990-9ddf-3c416fbc6684",
+      "name": "Normalize Extracted Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3088,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Normalize Input').first().json.message + ($('Normalize Extracted Text').first().json.extractedText ? '\\n\\n--- Attached file/image content ---\\n' + $('Normalize Extracted Text').first().json.extractedText : '') + ($('Normalize Input').first().json.knownChecklist ? '\\n\\n--- Already established for this job, do NOT ask about these again ---\\n' + $('Normalize Input').first().json.knownChecklist : '') + ($('Normalize Extracted Text').first().json.docFactsBlock || '') }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You're a friendly, easygoing assistant helping people in Australia get a decking quote by connecting them with real local deck builders. Talk like a helpful person, not a form or a robot — warm, natural, a little casual.\n\nCONCISENESS RULE (CRITICAL):\nKeep every message VERY SHORT. Maximum 1 to 2 short sentences per reply. Be punchy and get straight to the point. Use quick acknowledgements ('Got it', 'Nice one', 'No worries'). Never sound scripted or write long paragraphs.\n\nSCOPE — DECKING ONLY: This assistant exclusively handles decking quotes. If a user asks for a non-decking job (fencing, tiling, retaining wall, pergola), warmly but briefly explain you only handle decking quotes here.\n\nYOUR JOB: chat naturally to fill in the checklist below about the user's DECKING job. You never search for businesses or quote labour prices yourself.\n\nCHECKLIST TO COMPLETE (in any order):\n0. suggestedSuburb — NOT part of the checklist. If the customer mentions a place in passing, or an attached document shows an address, put that raw text here. Leave it null when nothing was mentioned.\n1. suburb — Australian suburb. NEVER guess it and NEVER fill it from what the customer typed in passing. The client makes them pick it from Google's suggestions, and only a picked place counts. Until it comes back to you in the established block, keep it null and keep asking.\n2. material — 'treated-pine', 'merbau', 'spotted-gum', or 'composite'\n3. areaSqm — deck area in square metres, an exact NUMBER. Never a range.\n4. deckHeight — 'ground' or 'raised'\n5. needsBalustrade — true or false (Boolean)\n6. balustradeLm — lineal metres of balustrade, an exact NUMBER. ONLY ASK IF needsBalustrade is true. Leave null when needsBalustrade is false.\n7. needsStairs — true or false (Boolean)\n8. stairFlights — number of flights, an exact NUMBER. ONLY ASK IF needsStairs is true. Leave null when needsStairs is false.\n9. existingPrice — OPTIONAL, and never ask for it. A number, only when the customer volunteers a quote they already have or one is found in an attached document.\n\nALREADY ESTABLISHED BLOCK (READ THIS FIRST, EVERY TURN):\nThe message you receive may end with a section headed '--- Already established for this job, do NOT ask about these again ---' followed by JSON. Those values are settled fact for this job. Copy every one of them into your \"checklist\" verbatim, and NEVER ask a question about a field that appears there — not even to double-check. If the customer's newest message contradicts one of those values, the newest message wins and you update it; otherwise treat the block as read-only.\n\nCRITICAL STATE RULE:\nYou MUST carry forward any previously filled checklist values in every response. NEVER reset a known value back to null. Review the chat history carefully. Only ask about fields that are currently null.\n\nREADING AN ATTACHED QUOTE OR PHOTO (CRITICAL):\nThe message may include a section starting with '--- Attached file/image content ---'. Mine it. Anything you can work out from it is ALREADY KNOWN: put it in the checklist and never ask about it again.\n\nHow the shorthand maps:\n- Area: '25m2', '25 sqm', '25 square metres' -> areaSqm 25\n- Material: 'treated pine' -> treated-pine. 'merbau' -> merbau. 'spotted gum' -> spotted-gum. 'composite' -> composite\n- Height: 'raised', 'over 1m', 'elevated' -> deckHeight 'raised'. 'ground level', 'low deck' -> 'ground'\n- Balustrade: any line about balustrade, railing or handrail -> needsBalustrade true. A length like '12m of balustrade' -> balustradeLm 12\n- Stairs: any line about stairs, steps or flights -> needsStairs true. '2 flights' -> stairFlights 2\n- existingPrice: the document's headline TOTAL, GST-inclusive, never the Subtotal\n\nThe suburb is the ONE exception: never take it from a document as fact. An address in the document goes to suggestedSuburb so the customer can confirm it from the map.\n\nTHE OPENER — FIRST TURN ONLY (CRITICAL):\nIf there is no previous assistant message in the conversation history, this is the first turn. Do NOT ask a checklist question yet. Say that you don't have enough to price the job, and ask if they'll answer a few questions — that is the WHOLE message.\nSet \"type\": \"message\", \"options\": [], and fill \"checklist\" with whatever their description already told you (everything else stays null).\nExample: {\"type\": \"message\", \"message\": \"Got it — a merbau deck in Berwick. That's not quite enough for me to price it accurately though. Happy to answer a few quick questions?\", \"options\": [], \"checklistComplete\": false, \"checklist\": {\"suburb\": \"Berwick\", \"material\": \"merbau\", \"areaSqm\": null, \"deckHeight\": null, \"needsBalustrade\": null, \"balustradeLm\": null, \"needsStairs\": null, \"stairFlights\": null}}\n\nNEVER A RANGE (CRITICAL):\nareaSqm, balustradeLm and stairFlights are always ONE exact number. If the customer answers with a spread, ask which figure is closer and store that single number.\n\nUNITS — CONVERT, NEVER REJECT (CRITICAL):\nAreas are stored in SQUARE METRES. Convert whatever they give you:\n- '25 square metres' / '25m2' / '25 sqm' / '25' -> 25\n- '270 square feet' / '270 sqft' -> 25 (divide by 10.764)\n- Dimensions: '5m x 4m' -> 20\n- Only ask again if it genuinely cannot be converted to a number.\n\nNEVER PROMISE A NUMBER OF QUESTIONS. Do not say '7 quick questions' or '3 more to go'.\n\nACKNOWLEDGE, THEN ASK: every question after the opener starts with a 2-4 word acknowledgement of what they just said, then the question. Never fire the next question cold.\n\nIF THEY TYPE INSTEAD OF PICKING (CRITICAL): map what they typed onto the closest valid value — 'the hardwood one' -> material 'merbau', 'about 30 square metres' -> areaSqm 30, 'it's up high' -> deckHeight 'raised'. If it genuinely doesn't map, say so in one line and ask the same question again with the same options.\n\nCOUNT BEFORE YOU CONFIRM (CRITICAL): \"type\": \"confirmation\" is only ever valid when every REQUIRED field has a real value. Required means: suburb, material, areaSqm, deckHeight, needsBalustrade, needsStairs, plus balustradeLm when needsBalustrade is true, plus stairFlights when needsStairs is true. Count the nulls first. If even one required field is null, you ask that field instead — no recap, no 'all correct?'.\n\nONCE ALL REQUIRED FIELDS ARE KNOWN — CONFIRMATION STEP (CRITICAL):\nDo NOT set checklistComplete=true yet. First, recap the values in one short message. Set \"type\": \"confirmation\", keep \"checklistComplete\": false, and set \"options\" to EXACTLY:\n[{\"label\": \"Yes, that's all correct\", \"value\": \"yes\"}, {\"label\": \"No, something's wrong\", \"value\": \"no\"}]\n\nHANDLING THE CONFIRMATION REPLY:\n- If the user confirms: NOW set \"checklistComplete\": true, write a short handoff message, \"type\": \"message\", \"options\": []. This is the ONLY time you may set checklistComplete=true.\n- If the user says something is wrong: ask 'No worries — what should I fix?', \"type\": \"message\", \"options\": [], keep checklistComplete false.\n- Then update the field they name and return to the confirmation step.\n\nCRITICAL OUTPUT FORMAT:\nYou must reply with ONLY a raw JSON object. NO plain text, NO conversational filler outside the JSON, NO markdown backticks. Your ENTIRE output must be parsed by JSON.parse().\n\nHOW TO ASK QUESTIONS (THE MCQ RULE) — STRICT MAPPING:\n- 'suburb' is the ONLY field that stays free text. If asking for suburb, you MUST set \"options\": [].\n- For ALL other fields, you MUST set \"type\": \"question\" and use EXACTLY the following arrays. DO NOT invent your own options or leave the array empty.\n\n* IF asking for material, use EXACTLY:\n  [{\"label\": \"Treated pine\", \"value\": \"treated-pine\"}, {\"label\": \"Merbau\", \"value\": \"merbau\"}, {\"label\": \"Spotted gum\", \"value\": \"spotted-gum\"}, {\"label\": \"Composite\", \"value\": \"composite\"}]\n\n* IF asking for areaSqm, use EXACTLY:\n  [{\"label\": \"Up to 15m²\", \"value\": 15}, {\"label\": \"25m²\", \"value\": 25}, {\"label\": \"40m²\", \"value\": 40}, {\"label\": \"60m²\", \"value\": 60}, {\"label\": \"Other\", \"value\": \"__other__\"}]\n\n* IF asking for deckHeight, use EXACTLY:\n  [{\"label\": \"Ground level\", \"value\": \"ground\"}, {\"label\": \"Raised (over 1m)\", \"value\": \"raised\"}]\n\n* IF asking for needsBalustrade, use EXACTLY:\n  [{\"label\": \"Yes\", \"value\": true}, {\"label\": \"No\", \"value\": false}]\n\n* IF asking for balustradeLm, use EXACTLY:\n  [{\"label\": \"5m\", \"value\": 5}, {\"label\": \"10m\", \"value\": 10}, {\"label\": \"15m\", \"value\": 15}, {\"label\": \"20m\", \"value\": 20}, {\"label\": \"Other\", \"value\": \"__other__\"}]\n\n* IF asking for needsStairs, use EXACTLY:\n  [{\"label\": \"Yes\", \"value\": true}, {\"label\": \"No\", \"value\": false}]\n\n* IF asking for stairFlights, use EXACTLY:\n  [{\"label\": \"1 flight\", \"value\": 1}, {\"label\": \"2 flights\", \"value\": 2}, {\"label\": \"3 flights\", \"value\": 3}, {\"label\": \"Other\", \"value\": \"__other__\"}]\n\n- NEVER invent or assume details. Acknowledge what they gave, ask what's missing ONE at a time.\n\nCRITICAL UI RULE (DO NOT IGNORE):\nNEVER list the choices inside the \"message\" string. The \"message\" must ONLY be a short conversational question. The actual choices MUST go exclusively inside the \"options\" JSON array using the exact mappings above.\n\nCRITICAL PERSPECTIVE RULE:\nNever speak from the user's point of view (do not use 'I' or 'Can I...'). Always address the user directly in the second person.\n\n=== EXAMPLES OF EXPECTED OUTPUT ===\n\nExample 1 (asking a question with MCQs):\n{\n  \"type\": \"question\",\n  \"message\": \"Nice, merbau. Will the deck be ground level or raised over 1m?\",\n  \"options\": [\n    {\"label\": \"Ground level\", \"value\": \"ground\"},\n    {\"label\": \"Raised (over 1m)\", \"value\": \"raised\"}\n  ],\n  \"checklistComplete\": false,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"material\": \"merbau\", \"areaSqm\": 25, \"deckHeight\": null, \"needsBalustrade\": null, \"balustradeLm\": null, \"needsStairs\": null, \"stairFlights\": null}\n}\n\nExample 2 (all required known — confirm, do NOT complete yet):\n{\n  \"type\": \"confirmation\",\n  \"message\": \"Got it — Pakenham, merbau, 25m², ground level, no balustrade, no stairs. Did I get all that right?\",\n  \"options\": [\n    {\"label\": \"Yes, that's all correct\", \"value\": \"yes\"},\n    {\"label\": \"No, something's wrong\", \"value\": \"no\"}\n  ],\n  \"checklistComplete\": false,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"material\": \"merbau\", \"areaSqm\": 25, \"deckHeight\": \"ground\", \"needsBalustrade\": false, \"balustradeLm\": null, \"needsStairs\": false, \"stairFlights\": null}\n}\n\nExample 3 (user confirmed — handoff):\n{\n  \"type\": \"message\",\n  \"message\": \"Perfect, got everything. Let me check which deck builders cover your suburb...\",\n  \"options\": [],\n  \"checklistComplete\": true,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"material\": \"merbau\", \"areaSqm\": 25, \"deckHeight\": \"ground\", \"needsBalustrade\": false, \"balustradeLm\": null, \"needsStairs\": false, \"stairFlights\": null}\n}"
+        }
+      },
+      "id": "339e8d9d-8e71-488b-8e32-02d3ab811df8",
+      "name": "Decking AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -2192,
+        -16
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "maxTokens": 1500,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "27ba914a-b07b-47b1-ac15-6556c789740d",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -2368,
+        224
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "8ufzPHXJavKYlWMk",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "contextWindowLength": 30
+      },
+      "id": "3d094de0-1afe-4b22-be3e-281f31b281d6",
+      "name": "Chat Memory (Window Buffer)",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -2240,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "name": "decking_knowledge_lookup",
+        "description": "General decking questions — permits, materials, NCC balustrade rules, maintenance.",
+        "jsCode": "return `DECKING KNOWLEDGE — Victoria, Australia.\\n\\nPERMITS: Decks and balustrades may need permits depending on height and proximity to boundaries. Raised decks over 1m typically need balustrade to NCC.\\n\\nMATERIALS: Treated pine (affordable), merbau/spotted gum (hardwood premium), composite (low maintenance).\\n\\nPROCESS: Footings/posts, subframe, decking boards, fascia, balustrade if required, stairs if needed.\\n\\nINCLUDED USUALLY: labour, standard fixings, standard subframe. NOT USUALLY: permits, engineering, excavation rock removal, painting/staining unless specified.`;"
+      },
+      "id": "408823f5-3408-4686-bef2-a86afadd87f0",
+      "name": "Tool: Decking Knowledge Lookup",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        -2112,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"message\",\"question\",\"confirmation\"]},\"message\":{\"type\":\"string\"},\"options\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"label\":{\"type\":\"string\"},\"value\":{}}}},\"checklistComplete\":{\"type\":\"boolean\"},\"suggestedSuburb\":{\"type\":[\"string\",\"null\"]},\"checklist\":{\"type\":[\"object\",\"null\"],\"properties\":{\"suburb\":{\"type\":[\"string\",\"null\"]},\"material\":{\"type\":[\"string\",\"null\"]},\"areaSqm\":{\"type\":[\"number\",\"string\",\"null\"]},\"deckHeight\":{\"type\":[\"string\",\"null\"]},\"needsBalustrade\":{\"type\":[\"boolean\",\"null\"]},\"balustradeLm\":{\"type\":[\"number\",\"string\",\"null\"]},\"needsStairs\":{\"type\":[\"boolean\",\"null\"]},\"stairFlights\":{\"type\":[\"number\",\"string\",\"null\"]},\"existingPrice\":{\"type\":[\"number\",\"string\",\"null\"]}}}},\"required\":[\"type\",\"message\",\"options\",\"checklistComplete\",\"checklist\"]}"
+      },
+      "id": "adc4ce40-7473-4c2b-bfdc-74d8a4bf6ff2",
+      "name": "Structured Output Parser (Decking)",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1984,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Normalize Extracted Text').first().json;\nconst sessionId = source.sessionId || null;\n// Track whether this session has been seen before, so turn 1's opener message\n// is never overwritten by the deterministic \"ask next field\" fallback below.\nconst staticData = $getWorkflowStaticData('node');\nif (!staticData.seenSessions) staticData.seenSessions = {};\nconst isFirstTurn = sessionId ? !staticData.seenSessions[sessionId] : true;\nif (sessionId) staticData.seenSessions[sessionId] = true;\n\nlet place = null;\ntry { place = JSON.parse($('Normalize Input').first().json.place || 'null'); } catch { place = null; }\n\nconst parsed = $input.first().json.output || {};\nconst FIELDS = ['suburb', 'material', 'areaSqm', 'deckHeight', 'needsBalustrade', 'balustradeLm', 'needsStairs', 'stairFlights'];\n\nconst ASK = {\n  suburb: { message: 'Which suburb is the deck in?', options: [] },\n  material: {\n    message: 'What decking material are you after?',\n    options: [\n      { label: 'Treated pine', value: 'treated-pine' },\n      { label: 'Merbau', value: 'merbau' },\n      { label: 'Spotted gum', value: 'spotted-gum' },\n      { label: 'Composite', value: 'composite' },\n    ],\n  },\n  areaSqm: {\n    message: 'Roughly how big is the deck area?',\n    options: [\n      { label: 'Up to 15m²', value: 15 },\n      { label: '25m²', value: 25 },\n      { label: '40m²', value: 40 },\n      { label: '60m²', value: 60 },\n      { label: 'Other', value: '__other__' },\n    ],\n  },\n  deckHeight: {\n    message: 'Will the deck be ground level or raised (over 1m)?',\n    options: [\n      { label: 'Ground level', value: 'ground' },\n      { label: 'Raised (over 1m)', value: 'raised' },\n    ],\n  },\n  needsBalustrade: {\n    message: 'Do you need balustrade / railing?',\n    options: [\n      { label: 'Yes', value: true },\n      { label: 'No', value: false },\n    ],\n  },\n  balustradeLm: {\n    message: 'Roughly how many lineal metres of balustrade?',\n    options: [\n      { label: '5m', value: 5 },\n      { label: '10m', value: 10 },\n      { label: '15m', value: 15 },\n      { label: '20m', value: 20 },\n      { label: 'Other', value: '__other__' },\n    ],\n  },\n  needsStairs: {\n    message: 'Do you need stairs?',\n    options: [\n      { label: 'Yes', value: true },\n      { label: 'No', value: false },\n    ],\n  },\n  stairFlights: {\n    message: 'How many flights of stairs?',\n    options: [\n      { label: '1 flight', value: 1 },\n      { label: '2 flights', value: 2 },\n      { label: '3 flights', value: 3 },\n      { label: 'Other', value: '__other__' },\n    ],\n  },\n};\n\nlet known = {};\ntry { known = JSON.parse($('Normalize Input').first().json.knownChecklist || '{}') || {}; } catch { known = {}; }\nconst docFacts = source.docFacts || {};\n\n// The job address off the same document, kept separate from docFacts because it is never an\n// answer — only what the picker opens with.\nconst docSuburbHint = source.docSuburbHint || null;\n\n// Customers name their suburb in the same breath as everything else (\"merbau deck, Pakenham\n// VIC 3810, 25 square metres\"). The model is asked to echo that into suggestedSuburb and\n// usually does — and \"usually\" is what reaches the customer as an empty picker after they\n// already typed the answer. Read here so it does not depend on the model remembering to.\nconst userMessage = String($('Normalize Input').first().json.message || '');\nconst MESSAGE_PLACE = [\n  /\\b([A-Z][A-Za-z'’\\-]+(?:\\s+[A-Z][A-Za-z'’\\-]+){0,3},?\\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\\s*,?\\s*\\d{4})\\b/,\n  /\\b([A-Z][A-Za-z'’\\-]+(?:\\s+[A-Z][A-Za-z'’\\-]+){0,2},?\\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT))\\b/,\n  /\\b(?:in|at|near|around)\\s+([A-Z][A-Za-z'’\\-]{2,}(?:\\s+[A-Z][A-Za-z'’\\-]+){0,2})\\b/,\n];\nconst placeFromMessage = (text) => {\n  for (const pattern of MESSAGE_PLACE) {\n    const match = text.match(pattern);\n    if (match && match[1]) return match[1].trim().replace(/\\s+/g, ' ');\n  }\n  // A bare postcode only when the whole reply is one — otherwise a stray 4-digit number (like\n  // an area or a flight count typed alone) could be misread as a postcode.\n  const bare = text.trim().match(/^(\\d{4})$/);\n  return bare ? bare[1] : null;\n};\n\nconst merged = { ...(parsed.checklist || {}) };\nfor (const field of [...FIELDS, 'existingPrice']) {\n  if ((merged[field] === null || merged[field] === undefined) && known[field] != null) merged[field] = known[field];\n}\nfor (const field of [...FIELDS, 'existingPrice']) {\n  if ((merged[field] === null || merged[field] === undefined) && docFacts[field] != null) merged[field] = docFacts[field];\n}\n\nconst toNumber = (value) => {\n  if (typeof value === 'number') return Number.isFinite(value) ? value : null;\n  if (value == null) return null;\n  const text = String(value).replace(/,(?=\\d{3}\\b)/g, '');\n  const match = text.match(/-?\\d+(?:\\.\\d+)?/);\n  if (!match) return null;\n  const n = Number(match[0]);\n  return Number.isFinite(n) ? n : null;\n};\n\nfor (const field of ['areaSqm', 'balustradeLm', 'stairFlights', 'existingPrice']) {\n  if (merged[field] != null) merged[field] = toNumber(merged[field]);\n}\n\nmerged.material = ['treated-pine', 'merbau', 'spotted-gum', 'composite'].includes(merged.material)\n  ? merged.material : merged.material;\nmerged.deckHeight = merged.deckHeight === 'raised' || merged.deckHeight === 'ground' ? merged.deckHeight : merged.deckHeight;\n\nif (merged.areaSqm != null && (!Number.isFinite(merged.areaSqm) || merged.areaSqm < 3 || merged.areaSqm > 500)) {\n  merged.areaSqm = null;\n}\n\n// Picker confirmation is the suburb. Do not wait for the model to copy it.\nif (place && (merged.suburb === null || merged.suburb === undefined || merged.suburb === '')) {\n  merged.suburb = place.displayLabel || [place.suburb, place.state, place.postcode].filter(Boolean).join(', ') || merged.suburb;\n}\n\n// What to open the picker with, newest signal first: what they just typed, then the attached\n// document, then whatever the model managed to suggest, then a name it wrote into the checklist\n// without a picker behind it. None of these is an answer — the customer still taps the Google\n// suggestion to confirm.\nconst suburbHint =\n  placeFromMessage(userMessage) ||\n  docSuburbHint ||\n  (typeof parsed.suggestedSuburb === 'string' && parsed.suggestedSuburb.trim() ? parsed.suggestedSuburb.trim() : null) ||\n  (typeof merged.suburb === 'string' && merged.suburb.trim() ? merged.suburb.trim() : null) ||\n  null;\n\nconst checklist = Object.keys(merged).length > 0 ? merged : null;\nconst isMissing = (field) => {\n  if (!checklist) return true;\n  // A suburb nobody confirmed against Google is not established, whoever wrote it down. Without\n  // a place there are no coordinates, and matching runs on distance — so a name on its own can\n  // never produce a quote. Treating it as missing is what puts the picker on screen.\n  if (field === 'suburb' && !place) return true;\n  if (field === 'balustradeLm' && checklist.needsBalustrade !== true) return false;\n  if (field === 'stairFlights' && checklist.needsStairs !== true) return false;\n  return checklist[field] === null || checklist[field] === undefined;\n};\n\nconst missing = FIELDS.filter(isMissing);\nconst nextField = missing[0];\n\nlet type = ['question', 'confirmation'].includes(parsed.type) ? parsed.type : 'message';\nlet message = typeof parsed.message === 'string' ? parsed.message.trim() : '';\nlet options = Array.isArray(parsed.options) ? parsed.options : [];\n\nif (!message) {\n  message = nextField ? ASK[nextField].message : 'Sorry, something went wrong — mind trying again?';\n  if (nextField) {\n    type = ASK[nextField].options.length ? 'question' : 'message';\n    options = ASK[nextField].options;\n  } else { type = 'message'; options = []; }\n}\n\n// The agent thinks it already has the suburb — it read the name off a message or a document —\n// so it will never ask again of its own accord, and only asking puts the picker in front of the\n// customer. Nothing else in the system can turn a name into a place.\nif (checklist && checklist.suburb && !place) {\n  type = 'message';\n  message = ASK.suburb.message;\n  options = [];\n}\n\n// Recapping after several answers and then carrying on with fields it never asked about is the\n// model's favourite mistake — sometimes as a \"confirmation\" it isn't entitled to, sometimes just\n// by narrating a handoff-shaped message while a field is still null. Any type is corrected here,\n// not just \"confirmation\": a missing field always wins over whatever the model tried to say.\nif (missing.length > 0 && !isFirstTurn) {\n  type = ASK[nextField].options.length ? 'question' : 'message';\n  message = ASK[nextField].message;\n  options = ASK[nextField].options;\n  if (nextField === 'suburb' && suburbHint) {\n    message = 'I found ' + suburbHint + ' — confirm that suburb from the list?';\n  }\n}\n\n// Which field the client should collect with something other than a plain text box. Only the\n// suburb qualifies: a mistyped suburb doesn't fail loudly, it silently matches zero builders, so\n// the client swaps its reply box for a Google-backed suburb picker and sends back a real place.\n// Derived from the checklist, never from the model — 'suburb' is first in FIELDS, so it is the\n// field due whenever it is still missing.\nconst asksForSuburb = /\\bsuburbs?\\b|\\bpost ?code\\b/i.test(message);\nconst expectsSuburb = nextField === 'suburb' && options.length === 0 && asksForSuburb;\n\nreturn [{\n  json: {\n    sessionId,\n    trade: 'decking',\n    intent: checklist && checklist.existingPrice != null ? 'compare_quote' : 'new_quote',\n    place,\n    type,\n    message,\n    options,\n    ...(expectsSuburb ? { expects: 'suburb' } : {}),\n    // What the customer or their document called the place. Not an answer — a head start for\n    // the picker, which still makes them confirm it against Google.\n    ...(expectsSuburb && suburbHint ? { suggestedSuburb: suburbHint } : {}),\n    checklistComplete: missing.length === 0 && !!parsed.checklistComplete,\n    checklist,\n    results: [],\n    avgRatePerSqm: null,\n  },\n}];"
+      },
+      "id": "7f5b8f66-b923-4bf8-a696-1857775a16a5",
+      "name": "Format Decking Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1664,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dk-complete",
+              "leftValue": "={{ $json.checklistComplete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7fc1cb6f-bd78-49f0-a5a1-d77754285da8",
+      "name": "Checklist Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1440,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "enwEzEdyRJjJG94k",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/enwEzEdyRJjJG94k",
+          "cachedResultName": "shared_matcher"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "trade": "decking",
+            "place": "={{ $json.place }}",
+            "checklist": "={{ $json.checklist }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "81b43092-2b87-470b-9a69-0753dc1552ee",
+      "name": "Call Shared Matcher",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -1216,
+        80
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const gate = $('Format Decking Result').first().json;\nconst checklist = gate.checklist || {};\nconst sessionId = gate.sessionId || null;\nconst intent = gate.intent;\nconst matcher = $input.first().json || {};\n\nconst fail = (message, reason) => [{\n  json: { sessionId, trade: 'decking', intent, type: 'result', message, options: [], results: [],\n    avgRatePerSqm: null, comparison: null, noMatchReason: reason, checklist, checklistComplete: true },\n}];\n\nif (matcher.matched === undefined) {\n  return fail('Something went wrong finding deck builders near you — mind trying again?', 'error');\n}\nif (matcher.matched !== true) {\n  const reason = matcher.noMatchReason || 'area';\n  const message = reason === 'place'\n    ? \"I couldn't place that suburb on the map. Could you pick it from the suggestions?\"\n    : reason === 'radius'\n      ? 'There are deck builders in that suburb, but none travel far enough to reach you.'\n      : 'No deck builder has registered that suburb yet. Try a nearby suburb?';\n  return fail(message, reason);\n}\n\nconst slug = (value) =>\n  String(value == null ? '' : value).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n\nconst num = (value) => {\n  const raw = value !== null && typeof value === 'object'\n    ? (value.doubleValue ?? value.integerValue ?? value.stringValue ?? null) : value;\n  const parsed = Number(raw);\n  return Number.isFinite(parsed) ? parsed : null;\n};\n\nconst wanted = slug(checklist.material);\nconst areaSqm = num(checklist.areaSqm) || 0;\nconst GST_MULTIPLIER = 1.1;\nconst payable = (amount, gstInclusive) => (gstInclusive ? amount : Math.round(amount * GST_MULTIPLIER));\n\nconst quotes = [];\nlet blockedByMaterial = 0;\nlet blockedByMinimum = 0;\nlet blockedByBalustrade = 0;\nlet blockedByStairs = 0;\n\nconst covering = Array.isArray(matcher.businesses) ? matcher.businesses : [];\nconst pricingItems = Array.isArray(matcher.pricing) ? matcher.pricing : [];\n\nfor (let index = 0; index < pricingItems.length; index += 1) {\n  const business = covering[index] || {};\n  const pricing = pricingItems[index] || {};\n  if (!business.uid || pricing.isComplete !== true) continue;\n\n  const enabled = Array.isArray(pricing.enabledMaterials) ? pricing.enabledMaterials.map(slug) : [];\n  if (!enabled.includes(wanted)) { blockedByMaterial += 1; continue; }\n\n  const minimumJobSqm = num(pricing.minimumJobSqm) || 0;\n  if (areaSqm < minimumJobSqm) { blockedByMinimum += 1; continue; }\n\n  const rates = pricing.rates || {};\n  const rateKey = Object.keys(rates).find((key) => slug(key) === wanted);\n  const baseRate = rateKey ? num(rates[rateKey]) : null;\n  if (baseRate === null) { blockedByMaterial += 1; continue; }\n\n  const heightSurcharge = pricing.heightSurcharge || {};\n  const raisedAdd = checklist.deckHeight === 'raised' ? (num(heightSurcharge.raised) || 0) : 0;\n\n  const balustrade = pricing.balustrade || {};\n  let balustradeCost = 0;\n  if (checklist.needsBalustrade === true) {\n    if (balustrade.offered !== true) { blockedByBalustrade += 1; continue; }\n    const lm = num(checklist.balustradeLm) || 0;\n    balustradeCost = (num(balustrade.perLinealMetre) || 0) * lm;\n  }\n\n  const stairs = pricing.stairs || {};\n  let stairsCost = 0;\n  if (checklist.needsStairs === true) {\n    if (stairs.offered !== true) { blockedByStairs += 1; continue; }\n    const flights = num(checklist.stairFlights) || 0;\n    stairsCost = (num(stairs.perFlight) || 0) * flights;\n  }\n\n  const gstInclusive = pricing.gstInclusive === true;\n  const deckCost = areaSqm * (baseRate + raisedAdd);\n  const subtotal = Math.round(deckCost + balustradeCost + stairsCost);\n  const minimumCharge = payable(num(pricing.minimumCharge) || 0, gstInclusive);\n  const total = Math.max(payable(subtotal, gstInclusive), minimumCharge);\n  const blendedRate = areaSqm > 0 ? Math.round(payable(subtotal, gstInclusive) / areaSqm) : 0;\n\n  const badges = [];\n  badges.push(gstInclusive ? 'incl. GST' : 'incl. GST (added)');\n  badges.push(business.distanceKm > 0 ? business.distanceKm + ' km away' : 'In your suburb');\n  if (business.rating) badges.push(business.reviewCount ? business.rating + '★ (' + business.reviewCount + ')' : business.rating + '★');\n  if (raisedAdd > 0) badges.push('Raised deck surcharge');\n  if (balustradeCost > 0) badges.push('Balustrade included');\n  if (stairsCost > 0) badges.push('Stairs included');\n  if (business.isAutoAcceptEnabled) badges.push('Instant accept');\n\n  quotes.push({\n    uid: business.uid,\n    businessName: business.businessName,\n    suburb: business.suburb,\n    distanceKm: business.distanceKm,\n    ratePerSqm: blendedRate,\n    autoAcceptsAi: business.autoAcceptsAi === true,\n    currency: pricing.currency || 'AUD',\n    projectTotalMin: total,\n    projectTotalMax: total,\n    estimatedTotal: total,\n    badges,\n  });\n}\n\nquotes.sort((a, b) => a.projectTotalMin - b.projectTotalMin);\n\nconst existingPrice = num(checklist.existingPrice);\nconst average = quotes.length > 0 ? Math.round(quotes.reduce((s, q) => s + q.projectTotalMin, 0) / quotes.length) : null;\nconst beating = existingPrice === null ? quotes : quotes.filter((q) => q.projectTotalMin < existingPrice);\nconst top = beating.slice(0, 3);\n\nif (top.length === 0 && existingPrice !== null && quotes.length > 0) {\n  const closest = quotes[0].projectTotalMin;\n  return fail('Nobody covering your suburb came in under $' + existingPrice.toLocaleString() +\n    '. The closest was $' + closest.toLocaleString() + '.', 'notCheaper');\n}\n\nif (top.length === 0) {\n  const reason = blockedByMaterial > 0 ? 'material'\n    : blockedByMinimum > 0 ? 'minimum'\n    : blockedByBalustrade > 0 ? 'balustrade'\n    : blockedByStairs > 0 ? 'stairs' : 'pricing';\n  const message = reason === 'material'\n    ? 'The deck builders near you do not offer that material yet. Want to try a different one?'\n    : reason === 'minimum'\n      ? 'That deck is smaller than the builders near you will travel for.'\n      : reason === 'balustrade'\n        ? 'Nobody near you offers balustrade at the moment. Want to try without balustrade?'\n        : reason === 'stairs'\n          ? 'Nobody near you offers stairs at the moment. Want to try without stairs?'\n          : 'I found deck builders near you, but none have finished setting up their pricing yet.';\n  return fail(message, reason);\n}\n\nconst benchmark = existingPrice === null ? average : existingPrice;\nconst cheapest = top[0].projectTotalMin;\n\nreturn [{\n  json: {\n    sessionId,\n    trade: 'decking',\n    intent,\n    type: 'result',\n    message: 'Here are the local deck builders that cover your job.',\n    options: [],\n    results: top.map((q) => ({\n      businessId: q.uid,\n      autoAcceptsAi: q.autoAcceptsAi,\n      businessName: q.businessName,\n      suburb: q.suburb,\n      ratePerSqm: q.ratePerSqm,\n      estimatedTotal: q.estimatedTotal,\n      notes: q.badges.join(' · '),\n    })),\n    avgRatePerSqm: Math.round(top.reduce((s, q) => s + q.ratePerSqm, 0) / top.length),\n    comparison: {\n      potentialSavings: benchmark > cheapest ? benchmark - cheapest : null,\n      marketAverage: average,\n      totalQuotesScreened: matcher.totalCovering || covering.length,\n      userExistingPrice: existingPrice,\n      quotes: top.map((q) => ({\n        businessId: q.uid,\n        autoAcceptsAi: q.autoAcceptsAi,\n        businessName: q.businessName,\n        ratePerSqm: q.ratePerSqm,\n        projectTotalMin: q.projectTotalMin,\n        projectTotalMax: q.projectTotalMax,\n        badges: q.badges,\n        tag: q.projectTotalMin === cheapest ? 'BEST_VALUE' : null,\n        savingsFromAverage: benchmark > q.projectTotalMin ? benchmark - q.projectTotalMin : null,\n        suburb: q.suburb,\n      })),\n    },\n    checklist,\n    checklistComplete: true,\n  },\n}];"
+      },
+      "id": "df1a26d2-7acb-459b-8091-165f52794a5f",
+      "name": "Price & Rank Deck Builders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "64fcdab7-bcbb-480d-a2ec-25b13c59508c",
+      "name": "Return Question to Router",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        -112
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Router": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Normalize Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Extracted Text": {
+      "main": [
+        [
+          {
+            "node": "Decking AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decking AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Decking Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Decking AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory (Window Buffer)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Decking AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Decking Knowledge Lookup": {
+      "ai_tool": [
+        [
+          {
+            "node": "Decking AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser (Decking)": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Decking AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Decking Result": {
+      "main": [
+        [
+          {
+            "node": "Checklist Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checklist Complete?": {
+      "main": [
+        [
+          {
+            "node": "Call Shared Matcher",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Question to Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Shared Matcher": {
+      "main": [
+        [
+          {
+            "node": "Price & Rank Deck Builders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "886d78c3701091b0d47a11cec85a060077c03873e5f0d293e2535ab8adaace9d"
+  }
+}

@@ -149,10 +149,81 @@ export interface BusinessRepository {
 
   /** `schema/{trade}`. Null when the trade has learned nothing yet - core still works. */
   getTradeVocabulary(trade: Trade): Promise<{ extras: Record<string, ExtraValue> } | null>;
+  /**
+   * The whole `schema/{trade}` document, not just its extras. This is what the customer chat
+   * builds its questions and multiple-choice options from, so a business-side vocabulary change
+   * reaches the chat without a redeploy. Null when the document does not exist yet.
+   */
+  getTradeSchema(trade: Trade): Promise<StoredTradeSchema | null>;
   /** Merge, never overwrite: two submissions in flight must both be counted. */
   mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void>;
   /** Publish core, labels and questions so the customer side can read the whole vocabulary. */
   syncTradeSchema(trade: Trade): Promise<void>;
+
+  // --- customer-chat matching (src/client/matcher.ts) ---
+
+  /**
+   * Every business claiming this trade, for the matcher to filter by distance. A full scan,
+   * filtered in code rather than queried - matches n8n's current approach and does not scale
+   * forever; flagged, not fixed, in this pass.
+   */
+  findCandidates(trade: Trade): Promise<BusinessCandidate[]>;
+  /** One business's service doc for one trade, read once for both pricing and capabilities. */
+  getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null>;
+}
+
+/**
+ * The `businesses/{uid}` root record, as the frontend writes it directly - this service never
+ * creates or edits one. Read-only from here, and only ever in bulk, for the customer chat's
+ * candidate search.
+ */
+export interface BusinessCandidate {
+  uid: string;
+  businessName: string;
+  servicesProvided: string[];
+  rating: number | null;
+  reviewCount: number | null;
+  isAutoAcceptEnabled: boolean;
+  isAiAutoAcceptEnabled: boolean;
+}
+
+/**
+ * One business's published service doc for one trade, read for matching/pricing rather than for
+ * the business's own onboarding flow - `pricing`/`capabilities` are the exact `VerifiedPricing`/
+ * `VerifiedCapabilities` shapes `verify.ts` produces and `savePricing`/`saveCapabilities` store,
+ * read together in one Firestore call instead of the two `getPricing`/`getCapabilities` cost.
+ */
+export interface ServiceExtract {
+  status: PricingStatus | null;
+  pricing: VerifiedPricing | null;
+  capabilities: (VerifiedCapabilities & { otherOfferings: VerifiedOffering[] }) | null;
+}
+
+/**
+ * `schema/{trade}` exactly as it sits in Firestore. Everything is optional because this document
+ * is read by the customer chat at runtime and must never be able to break a conversation: a
+ * missing field falls back to the compiled vocabulary rather than emptying a question.
+ *
+ * `core.heights` is not written by `syncTradeSchema` today - it is read here because n8n's schema
+ * supported it (flat list, or a map keyed by material for trades whose heights differ by type)
+ * and it costs nothing to keep the door open.
+ */
+export interface StoredTradeSchema {
+  core?: {
+    materials?: string[];
+    gateTypes?: string[];
+    conditions?: string[];
+    removes?: string[];
+    heights?: string[] | Record<string, string[]>;
+  };
+  labels?: {
+    materials?: Record<string, string>;
+    gateTypes?: Record<string, string>;
+    conditions?: Record<string, string>;
+    removes?: Record<string, string>;
+  };
+  questions?: Record<string, string>;
+  extras?: Record<string, ExtraValue>;
 }
 
 export const SCHEMA_VERSION = 1;
@@ -168,6 +239,7 @@ export class MemoryRepository implements BusinessRepository {
   private pricing = new Map<string, PricingDoc>();
   private capabilities = new Map<string, CapabilitiesDoc>();
   private submissions: SubmissionRecord[] = [];
+  private candidates = new Map<string, BusinessCandidate>();
 
   private key = (uid: string, trade: Trade) => `${uid}::${trade}`;
 
@@ -238,6 +310,16 @@ export class MemoryRepository implements BusinessRepository {
     return extras ? { extras } : null;
   }
 
+  /**
+   * In memory there is no published document, only whatever extras this process has seen. The
+   * client-side loader treats that as "core came from code" and fills the rest from the compiled
+   * vocabulary - which is exactly the offline behaviour tests want.
+   */
+  async getTradeSchema(trade: Trade): Promise<StoredTradeSchema | null> {
+    const extras = this.extras.get(trade);
+    return extras ? { extras } : null;
+  }
+
   async mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void> {
     const extras = this.extras.get(trade) ?? {};
     const at = new Date().toISOString();
@@ -257,10 +339,29 @@ export class MemoryRepository implements BusinessRepository {
 
   async syncTradeSchema(): Promise<void> {} // nothing to publish to, in memory
 
+  // --- customer-chat matching ---
+
+  async findCandidates(trade: Trade): Promise<BusinessCandidate[]> {
+    return [...this.candidates.values()].filter((c) => c.servicesProvided.includes(trade));
+  }
+
+  async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {
+    const pricing = this.pricing.get(this.key(uid, trade)) ?? null;
+    const capabilities = this.capabilities.get(this.key(uid, trade)) ?? null;
+    if (!pricing && !capabilities) return null;
+    return { status: pricing?.status ?? null, pricing, capabilities };
+  }
+
+  /** Tests only - registers a business the candidate search can find. */
+  addCandidate(candidate: BusinessCandidate): void {
+    this.candidates.set(candidate.uid, candidate);
+  }
+
   /** Tests only. */
   clear(): void {
     this.pricing.clear();
     this.capabilities.clear();
+    this.candidates.clear();
     this.submissions = [];
     this.extras.clear();
   }

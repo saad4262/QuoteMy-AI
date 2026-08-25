@@ -1,0 +1,408 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "659cbf45-2d99-4c4a-859a-6bd5442143d2",
+      "name": "When Called by Router",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3296,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "rw-message",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.message || '' }}"
+            },
+            {
+              "id": "rw-session",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $json.sessionId || '' }}"
+            },
+            {
+              "id": "rw-known",
+              "name": "knownChecklist",
+              "type": "string",
+              "value": "={{ $json.knownChecklist || '' }}"
+            },
+            {
+              "id": "rw-place",
+              "name": "place",
+              "type": "string",
+              "value": "={{ $json.place || '' }}"
+            },
+            {
+              "id": "rw-extracted",
+              "name": "extractedText",
+              "type": "string",
+              "value": "={{ $json.extractedText || '' }}"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f0a4133e-11d6-48d4-a9a8-cef2d9296629",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3072,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Normalize Input').first().json;\nconst extractedText = String(source.extractedText || '').slice(0, 4000);\nconst multipleDocuments = /^--- Document 1 of \\d+ ---/m.test(extractedText);\nconst documents = extractedText ? [extractedText] : [];\n\nconst toHeightBand = (mm) => {\n  if (!Number.isFinite(mm) || mm <= 0) return null;\n  const m = mm < 10 ? mm : mm / 1000;\n  const bands = [0.4, 0.6, 0.8, 1, 1.2];\n  let best = bands[0];\n  let bestDiff = Math.abs(m - bands[0]);\n  for (const b of bands) {\n    const d = Math.abs(m - b);\n    if (d < bestDiff) { best = b; bestDiff = d; }\n  }\n  return String(best);\n};\n\nconst WALL_TYPES = [\n  ['treated-timber', /treated timber|timber sleeper|sleepers?|hardwood/i],\n  ['concrete-sleepers', /concrete sleeper/i],\n  ['besser-block', /besser|block wall|masonry block/i],\n  ['natural-stone', /natural stone|stone wall|sandstone|bluestone/i],\n];\n\nconst LENGTH = [\n  [/(\\d+(?:\\.\\d+)?)\\s*(?:lineal|linear)\\s*(?:m\\b|metres?|meters?)/i, (v) => v],\n  [/(\\d+(?:\\.\\d+)?)\\s*(?:lm|l\\.m\\.)\\b/i, (v) => v],\n  [/(\\d+(?:\\.\\d+)?)\\s?L\\b/, (v) => v],\n  [/(\\d+(?:\\.\\d+)?)\\s*m\\b(?=[^\\n]{0,40}?(?:wall|retain|run\\b))/i, (v) => (v >= 2 ? v : null)],\n  [/(\\d+(?:\\.\\d+)?)\\s*(?:odd\\s+|approx\\.?\\s+)?(?:metres?|meters?)\\b/i, (v) => (v >= 2 ? v : null)],\n];\n\nconst HEIGHT = [\n  [/(\\d+(?:\\.\\d+)?)\\s?(?:mm|m)?\\s?H\\b/, (v) => (v < 10 ? Math.round(v * 1000) : Math.round(v))],\n  [/\\bH\\s?[-:]?\\s?(\\d{3,4})\\b/, (v) => Math.round(v)],\n  [/(\\d+(?:\\.\\d+)?)\\s*(?:m\\b|metres?|meters?|mm)?\\s*(?:high|height|tall)\\b/i, (v) => (v < 10 ? Math.round(v * 1000) : Math.round(v))],\n];\n\nconst REMOVAL = [\n  /\\b(?:dispos\\w*|remov\\w*|demoli\\w*|dismantl\\w*)\\b[^\\.\\n]{0,60}(?:wall|retain|sleeper|block)/gi,\n  /\\b(?:old|existing)\\b[^\\.\\n]{0,30}?(?:wall|retain)/gi,\n];\nconst NEGATED = /\\b(?:no|not|excl\\w*|without|nil)\\b[^\\.\\n]{0,24}$/i;\n\n// The job address, for the picker's benefit only. This is NOT checklist.suburb and never\n// becomes it — the agent's own prompt already says the same thing (\"never take it from a\n// document as fact\"). It only ever gives the picker a head start; Google's confirmation is\n// still what fills checklist.suburb. Labelled lines first, since a contractor's letterhead\n// is also an address and quoting it would send the job to the wrong side of the city.\nconst ADDRESS = [\n  /^[^\\n]{0,40}\\b(?:property|site|job|install(?:ation)?)\\s*address\\s*[:\\-–]\\s*([^\\n]+)$/im,\n  /^[^\\n]{0,10}\\baddress\\s*[:\\-–]\\s*([^\\n]+)$/im,\n  /^[^\\n]{0,40}\\b(?:suburb|location)\\s*[:\\-–]\\s*([^\\n]+)$/im,\n  // Unlabelled last resort: a place written the way Australian addresses are written.\n  /\\b([A-Z][A-Za-z'’\\-]+(?:\\s+[A-Z][A-Za-z'’\\-]+){0,3}\\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\\s+\\d{4})\\b/,\n];\n\n// The contractor's own address is on the page too, usually at the top, and suggesting it would\n// send the job to whichever suburb the builder trades from. A labelled line says whose address\n// it is; an unlabelled one does not, so that line has to be clean of letterhead first.\nconst LETTERHEAD = /\\b(?:abn|acn|pty|ltd|p\\/l|phone|mobile|email|www\\.|@|retaining|landscap(?:e|ing)|sleeper|constructions?|quotation|invoice|tax invoice)\\b/i;\n\nconst readAddress = (text) => {\n  for (let index = 0; index < ADDRESS.length; index += 1) {\n    const match = text.match(ADDRESS[index]);\n    if (!match) continue;\n    const line = String(match[1] || '').trim().replace(/\\s+/g, ' ').slice(0, 120);\n    // A label with nothing useful after it (\"Address: TBC\") is not a location. A street number\n    // or a state code is what makes it something Google can actually find.\n    if (!line || !/\\d|\\b(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\\b/i.test(line)) continue;\n    // Only the last pattern is unlabelled, and only it needs the letterhead check — a line that\n    // says \"Property address\" has already told us whose address it is.\n    const unlabelled = index === ADDRESS.length - 1;\n    if (unlabelled) {\n      const lineStart = text.lastIndexOf('\\n', match.index) + 1;\n      let lineEnd = text.indexOf('\\n', match.index);\n      if (lineEnd === -1) lineEnd = text.length;\n      if (LETTERHEAD.test(text.slice(lineStart, lineEnd))) continue;\n    }\n    return line;\n  }\n  return null;\n};\n\nconst firstNumber = (text, patterns) => {\n  for (const [pattern, refine] of patterns) {\n    const match = text.match(pattern);\n    if (!match) continue;\n    const value = refine(Number(match[1]), match);\n    if (Number.isFinite(value) && value > 0) return value;\n  }\n  return null;\n};\n\nconst readDocument = (text) => {\n  const facts = {};\n  const wallType = WALL_TYPES.find(([, re]) => re.test(text));\n  if (wallType) facts.wallType = wallType[0];\n\n  const heightMm = firstNumber(text, HEIGHT);\n  if (heightMm) facts.heightBand = toHeightBand(heightMm);\n\n  const lengthMeters = firstNumber(text, LENGTH);\n  if (lengthMeters) facts.lengthMeters = lengthMeters;\n\n  for (const pattern of REMOVAL) {\n    const hit = [...text.matchAll(pattern)].find(\n      (m) => !NEGATED.test(text.slice(Math.max(0, m.index - 30), m.index)),\n    );\n    if (hit) { facts.removeOldWall = true; break; }\n  }\n\n  const totals = [...text.matchAll(/(sub[\\s-]*)?total\\b[^\\n$]{0,16}\\$\\s?([\\d,]+(?:\\.\\d{1,2})?)/gi)]\n    .filter((m) => !m[1])\n    .map((m) => Number(m[2].replace(/,/g, '')))\n    .filter((v) => Number.isFinite(v) && v > 0);\n  if (totals.length) facts.existingPrice = Math.max(...totals);\n\n  return facts;\n};\n\nconst singleDocument = documents.length === 1 && !multipleDocuments;\nconst docFacts = singleDocument ? readDocument(extractedText) : {};\n\n// Read on the same terms, and kept out of docFacts on purpose: everything in there is merged\n// straight into the checklist downstream, and this must never land in checklist.suburb.\nconst docSuburbHint = singleDocument ? readAddress(extractedText) : null;\n\n// Handed over under the heading the agent's prompt already treats as settled fact. The address\n// gets its own heading, worded the way the prompt's suburb rule already describes it, so the\n// agent suggests it rather than treating it as an answer.\nconst docFactsBlock =\n  (Object.keys(docFacts).length\n    ? '\\n\\n--- Already established for this job, do NOT ask about these again ---\\n' + JSON.stringify(docFacts)\n    : '') +\n  (docSuburbHint\n    ? '\\n\\n--- Job address on the document (this is suggestedSuburb ONLY — checklist.suburb stays null until the customer picks it from the list) ---\\n' +\n      docSuburbHint\n    : '');\n\nreturn [{\n  json: {\n    message: source.message,\n    sessionId: source.sessionId,\n    extractedText,\n    docFacts,\n    docSuburbHint,\n    docFactsBlock,\n    extractionFailed: false,\n  },\n}];"
+      },
+      "id": "4a80bd80-3ee5-4fbe-8341-aa8ccb81be20",
+      "name": "Normalize Extracted Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2848,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Normalize Input').first().json.message + ($('Normalize Extracted Text').first().json.extractedText ? '\\n\\n--- Attached file/image content ---\\n' + $('Normalize Extracted Text').first().json.extractedText : '') + ($('Normalize Input').first().json.knownChecklist ? '\\n\\n--- Already established for this job, do NOT ask about these again ---\\n' + $('Normalize Input').first().json.knownChecklist : '') + ($('Normalize Extracted Text').first().json.docFactsBlock || '') }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You're a friendly, easygoing assistant helping people in Australia get a retaining wall quote by connecting them with real local businesses. Talk like a helpful person, not a form or a robot — warm, natural, a little casual.\n\nCONCISENESS RULE (CRITICAL):\nKeep every message VERY SHORT. Maximum 1 to 2 short sentences per reply. Be punchy and get straight to the point. Use quick acknowledgements ('Got it', 'Nice one', 'No worries'). Never sound scripted or write long paragraphs.\n\nSCOPE — RETAINING WALL ONLY: This assistant exclusively handles retaining wall quotes (Treated Timber, Concrete Sleepers, Besser Block, Natural Stone). If a user asks for a non-retaining-wall job (fencing, tiling, decking, pergola), warmly but briefly explain you only handle retaining wall quotes here.\n\nYOUR JOB: chat naturally to fill in the checklist below about the user's RETAINING WALL job. You never search for businesses or quote labour prices yourself.\n\nCHECKLIST TO COMPLETE (in any order):\n0. suggestedSuburb — NOT part of the checklist. If the customer mentions a place in passing, or an attached document shows an address, put that raw text here. Leave it null when nothing was mentioned.\n1. suburb — Australian suburb. NEVER guess it and NEVER fill it from what the customer typed in passing. The client makes them pick it from Google's suggestions, and only a picked place counts. Until it comes back to you in the established block, keep it null and keep asking.\n2. wallType — 'treated-timber', 'concrete-sleepers', 'besser-block', or 'natural-stone'\n3. lengthMeters — length in metres as an exact NUMBER (e.g. 10). No ranges: if they answer with a span like \"8 to 12\", ask which figure is closer rather than storing the span.\n4. heightBand — '0.4', '0.6', '0.8', '1', or '1.2' (shown to the customer as 0.4m, 0.6m, 0.8m, 1.0m, 1.2m). These are the only heights businesses publish a rate for.\n5. removeOldWall — true or false (Boolean)\n6. siteAccess — 'easy' (flat, clear) or 'difficult' (sloped, uneven, tight access). ONLY ASK THIS IF removeOldWall IS true: it exists to price the removal, so with nothing to remove it is not a question, leave it null.\n7. existingPrice — OPTIONAL, and never ask for it. A number, only when the customer volunteers a quote they already have or one is found in an attached document.\n\nALREADY ESTABLISHED BLOCK (READ THIS FIRST, EVERY TURN):\nThe message you receive may end with a section headed '--- Already established for this job, do NOT ask about these again ---' followed by JSON. Those values are settled fact for this job. Copy every one of them into your \"checklist\" verbatim, and NEVER ask a question about a field that appears there — not even to double-check. If the customer's newest message contradicts one of those values, the newest message wins and you update it; otherwise treat the block as read-only.\n\nCRITICAL STATE RULE:\nYou MUST carry forward any previously filled checklist values in every response. NEVER reset a known value back to null. Review the chat history carefully. Only ask about fields that are currently null.\n\nREADING AN ATTACHED QUOTE OR PHOTO (CRITICAL):\nThe message may include a section starting with '--- Attached file/image content ---'. A real quote never lists your checklist fields by name — it describes the job in trade shorthand. Mine it. Anything you can work out from it is ALREADY KNOWN: put it in the checklist and never ask about it again.\n\nHow the shorthand maps:\n- Length: '10m of wall', '10 lineal metres', '10 LM' -> lengthMeters 10\n- Height: '0.8m high', '800mm', '1.2H' -> heightBand '0.8' or '1.2'. Snap to the nearest of 0.4 / 0.6 / 0.8 / 1 / 1.2\n- Type: 'treated timber', 'timber sleepers' -> treated-timber. 'concrete sleepers' -> concrete-sleepers. 'besser', 'block wall' -> besser-block. 'natural stone', 'sandstone', 'bluestone' -> natural-stone\n- Removal: ANY line about disposing of, removing, demolishing or taking away an existing or old wall -> removeOldWall true. If the document never mentions an old wall, leave it null and ask.\n- existingPrice: the document's headline TOTAL, GST-inclusive, never the Subtotal. 'Total $4,180.00' -> 4180\n\nThe suburb is the ONE exception: never take it from a document as fact. An address in the document goes to suggestedSuburb so the customer can confirm it from the map.\n\nTHE OPENER — FIRST TURN ONLY (CRITICAL):\nIf there is no previous assistant message in the conversation history, this is the first turn. Do NOT ask a checklist question yet. Say that you don't have enough to price the job, and ask if they'll answer a few questions — that is the WHOLE message.\nKeep it to ONE short sentence plus the question. Do NOT list what's missing, do NOT explain what you're going to ask about.\nSet \"type\": \"message\", \"options\": [], and fill \"checklist\" with whatever their description already told you (everything else stays null).\nExample: {\"type\": \"message\", \"message\": \"Got it — a timber sleeper wall in Berwick. That's not quite enough for me to price it accurately though. Happy to answer a few quick questions?\", \"options\": [], \"checklistComplete\": false, \"checklist\": {\"suburb\": \"Berwick\", \"wallType\": \"treated-timber\", \"lengthMeters\": null, \"heightBand\": null, \"removeOldWall\": null, \"siteAccess\": null}}\n\nNEVER A RANGE (CRITICAL):\nlengthMeters is always ONE exact number of metres. Never a span and never a bucket. If the customer answers with a spread, ask which figure is closer and store that single number.\n\nUNITS — CONVERT, NEVER REJECT (CRITICAL):\nThe checklist stores lengthMeters in METRES and heightBand as one of '0.4','0.6','0.8','1','1.2'. Convert whatever they give you:\n- Length: \"10 metres\" / \"10m\" / \"10\" -> 10. \"10000mm\" -> 10. \"33 feet\" -> 10.\n- Height: \"0.8m\" / \"800mm\" / \"80cm\" -> '0.8'. \"1m\" / \"1000mm\" -> '1'. \"1.2m\" -> '1.2'. Snap to the nearest published band.\n- Only ask again if it genuinely cannot be converted to a number.\n\nNEVER PROMISE A NUMBER OF QUESTIONS. Do not say '7 quick questions' or '3 more to go'.\n\nACKNOWLEDGE, THEN ASK: every question after the opener starts with a 2-4 word acknowledgement of what they just said ('Timber it is.', 'Nice, 10 metres.'), then the question. Never fire the next question cold.\n\nIF THEY TYPE INSTEAD OF PICKING (CRITICAL): map what they typed onto the closest valid value — 'about 12 metres' -> lengthMeters 12, 'the stone one' -> wallType 'natural-stone', 'it's on a slope' -> siteAccess 'difficult', 'nah it's already gone' -> removeOldWall false. If it genuinely doesn't map, say so in one line and ask the same question again with the same options.\n\nCOUNT BEFORE YOU CONFIRM (CRITICAL): \"type\": \"confirmation\" is only ever valid when every REQUIRED field has a real value. Required means: suburb, wallType, lengthMeters, heightBand, removeOldWall, plus siteAccess when removeOldWall is true. Count the nulls first. If even one required field is null, you ask that field instead — no recap, no 'all correct?'.\n\nONCE ALL REQUIRED FIELDS ARE KNOWN — CONFIRMATION STEP (CRITICAL):\nDo NOT set checklistComplete=true yet. First, recap the values in one short message (e.g. 'Got it — Pakenham, treated timber, 10m, 0.8m high, removing the old wall, easy access. All correct?'). Set \"type\": \"confirmation\", keep \"checklistComplete\": false, and set \"options\" to EXACTLY:\n[{\"label\": \"Yes, that's all correct\", \"value\": \"yes\"}, {\"label\": \"No, something's wrong\", \"value\": \"no\"}]\n\nHANDLING THE CONFIRMATION REPLY:\n- If the user confirms: NOW set \"checklistComplete\": true, write a short handoff message, \"type\": \"message\", \"options\": []. This is the ONLY time you may set checklistComplete=true.\n- If the user says something is wrong: ask 'No worries — what should I fix?', \"type\": \"message\", \"options\": [], keep checklistComplete false.\n- Then read what they say next:\n  * They give a field AND a new value -> update that field, then go back to the confirmation step.\n  * They only name a field with no new value -> set that field back to null and ask about it using the normal MCQ rules, then return to confirmation.\n\nCRITICAL OUTPUT FORMAT:\nYou must reply with ONLY a raw JSON object. NO plain text, NO conversational filler outside the JSON, NO markdown backticks. Your ENTIRE output must be parsed by JSON.parse().\n\nHOW TO ASK QUESTIONS (THE MCQ RULE) — STRICT MAPPING:\n- 'suburb' is the ONLY field that stays free text. If asking for suburb, you MUST set \"options\": [].\n- For ALL other fields, you MUST set \"type\": \"question\" and use EXACTLY the following arrays. DO NOT invent your own options or leave the array empty.\n\n* IF asking for wallType, use EXACTLY:\n  [{\"label\": \"Treated Timber\", \"value\": \"treated-timber\"}, {\"label\": \"Concrete Sleepers\", \"value\": \"concrete-sleepers\"}, {\"label\": \"Besser Block\", \"value\": \"besser-block\"}, {\"label\": \"Natural Stone\", \"value\": \"natural-stone\"}]\n\n* IF asking for lengthMeters, use EXACTLY:\n  [{\"label\": \"5m\", \"value\": 5}, {\"label\": \"10m\", \"value\": 10}, {\"label\": \"20m\", \"value\": 20}, {\"label\": \"30m\", \"value\": 30}, {\"label\": \"Other\", \"value\": \"__other__\"}]\n\n* IF asking for heightBand, use EXACTLY:\n  [{\"label\": \"0.4m\", \"value\": \"0.4\"}, {\"label\": \"0.6m\", \"value\": \"0.6\"}, {\"label\": \"0.8m\", \"value\": \"0.8\"}, {\"label\": \"1.0m\", \"value\": \"1\"}, {\"label\": \"1.2m\", \"value\": \"1.2\"}]\n\n* IF asking for removeOldWall, use EXACTLY:\n  [{\"label\": \"Yes, please remove it\", \"value\": true}, {\"label\": \"No, starting fresh\", \"value\": false}]\n\n* IF asking for siteAccess, use EXACTLY:\n  [{\"label\": \"Easy (flat, clear)\", \"value\": \"easy\"}, {\"label\": \"Difficult (sloped, tight)\", \"value\": \"difficult\"}]\n\n- NEVER invent or assume details. Acknowledge what they gave, ask what's missing ONE at a time.\n\nCRITICAL UI RULE (DO NOT IGNORE):\nNEVER list the choices inside the \"message\" string. The \"message\" must ONLY be a short conversational question. The actual choices MUST go exclusively inside the \"options\" JSON array using the exact mappings above.\n\nCRITICAL PERSPECTIVE RULE:\nNever speak from the user's point of view (do not use 'I' or 'Can I...'). Always address the user directly in the second person.\n\n=== EXAMPLES OF EXPECTED OUTPUT ===\n\nExample 1 (asking a question with MCQs):\n{\n  \"type\": \"question\",\n  \"message\": \"Timber it is. How long is the wall?\",\n  \"options\": [\n    {\"label\": \"5m\", \"value\": 5},\n    {\"label\": \"10m\", \"value\": 10},\n    {\"label\": \"20m\", \"value\": 20},\n    {\"label\": \"30m\", \"value\": 30},\n    {\"label\": \"Other\", \"value\": \"__other__\"}\n  ],\n  \"checklistComplete\": false,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"wallType\": \"treated-timber\", \"lengthMeters\": null, \"heightBand\": null, \"removeOldWall\": null, \"siteAccess\": null}\n}\n\nExample 2 (asking height):\n{\n  \"type\": \"question\",\n  \"message\": \"Nice, 10 metres. What height are you after?\",\n  \"options\": [\n    {\"label\": \"0.4m\", \"value\": \"0.4\"},\n    {\"label\": \"0.6m\", \"value\": \"0.6\"},\n    {\"label\": \"0.8m\", \"value\": \"0.8\"},\n    {\"label\": \"1.0m\", \"value\": \"1\"},\n    {\"label\": \"1.2m\", \"value\": \"1.2\"}\n  ],\n  \"checklistComplete\": false,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"wallType\": \"treated-timber\", \"lengthMeters\": 10, \"heightBand\": null, \"removeOldWall\": null, \"siteAccess\": null}\n}\n\nExample 3 (all required known — confirm, do NOT complete yet):\n{\n  \"type\": \"confirmation\",\n  \"message\": \"Got it — Pakenham, treated timber, 10m, 0.8m high, removing the old wall, easy access. Did I get all that right?\",\n  \"options\": [\n    {\"label\": \"Yes, that's all correct\", \"value\": \"yes\"},\n    {\"label\": \"No, something's wrong\", \"value\": \"no\"}\n  ],\n  \"checklistComplete\": false,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"wallType\": \"treated-timber\", \"lengthMeters\": 10, \"heightBand\": \"0.8\", \"removeOldWall\": true, \"siteAccess\": \"easy\"}\n}\n\nExample 4 (user confirmed — handoff):\n{\n  \"type\": \"message\",\n  \"message\": \"Perfect, got everything. Let me check which businesses cover your suburb...\",\n  \"options\": [],\n  \"checklistComplete\": true,\n  \"checklist\": {\"suburb\": \"Pakenham\", \"wallType\": \"treated-timber\", \"lengthMeters\": 10, \"heightBand\": \"0.8\", \"removeOldWall\": true, \"siteAccess\": \"easy\"}\n}\n"
+        }
+      },
+      "id": "8c1d5e83-51fe-437d-8b8e-e47ae75539f4",
+      "name": "Retaining Wall AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -2496,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "maxTokens": 1500,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "286c9b2a-11f8-4779-b752-416f883ba780",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -2624,
+        240
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "8ufzPHXJavKYlWMk",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId }}",
+        "contextWindowLength": 30
+      },
+      "id": "1ced5b63-c7c9-4c25-b136-79ad1ee3083d",
+      "name": "Chat Memory (Window Buffer)",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -2496,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "name": "retaining_wall_knowledge_lookup",
+        "description": "General retaining wall questions — permits, drainage, materials, engineering. Victorian domain knowledge.",
+        "jsCode": "return `RETAINING WALL KNOWLEDGE — Victoria, Australia.\\n\\nPERMITS: Walls over 1m typically need a building permit and often engineering. Higher walls and load-bearing walls have stricter requirements.\\n\\nDRAINAGE: Agg pipe and gravel behind the wall is standard — poor drainage is the main cause of failure.\\n\\nMATERIALS: Timber sleepers (cost-effective, ~15-25 year life), concrete sleepers (durable, low maintenance), besser block (strong, masonry finish), natural stone (premium aesthetic).\\n\\nPROCESS: Excavation, footings, install wall, backfill with drainage, finish cap/coping.\\n\\nINCLUDED USUALLY: labour, standard materials, basic excavation. NOT USUALLY: engineering cert, soil removal beyond allowance, landscaping, irrigation relocation.`;"
+      },
+      "id": "ed69e03c-5179-45d0-bfba-63964eee773a",
+      "name": "Tool: Retaining Wall Knowledge Lookup",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        -2368,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"message\",\"question\",\"confirmation\"]},\"message\":{\"type\":\"string\"},\"options\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"label\":{\"type\":\"string\"},\"value\":{}}}},\"checklistComplete\":{\"type\":\"boolean\"},\"suggestedSuburb\":{\"type\":[\"string\",\"null\"]},\"checklist\":{\"type\":[\"object\",\"null\"],\"properties\":{\"suburb\":{\"type\":[\"string\",\"null\"]},\"wallType\":{\"type\":[\"string\",\"null\"]},\"lengthMeters\":{\"type\":[\"number\",\"string\",\"null\"]},\"heightBand\":{\"type\":[\"string\",\"null\"]},\"removeOldWall\":{\"type\":[\"boolean\",\"null\"]},\"siteAccess\":{\"type\":[\"string\",\"null\"]},\"existingPrice\":{\"type\":[\"number\",\"string\",\"null\"]}}}},\"required\":[\"type\",\"message\",\"options\",\"checklistComplete\",\"checklist\"]}"
+      },
+      "id": "8dfee0a2-baec-4f12-ac50-407bcaac4d15",
+      "name": "Structured Output Parser (Retaining Wall)",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -2224,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Normalize Extracted Text').first().json;\nconst sessionId = source.sessionId || null;\n\n// Track whether this session has been seen before, so turn 1's opener message\n// is never overwritten by the deterministic \"ask next field\" fallback below.\nconst staticData = $getWorkflowStaticData('node');\nif (!staticData.seenSessions) staticData.seenSessions = {};\nconst isFirstTurn = sessionId ? !staticData.seenSessions[sessionId] : true;\nif (sessionId) staticData.seenSessions[sessionId] = true;\n\nlet place = null;\ntry { place = JSON.parse($('Normalize Input').first().json.place || 'null'); } catch { place = null; }\n\nconst parsed = $input.first().json.output || {};\nconst FIELDS = ['suburb', 'wallType', 'lengthMeters', 'heightBand', 'removeOldWall', 'siteAccess'];\n\nconst ASK = {\n  suburb: { message: 'Which suburb is the wall going in?', options: [] },\n  wallType: {\n    message: 'What type of retaining wall are you after?',\n    options: [\n      { label: 'Treated Timber', value: 'treated-timber' },\n      { label: 'Concrete Sleepers', value: 'concrete-sleepers' },\n      { label: 'Besser Block', value: 'besser-block' },\n      { label: 'Natural Stone', value: 'natural-stone' },\n    ],\n  },\n  lengthMeters: {\n    message: 'How long is the wall?',\n    options: [\n      { label: '5m', value: 5 },\n      { label: '10m', value: 10 },\n      { label: '20m', value: 20 },\n      { label: '30m', value: 30 },\n      { label: 'Other', value: '__other__' },\n    ],\n  },\n  heightBand: {\n    message: 'What height are you after?',\n    options: [\n      { label: '0.4m', value: '0.4' },\n      { label: '0.6m', value: '0.6' },\n      { label: '0.8m', value: '0.8' },\n      { label: '1.0m', value: '1' },\n      { label: '1.2m', value: '1.2' },\n    ],\n  },\n  removeOldWall: {\n    message: 'Is there an old wall that needs removing?',\n    options: [\n      { label: 'Yes, please remove it', value: true },\n      { label: 'No, starting fresh', value: false },\n    ],\n  },\n  siteAccess: {\n    message: \"How's the access along the wall line?\",\n    options: [\n      { label: 'Easy (flat, clear)', value: 'easy' },\n      { label: 'Difficult (sloped, tight)', value: 'difficult' },\n    ],\n  },\n};\n\nlet known = {};\ntry { known = JSON.parse($('Normalize Input').first().json.knownChecklist || '{}') || {}; } catch { known = {}; }\nconst docFacts = source.docFacts || {};\n\n// The job address off the same document, kept separate from docFacts because it is never an\n// answer — only what the picker opens with.\nconst docSuburbHint = source.docSuburbHint || null;\n\n// Customers name their suburb in the same breath as everything else (\"timber sleeper wall in\n// Pakenham VIC 3810\"). The model is asked to echo that into suggestedSuburb and usually does —\n// and \"usually\" is what reaches the customer as an empty picker after they already typed the\n// answer. Read here so it does not depend on the model remembering to.\nconst userMessage = String($('Normalize Input').first().json.message || '');\nconst MESSAGE_PLACE = [\n  /\\b([A-Z][A-Za-z'’\\-]+(?:\\s+[A-Z][A-Za-z'’\\-]+){0,3},?\\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\\s*,?\\s*\\d{4})\\b/,\n  /\\b([A-Z][A-Za-z'’\\-]+(?:\\s+[A-Z][A-Za-z'’\\-]+){0,2},?\\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT))\\b/,\n  /\\b(?:in|at|near|around)\\s+([A-Z][A-Za-z'’\\-]{2,}(?:\\s+[A-Z][A-Za-z'’\\-]+){0,2})\\b/,\n];\nconst placeFromMessage = (text) => {\n  for (const pattern of MESSAGE_PLACE) {\n    const match = text.match(pattern);\n    if (match && match[1]) return match[1].trim().replace(/\\s+/g, ' ');\n  }\n  // A bare postcode only when the whole reply is one — otherwise a stray 4-digit number (like\n  // a length typed alone) could be misread as a postcode.\n  const bare = text.trim().match(/^(\\d{4})$/);\n  return bare ? bare[1] : null;\n};\n\nconst merged = { ...(parsed.checklist || {}) };\nfor (const field of [...FIELDS, 'existingPrice']) {\n  if ((merged[field] === null || merged[field] === undefined) && known[field] != null) merged[field] = known[field];\n}\nfor (const field of [...FIELDS, 'existingPrice']) {\n  if ((merged[field] === null || merged[field] === undefined) && docFacts[field] != null) merged[field] = docFacts[field];\n}\n\nconst toNumber = (value) => {\n  if (typeof value === 'number') return Number.isFinite(value) ? value : null;\n  if (value == null) return null;\n  const text = String(value).replace(/,(?=\\d{3}\\b)/g, '');\n  const match = text.match(/-?\\d+(?:\\.\\d+)?/);\n  if (!match) return null;\n  const n = Number(match[0]);\n  return Number.isFinite(n) ? n : null;\n};\n\nfor (const field of ['lengthMeters', 'existingPrice']) {\n  if (merged[field] != null) merged[field] = toNumber(merged[field]);\n}\n\nconst snap = (value, allowed) => {\n  if (typeof value !== 'string' || !value.trim()) return value;\n  const lower = value.trim().toLowerCase();\n  const exact = allowed.find((o) => o.toLowerCase() === lower);\n  return exact || value;\n};\n\nmerged.wallType = snap(merged.wallType, ['treated-timber', 'concrete-sleepers', 'besser-block', 'natural-stone']);\nif (merged.heightBand != null) merged.heightBand = String(merged.heightBand);\n\n// Picker confirmation is the suburb. Do not wait for the model to copy it.\nif (place && (merged.suburb === null || merged.suburb === undefined || merged.suburb === '')) {\n  merged.suburb = place.displayLabel || [place.suburb, place.state, place.postcode].filter(Boolean).join(', ') || merged.suburb;\n}\n\n// What to open the picker with, newest signal first: what they just typed, then the attached\n// document, then whatever the model managed to suggest, then a name it wrote into the checklist\n// without a picker behind it. None of these is an answer — the customer still taps the Google\n// suggestion to confirm.\nconst suburbHint =\n  placeFromMessage(userMessage) ||\n  docSuburbHint ||\n  (typeof parsed.suggestedSuburb === 'string' && parsed.suggestedSuburb.trim() ? parsed.suggestedSuburb.trim() : null) ||\n  (typeof merged.suburb === 'string' && merged.suburb.trim() ? merged.suburb.trim() : null) ||\n  null;\n\nconst checklist = Object.keys(merged).length > 0 ? merged : null;\nconst isMissing = (field) => {\n  if (!checklist) return true;\n  // A suburb nobody confirmed against Google is not established, whoever wrote it down. Without\n  // a place there are no coordinates, and matching runs on distance — so a name on its own can\n  // never produce a quote. Treating it as missing is what puts the picker on screen.\n  if (field === 'suburb' && !place) return true;\n  if (field === 'siteAccess' && checklist.removeOldWall === false) return false;\n  return checklist[field] === null || checklist[field] === undefined;\n};\n\nconst missing = FIELDS.filter(isMissing);\nconst nextField = missing[0];\n\nlet type = ['question', 'confirmation'].includes(parsed.type) ? parsed.type : 'message';\nlet message = typeof parsed.message === 'string' ? parsed.message.trim() : '';\nlet options = Array.isArray(parsed.options) ? parsed.options : [];\n\nif (!message) {\n  message = nextField ? ASK[nextField].message : 'Sorry, something went wrong — mind trying again?';\n  if (nextField) {\n    type = ASK[nextField].options.length ? 'question' : 'message';\n    options = ASK[nextField].options;\n  } else { type = 'message'; options = []; }\n}\n\n// The agent thinks it already has the suburb — it read the name off a message or a document —\n// so it will never ask again of its own accord, and only asking puts the picker in front of the\n// customer. Nothing else in the system can turn a name into a place.\nif (checklist && checklist.suburb && !place) {\n  type = 'message';\n  message = ASK.suburb.message;\n  options = [];\n}\n\n// Recapping after several answers and then carrying on with fields it never asked about is the\n// model's favourite mistake — sometimes as a \"confirmation\" it isn't entitled to, sometimes just\n// by narrating a handoff-shaped message while a field is still null. Any type is corrected here,\n// not just \"confirmation\": a missing field always wins over whatever the model tried to say.\nif (missing.length > 0 && !isFirstTurn) {\n  type = ASK[nextField].options.length ? 'question' : 'message';\n  message = ASK[nextField].message;\n  options = ASK[nextField].options;\n  if (nextField === 'suburb' && suburbHint) {\n    message = 'I found ' + suburbHint + ' — confirm that suburb from the list?';\n  }\n}\n\n// Which field the client should collect with something other than a plain text box. Only the\n// suburb qualifies: a mistyped suburb doesn't fail loudly, it silently matches zero builders, so\n// the client swaps its reply box for a Google-backed suburb picker and sends back a real place.\n// Derived from the checklist, never from the model — 'suburb' is first in FIELDS, so it is the\n// field due whenever it is still missing.\nconst asksForSuburb = /\\bsuburbs?\\b|\\bpost ?code\\b/i.test(message);\nconst expectsSuburb = nextField === 'suburb' && options.length === 0 && asksForSuburb;\n\nreturn [{\n  json: {\n    sessionId,\n    trade: 'retaining-wall',\n    intent: checklist && checklist.existingPrice != null ? 'compare_quote' : 'new_quote',\n    place,\n    type,\n    message,\n    options,\n    ...(expectsSuburb ? { expects: 'suburb' } : {}),\n    // What the customer or their document called the place. Not an answer — a head start for\n    // the picker, which still makes them confirm it against Google.\n    ...(expectsSuburb && suburbHint ? { suggestedSuburb: suburbHint } : {}),\n    checklistComplete: missing.length === 0 && !!parsed.checklistComplete,\n    checklist,\n    results: [],\n    avgRatePerMeter: null,\n  },\n}];"
+      },
+      "id": "9899e007-e1b4-41fd-bdc5-a5721d7e3f0d",
+      "name": "Format Retaining Wall Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2032,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "rw-complete",
+              "leftValue": "={{ $json.checklistComplete }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0ebe4c69-a744-4462-85df-97bc0765e57c",
+      "name": "Checklist Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1808,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "enwEzEdyRJjJG94k",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/enwEzEdyRJjJG94k",
+          "cachedResultName": "shared_matcher"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "trade": "retaining-wall",
+            "place": "={{ $json.place }}",
+            "checklist": "={{ $json.checklist }}"
+          }
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "67dde353-095b-46c2-886b-ddbbe506359d",
+      "name": "Call Shared Matcher",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -1584,
+        96
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const gate = $('Format Retaining Wall Result').first().json;\nconst checklist = gate.checklist || {};\nconst sessionId = gate.sessionId || null;\nconst intent = gate.intent;\nconst matcher = $input.first().json || {};\n\nconst fail = (message, reason) => [{\n  json: { sessionId, trade: 'retaining-wall', intent, type: 'result', message, options: [], results: [],\n    avgRatePerMeter: null, comparison: null, noMatchReason: reason, checklist, checklistComplete: true },\n}];\n\nif (matcher.matched === undefined) {\n  return fail('Something went wrong finding businesses near you — mind trying again?', 'error');\n}\nif (matcher.matched !== true) {\n  const reason = matcher.noMatchReason || 'area';\n  const message = reason === 'place'\n    ? \"I couldn't place that suburb on the map. Could you pick it from the suggestions?\"\n    : reason === 'radius'\n      ? 'There are retaining wall businesses in that suburb, but none travel far enough to reach you.'\n      : 'No retaining wall business has registered that suburb yet. Try a nearby suburb?';\n  return fail(message, reason);\n}\n\nconst slug = (value) =>\n  String(value == null ? '' : value).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n\nconst num = (value) => {\n  const raw = value !== null && typeof value === 'object'\n    ? (value.doubleValue ?? value.integerValue ?? value.stringValue ?? null) : value;\n  const parsed = Number(raw);\n  return Number.isFinite(parsed) ? parsed : null;\n};\n\nconst wanted = slug(checklist.wallType);\nconst heightKey = checklist.heightBand != null ? String(checklist.heightBand) : null;\nconst lengthMetres = num(checklist.lengthMeters);\nconst GST_MULTIPLIER = 1.1;\nconst payable = (amount, gstInclusive) => (gstInclusive ? amount : Math.round(amount * GST_MULTIPLIER));\n\nconst quotes = [];\nlet blockedByType = 0;\nlet blockedByHeight = 0;\n\nconst covering = Array.isArray(matcher.businesses) ? matcher.businesses : [];\nconst pricingItems = Array.isArray(matcher.pricing) ? matcher.pricing : [];\n\nfor (let index = 0; index < pricingItems.length; index += 1) {\n  const business = covering[index] || {};\n  const pricing = pricingItems[index] || {};\n  if (!business.uid || pricing.isComplete !== true) continue;\n\n  const enabled = Array.isArray(pricing.enabledTypes) ? pricing.enabledTypes.map(slug) : [];\n  if (!enabled.includes(wanted)) { blockedByType += 1; continue; }\n\n  const rates = pricing.rates || {};\n  const rateKey = Object.keys(rates).find((key) => slug(key) === wanted);\n  const rate = rateKey && heightKey ? num((rates[rateKey] || {})[heightKey]) : null;\n  if (rate === null) { blockedByHeight += 1; continue; }\n\n  const removal = pricing.removal || {};\n  const removalRate =\n    checklist.removeOldWall === true && removal.offered === true\n      ? (num(removal[checklist.siteAccess]) || 0) : 0;\n\n  const gstInclusive = pricing.gstInclusive === true;\n  const perMeter = rate + removalRate;\n  const minimumCharge = payable(num(pricing.minimumCharge) || 0, gstInclusive);\n  const total = Math.max(payable(Math.round(perMeter * (lengthMetres || 0)), gstInclusive), minimumCharge);\n\n  const badges = [];\n  badges.push(gstInclusive ? 'incl. GST' : 'incl. GST (added)');\n  badges.push(business.distanceKm > 0 ? business.distanceKm + ' km away' : 'In your suburb');\n  if (business.rating) badges.push(business.reviewCount ? business.rating + '★ (' + business.reviewCount + ')' : business.rating + '★');\n  if (removalRate > 0) badges.push('Removal included');\n  if (business.isAutoAcceptEnabled) badges.push('Instant accept');\n\n  quotes.push({\n    uid: business.uid,\n    businessName: business.businessName,\n    suburb: business.suburb,\n    distanceKm: business.distanceKm,\n    ratePerMeter: payable(rate, gstInclusive),\n    autoAcceptsAi: business.autoAcceptsAi === true,\n    currency: pricing.currency || 'AUD',\n    projectTotalMin: total,\n    projectTotalMax: total,\n    estimatedTotal: total,\n    badges,\n  });\n}\n\nquotes.sort((a, b) => a.projectTotalMin - b.projectTotalMin);\n\nconst existingPrice = num(checklist.existingPrice);\nconst average = quotes.length > 0 ? Math.round(quotes.reduce((s, q) => s + q.projectTotalMin, 0) / quotes.length) : null;\nconst beating = existingPrice === null ? quotes : quotes.filter((q) => q.projectTotalMin < existingPrice);\nconst top = beating.slice(0, 3);\n\nif (top.length === 0 && existingPrice !== null && quotes.length > 0) {\n  const closest = quotes[0].projectTotalMin;\n  return fail('Nobody covering your suburb came in under $' + existingPrice.toLocaleString() +\n    '. The closest was $' + closest.toLocaleString() + '.', 'notCheaper');\n}\n\nif (top.length === 0) {\n  const reason = blockedByType > 0 && blockedByHeight === 0 ? 'wallType' : blockedByHeight > 0 ? 'height' : 'pricing';\n  const message = reason === 'wallType'\n    ? 'The businesses near you do not offer that wall type yet. Want to try a different type?'\n    : reason === 'height'\n      ? 'Nobody near you publishes a rate at that height. Want to try a different height?'\n      : 'I found businesses near you, but none have finished setting up their pricing yet.';\n  return fail(message, reason);\n}\n\nconst benchmark = existingPrice === null ? average : existingPrice;\nconst cheapest = top[0].projectTotalMin;\n\nreturn [{\n  json: {\n    sessionId,\n    trade: 'retaining-wall',\n    intent,\n    type: 'result',\n    message: 'Here are the local businesses that cover your retaining wall job.',\n    options: [],\n    results: top.map((q) => ({\n      businessId: q.uid,\n      autoAcceptsAi: q.autoAcceptsAi,\n      businessName: q.businessName,\n      suburb: q.suburb,\n      ratePerMeter: q.ratePerMeter,\n      estimatedTotal: q.estimatedTotal,\n      notes: q.badges.join(' · '),\n    })),\n    avgRatePerMeter: Math.round(top.reduce((s, q) => s + q.ratePerMeter, 0) / top.length),\n    comparison: {\n      potentialSavings: benchmark > cheapest ? benchmark - cheapest : null,\n      marketAverage: average,\n      totalQuotesScreened: matcher.totalCovering || covering.length,\n      userExistingPrice: existingPrice,\n      quotes: top.map((q) => ({\n        businessId: q.uid,\n        autoAcceptsAi: q.autoAcceptsAi,\n        businessName: q.businessName,\n        ratePerMeter: q.ratePerMeter,\n        projectTotalMin: q.projectTotalMin,\n        projectTotalMax: q.projectTotalMax,\n        badges: q.badges,\n        tag: q.projectTotalMin === cheapest ? 'BEST_VALUE' : null,\n        savingsFromAverage: benchmark > q.projectTotalMin ? benchmark - q.projectTotalMin : null,\n        suburb: q.suburb,\n      })),\n    },\n    checklist,\n    checklistComplete: true,\n  },\n}];\n"
+      },
+      "id": "df37f1af-5540-4b92-b4da-4cab7082dd5b",
+      "name": "Price & Rank Businesses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1360,
+        96
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "c604cb30-78f1-4d8b-a66f-3b4905fa8f2f",
+      "name": "Return Question to Router",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -1584,
+        -96
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Router": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Normalize Extracted Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Extracted Text": {
+      "main": [
+        [
+          {
+            "node": "Retaining Wall AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retaining Wall AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Retaining Wall Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Retaining Wall AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory (Window Buffer)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Retaining Wall AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Retaining Wall Knowledge Lookup": {
+      "ai_tool": [
+        [
+          {
+            "node": "Retaining Wall AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser (Retaining Wall)": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Retaining Wall AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Retaining Wall Result": {
+      "main": [
+        [
+          {
+            "node": "Checklist Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Checklist Complete?": {
+      "main": [
+        [
+          {
+            "node": "Call Shared Matcher",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Question to Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Shared Matcher": {
+      "main": [
+        [
+          {
+            "node": "Price & Rank Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "886d78c3701091b0d47a11cec85a060077c03873e5f0d293e2535ab8adaace9d"
+  }
+}

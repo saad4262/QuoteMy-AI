@@ -21,6 +21,15 @@ const schema = z.object({
   OPENAI_MODEL: z.string().default('gpt-5.6-terra'),
   MODEL_TIMEOUT_MS: z.coerce.number().default(45_000),
   MAX_COST_PER_REQUEST_USD: z.coerce.number().default(0.5),
+  /**
+   * A ceiling on what the customer chat can spend in a day, across everybody.
+   *
+   * Rate limits bound how fast one caller can go; they cannot bound a distributed flood, where
+   * every individual caller looks reasonable. This is the one control that does, because the
+   * damage from that is measured in dollars rather than requests. At roughly $0.0003 a turn,
+   * $25 is about 80,000 turns - far past any real day's traffic, and far short of a surprise.
+   */
+  MAX_CHAT_SPEND_PER_DAY_USD: z.coerce.number().default(25),
 
   // Resolves serviceArea.baseLocation to a point so the customer side can match by distance.
   // Unset means the field stays null - never a guessed coordinate.

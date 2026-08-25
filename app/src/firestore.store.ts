@@ -1,6 +1,8 @@
 import { FieldValue, Timestamp, type DocumentData } from 'firebase-admin/firestore';
+import { logger } from './config.js';
 import { db } from './firebase.js';
 import type {
+  BusinessCandidate,
   BusinessRepository,
   CapabilitiesDoc,
   DescriptionDoc,
@@ -8,11 +10,14 @@ import type {
   PricingDoc,
   PricingStatus,
   ReviewDoc,
+  ServiceExtract,
+  StoredTradeSchema,
   SubmissionRecord,
   SubmissionStatus,
 } from './store.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
+import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
 import type { ExtraValue } from './vocabulary.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
 
@@ -297,30 +302,82 @@ export class FirestoreRepository implements BusinessRepository {
   private vocabRef = (trade: Trade) => db().collection('schema').doc(trade);
 
   /**
-   * Publish everything the customer side needs to read a trade's vocabulary without importing any
-   * TypeScript: the closed lists, the words to show a homeowner, and the question text.
+   * SEED the trade's vocabulary document - never overwrite it.
    *
-   * Written at boot rather than only when a business introduces an extra - otherwise a trade that
-   * nobody has extended has no document at all, and the chat has nothing to read.
+   * A trade that nobody has published has no document at all, and the customer chat would have
+   * nothing to read, so a first boot writes the compiled vocabulary out in full. After that the
+   * document belongs to whoever maintains it: a material added in Firestore survives every
+   * restart, which is the whole reason the chat reads it at runtime instead of compiling it in.
    *
-   * `extras` is deliberately absent from this write: it belongs to the businesses, and a boot must
-   * never overwrite what they have taught the system.
+   * `extras` is deliberately absent from this write - it belongs to the businesses, and a boot
+   * must never overwrite what they have taught the system.
+   *
+   * The two sides are NOT symmetrical about this document, which is what makes it safe:
+   *   - the customer chat reads `core`/`labels`/`questions` from here, so an edit reaches it;
+   *   - the business side never does. `verify.ts` validates extraction against `vocab.ts`
+   *     directly, so nothing written here can change what is accepted into a price list.
+   * That asymmetry is also the risk, and `warnOnSchemaDrift` below is what makes it visible.
    */
   async syncTradeSchema(trade: Trade): Promise<void> {
-    await this.vocabRef(trade).set(
-      {
-        trade,
-        core: {
-          materials: [...MATERIALS], gateTypes: [...GATE_TYPES], conditions: [...CONDITIONS],
-          removes: [...REMOVES], units: [...UNITS], tags: [...TAGS],
-        },
-        labels: CUSTOMER_LABEL_GROUPS,
-        questions: QUESTIONS,
-        schemaVersion: SCHEMA_VERSION,
-        updatedAt: FieldValue.serverTimestamp(),
+    const ref = this.vocabRef(trade);
+    const compiled = {
+      core: {
+        materials: [...MATERIALS], gateTypes: [...GATE_TYPES], conditions: [...CONDITIONS],
+        removes: [...REMOVES], units: [...UNITS], tags: [...TAGS],
       },
-      { mergeFields: ['trade', 'core', 'labels', 'questions', 'schemaVersion', 'updatedAt'] },
-    );
+      labels: CUSTOMER_LABEL_GROUPS,
+      questions: QUESTIONS,
+    };
+
+    await db().runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      // Field by field, so a document that has `core` but predates `questions` still gets the
+      // missing half rather than being left with a chat that has no wording to ask with.
+      const seed: Record<string, unknown> = {};
+      if (!snap.exists || !snap.get('core')) seed.core = compiled.core;
+      if (!snap.exists || !snap.get('labels')) seed.labels = compiled.labels;
+      if (!snap.exists || !snap.get('questions')) seed.questions = compiled.questions;
+      if (!snap.exists) {
+        seed.trade = trade;
+        seed.schemaVersion = SCHEMA_VERSION;
+      }
+      if (!Object.keys(seed).length) return; // already published - leave it exactly as it is
+
+      tx.set(ref, { ...seed, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    });
+
+    await this.warnOnSchemaDrift(trade, compiled.core);
+  }
+
+  /**
+   * The published vocabulary and the compiled one are allowed to differ - that is the point of
+   * making the document editable - but nobody should find out by accident.
+   *
+   * A value published here but missing from `vocab.ts` is the dangerous direction: the chat will
+   * offer it, a customer will pick it, and no business can ever be quoted for it because
+   * extraction rejects it on the way in. The other direction only means the chat is not offering
+   * something businesses could be quoted for.
+   *
+   * CONTEXT.md §8's warning is that vocabulary drift is the one failure here that is silent and
+   * permanent. This is what stops it being silent.
+   */
+  private async warnOnSchemaDrift(trade: Trade, compiledCore: Record<string, string[]>): Promise<void> {
+    const snap = await this.vocabRef(trade).get();
+    const published = (snap.get('core') as Record<string, string[]> | undefined) ?? {};
+
+    for (const [field, compiledValues] of Object.entries(compiledCore)) {
+      const publishedValues = Array.isArray(published[field]) ? published[field]! : [];
+      if (!publishedValues.length) continue;
+
+      const notInCode = publishedValues.filter((v) => !compiledValues.includes(v));
+      const notPublished = compiledValues.filter((v) => !publishedValues.includes(v));
+      if (!notInCode.length && !notPublished.length) continue;
+
+      logger.warn(
+        { trade, field, offeredButNotQuotable: notInCode, quotableButNotOffered: notPublished },
+        'schema/{trade} differs from vocab.ts - the chat and the extractor disagree about this trade',
+      );
+    }
   }
 
   async getTradeVocabulary(trade: Trade): Promise<{ extras: Record<string, ExtraValue> } | null> {
@@ -330,12 +387,31 @@ export class FirestoreRepository implements BusinessRepository {
   }
 
   /**
+   * The whole document, for the customer chat. `syncTradeSchema` publishes `core`/`labels`/
+   * `questions` here at boot and `mergeTradeExtras` grows `extras`, so this one read is the chat's
+   * entire vocabulary - which is what lets a business-side change reach a customer's multiple
+   * choice without touching the chat's code.
+   */
+  async getTradeSchema(trade: Trade): Promise<StoredTradeSchema | null> {
+    const snap = await this.vocabRef(trade).get();
+    if (!snap.exists) return null;
+    const d = snap.data() as DocumentData;
+    return {
+      core: d.core ?? undefined,
+      labels: d.labels ?? undefined,
+      questions: d.questions ?? undefined,
+      extras: d.extras ?? undefined,
+    };
+  }
+
+  /**
    * Merged in a transaction, never overwritten. Two businesses submitting at the same moment must
    * both be counted, and one must not erase the other's aliases - the aliases are the whole reason
    * the next business recognises the same offering however they phrase it.
    *
-   * `core` is written here too, from vocab.ts, so the document is readable on its own by the
-   * customer side without importing TypeScript. It is a mirror, never an input.
+   * Only `extras` is written. `core` used to be republished here on every submission, which
+   * quietly undid any edit made to the document between one business submitting and the next -
+   * `syncTradeSchema` seeds it once and nothing overwrites it after that.
    */
   async mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void> {
     const ref = this.vocabRef(trade);
@@ -357,20 +433,50 @@ export class FirestoreRepository implements BusinessRepository {
           : { label, aliases: [label.toLowerCase()], businessCount: 1, firstSeen: at, lastSeen: at };
       }
 
-      tx.set(
-        ref,
-        {
-          trade,
-          core: {
-            materials: [...MATERIALS], gateTypes: [...GATE_TYPES], conditions: [...CONDITIONS],
-            removes: [...REMOVES], units: [...UNITS], tags: [...TAGS],
-          },
-          extras,
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true },
-      );
+      tx.set(ref, { trade, extras, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     });
+  }
+
+  // --- customer-chat matching (src/client/matcher.ts) ---
+
+  /**
+   * `businesses/{uid}` is owned and written by the frontend, not this service - read-only here,
+   * and only for the candidate search. A query on `services_provided` rather than n8n's full
+   * collection scan: same result, no reason to keep the less scalable version just for fidelity.
+   * `array-contains` needs no composite index.
+   */
+  async findCandidates(trade: Trade): Promise<BusinessCandidate[]> {
+    const snap = await db().collection('businesses').where('services_provided', 'array-contains', trade).get();
+    return snap.docs.map((doc) => {
+      const data = doc.data() as DocumentData;
+      const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+      return {
+        uid: typeof data.uid === 'string' && data.uid ? data.uid : doc.id,
+        businessName: typeof data.businessName === 'string' && data.businessName ? data.businessName : 'Unnamed business',
+        servicesProvided: Array.isArray(data.services_provided) ? (data.services_provided as string[]) : [],
+        rating: num(data.rating),
+        reviewCount: num(data.reviewCount),
+        isAutoAcceptEnabled: data.isAutoAcceptEnabled === true,
+        isAiAutoAcceptEnabled: data.isAiAutoAcceptEnabled === true,
+      };
+    });
+  }
+
+  /**
+   * `pricing` and `capabilities` here are read exactly as `verifyExtraction` produced and
+   * `savePricing`/`saveCapabilities` stored them - one read instead of the two `getPricing` +
+   * `getCapabilities` would cost, which matters once this runs per candidate business.
+   */
+  async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {
+    const snap = await this.extractedRef(uid, trade).get();
+    if (!snap.exists) return null;
+    const d = snap.data() as DocumentData;
+    const data = d.data ?? {};
+    return {
+      status: (d.status as PricingStatus | undefined) ?? null,
+      pricing: (data.pricing as VerifiedPricing | undefined) ?? null,
+      capabilities: (data.capabilities as (VerifiedCapabilities & { otherOfferings: VerifiedOffering[] }) | undefined) ?? null,
+    };
   }
 }
 

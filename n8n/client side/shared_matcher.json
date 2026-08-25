@@ -1,0 +1,386 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "sm-trigger",
+      "name": "When Called by Subagent",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "projectId": "quotemy-ai",
+        "collection": "businesses",
+        "returnAll": true
+      },
+      "id": "a9e02fb0-df79-4780-b707-b064192a23f8",
+      "name": "Fetch Businesses",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        60,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleFirebaseCloudFirestoreOAuth2Api": {
+          "id": "xNLb8t0yYKmPmXuX",
+          "name": "QuoteAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Which businesses even claim this trade. The service-area test cannot happen here any more:\n// the new record keeps the service area per trade, inside services/{trade}/jsondata/extracted,\n// so testing it costs a document read per business. That read is the next node — this one only\n// narrows the list down to the businesses worth reading.\nconst input = $('When Called by Subagent').first().json;\nconst TRADE = String(input.trade || '').toLowerCase().trim();\nif (!TRADE) return [{ json: { noMatch: true, noMatchReason: 'trade' } }];\n\nconst slug = (value) =>\n  String(value == null ? '' : value).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n\n// Firestore values arrive plain through the n8n node, but a raw REST shape ({ doubleValue })\n// costs one line to tolerate and saves a whole class of \"why is everything zero\".\nconst num = (value) => {\n  const raw = value !== null && typeof value === 'object'\n    ? (value.doubleValue ?? value.integerValue ?? value.stringValue ?? null)\n    : value;\n  const parsed = Number(raw);\n  return Number.isFinite(parsed) ? parsed : null;\n};\n\n// No coordinates is a different failure from \"nobody covers you\", and the customer is told so\n// rather than being shown an empty page. Checked here, before any reads are paid for.\nconst place = input.place || null;\nconst lat = place ? num(place.latitude) : null;\nconst lng = place ? num(place.longitude) : null;\nif (lat === null || lng === null) return [{ json: { noMatch: true, noMatchReason: 'place' } }];\n\nconst candidates = [];\nfor (const item of $input.all()) {\n  const business = item.json || {};\n  // The document id IS the uid, so a record that never wrote the field is still addressable.\n  // Without this a business with no uid field builds the path 'businesses//services/...' and\n  // every read for it fails in a way that looks exactly like nobody covering the customer.\n  const uid = business.uid || business._id || null;\n  if (!uid) continue;\n  const services = Array.isArray(business.services_provided) ? business.services_provided.map(slug) : [];\n  if (!services.includes(TRADE)) continue;\n  candidates.push({ json: { ...business, uid } });\n}\n\n// Nobody is registered for this trade at all. From where the customer sits that is the same\n// answer as \"nobody near you\", so it gets the same reason code.\nif (candidates.length === 0) return [{ json: { noMatch: true, noMatchReason: 'suburb' } }];\nreturn candidates;"
+      },
+      "id": "sm-candidates",
+      "name": "Filter Candidates by Trade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sm-any-candidate-c",
+              "leftValue": "={{ $json.noMatch === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "sm-any-candidate",
+      "name": "Any Candidate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// A reason, not a sentence. \"No fencing business has registered that suburb\" and \"No tiler\n// covers that suburb\" are the same result worded differently, and wording belongs to the\n// trade — so the subagent writes it.\nreturn [{\n  json: {\n    matched: false,\n    noMatchReason: $input.first().json.noMatchReason || 'area',\n    businesses: [],\n    pricing: [],\n    totalCovering: 0,\n    nearby: [],\n    diagnostics: $input.first().json.diagnostics || null,\n  },\n}];"
+      },
+      "id": "sm-no-match",
+      "name": "Return No Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sm-new-shape-c",
+              "leftValue": "={{ ['fencing'].includes(String($('When Called by Subagent').first().json.trade || '').toLowerCase().trim()) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "sm-new-shape",
+      "name": "New Shape?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "projectId": "quotemy-ai",
+        "collection": "=businesses/{{ $json.uid }}/services/{{ $('When Called by Subagent').first().json.trade }}/jsondata",
+        "documentId": "extracted"
+      },
+      "id": "sm-fetch-service-doc",
+      "name": "Fetch Service Doc",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleFirebaseCloudFirestoreOAuth2Api": {
+          "id": "xNLb8t0yYKmPmXuX",
+          "name": "QuoteAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Everything the caller needs in one item: the businesses whose own service area reaches this\n// customer, and the document each of them published for this trade. They are index-aligned —\n// pricing[i] belongs to businesses[i].\n//\n// The service area moved. It used to sit on the business record with a Google placeId, so a\n// business was matched by suburb first and radius second. The new record keeps it per trade, as\n// a resolved lat/lng plus a radius in KILOMETRES, and carries no placeId at all — so distance\n// is now the only test there is, and a business 20km away in the next suburb now matches where\n// before it silently did not.\nconst input = $('When Called by Subagent').first().json;\nconst TRADE = String(input.trade || '').toLowerCase().trim();\nconst checklist = input.checklist || {};\nconst place = input.place || {};\n\nconst slug = (value) =>\n  String(value == null ? '' : value).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n\n// Firestore values arrive plain through the n8n node, but a raw REST shape ({ doubleValue })\n// costs one line to tolerate and saves a whole class of \"why is everything zero\".\nconst num = (value) => {\n  const raw = value !== null && typeof value === 'object'\n    ? (value.doubleValue ?? value.integerValue ?? value.stringValue ?? null)\n    : value;\n  const parsed = Number(raw);\n  return Number.isFinite(parsed) ? parsed : null;\n};\n\n// Haversine, in metres. A spherical earth is well inside the error a 30 km service radius\n// already tolerates.\nconst distanceMeters = (fromLat, fromLng, toLat, toLng) => {\n  const R = 6371000;\n  const rad = (deg) => (deg * Math.PI) / 180;\n  const dLat = rad(toLat - fromLat);\n  const dLng = rad(toLng - fromLng);\n  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(fromLat)) * Math.cos(rad(toLat)) * Math.sin(dLng / 2) ** 2;\n  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));\n};\n\nconst lat = num(place.latitude);\nconst lng = num(place.longitude);\n// Without coordinates every distance is NaN, and NaN fails every comparison — which would let\n// the whole country through instead of nobody. Belt and braces on top of the earlier check.\nif (lat === null || lng === null) {\n  return [{ json: { matched: false, noMatchReason: 'place', businesses: [], pricing: [], totalCovering: 0 } }];\n}\n\nconst candidates = $('Filter Candidates by Trade').all().map((item) => item.json);\nconst docs = $input.all();\n\n// Which business a document belongs to. Firestore hands back _name — the full document path —\n// and the uid is in it, so the pairing is exact and does not care what order the reads came\n// back in or whether a failed read emitted an item at all. Position is only the last resort: a\n// business paired with somebody else's rates would quote the wrong price with nothing on screen\n// to explain it, and that is the one failure here nobody would ever notice.\nconst uidFromName = (name) => {\n  const match = String(name || '').match(/businesses\\/([^/]+)\\//);\n  return match ? match[1] : null;\n};\nconst byUid = new Map(candidates.map((business) => [business.uid, business]));\n\nconst businessFor = (item, position) => {\n  const named = uidFromName((item.json || {})._name);\n  if (named && byUid.has(named)) return byUid.get(named);\n  const paired = item.pairedItem;\n  const index = typeof paired === 'number' ? paired\n    : paired && typeof paired === 'object' && Number.isInteger(paired.item) ? paired.item\n      : Array.isArray(paired) && paired.length && Number.isInteger(paired[0].item) ? paired[0].item\n        : position;\n  return candidates[index];\n};\n\n// The only thing still matched by name: a suburb a business has explicitly excluded.\nconst customerKeys = [place.suburb, place.name, place.postcode, checklist.suburb]\n  .filter(Boolean)\n  .map(slug);\n\nconst matches = [];\n// Every suburb a business of this trade actually works out of, whether or not it reaches this\n// customer. When nothing matches, this is the difference between \"nobody covers you\" — which is\n// a dead end — and \"nobody covers you, here are the three nearest suburbs that are covered\".\nconst covered = [];\n// Why each candidate was dropped. Returned with the result so a run that finds nobody can be\n// read in n8n without adding logging: exactly one of these counters explains it.\nconst dropped = { errored: 0, notConfirmed: 0, wrongTrade: 0, noCoords: 0, outsideRadius: 0, excluded: 0 };\n\nfor (let position = 0; position < docs.length; position += 1) {\n  const item = docs[position];\n  const business = businessFor(item, position);\n  if (!business || !business.uid) continue;\n\n  const doc = item.json || {};\n  // No document for this trade yet is the same as a business that never finished setting its\n  // pricing up. Counted rather than ignored — a run where every read errored looks identical to\n  // \"nobody covers you\" from the outside, and they need completely different fixes.\n  if (doc.error || (!doc.data && doc.status === undefined)) { dropped.errored += 1; continue; }\n\n  const data = doc.data || {};\n  // Confirmed is the new isComplete, and THIS document's own status is the authoritative copy.\n  // The one on services/{trade} is a convenience mirror that can lag behind it, so it is not\n  // read here — accepting either would let a business back in the moment the mirror went stale.\n  if (doc.status !== 'confirmed') { dropped.notConfirmed += 1; continue; }\n  // A document filed under the wrong trade would price a job nobody described.\n  if (data.trade && slug(data.trade) !== TRADE) { dropped.wrongTrade += 1; continue; }\n\n  /* The service area is recorded in two places and either one is a real answer: the per-trade\n     document, which is what the business last confirmed for THIS trade, and the business record\n     itself, which is where it lived before the migration. The per-trade copy wins because it is\n     the more specific and more recent of the two, but a business whose per-trade geocode never\n     resolved is not a business that stopped covering anybody — it still has an address on file,\n     and dropping it over a missing sub-field would hide a real trader from a real customer. */\n  const area = data.serviceArea || {};\n  const resolved = area.resolved || {};\n  const rootArea = business.serviceArea || {};\n  const rootPoint = rootArea.geopoint || {};\n\n  const areaLat = num(resolved.lat) ?? num(rootArea.latitude) ?? num(rootPoint.latitude);\n  const areaLng = num(resolved.lng) ?? num(rootArea.longitude) ?? num(rootPoint.longitude);\n  // One is written in kilometres, the other in metres.\n  const perTradeKm = num(area.radiusKm);\n  const radiusMetres = perTradeKm !== null ? perTradeKm * 1000 : num(rootArea.radiusMeters);\n\n  if (areaLat === null || areaLng === null || radiusMetres === null) { dropped.noCoords += 1; continue; }\n\n  const areaSuburb = resolved.suburb || rootArea.name || null;\n  if (areaSuburb) {\n    covered.push({\n      suburb: String(areaSuburb),\n      state: resolved.state || null,\n      postcode: resolved.postcode || null,\n      latitude: areaLat,\n      longitude: areaLng,\n      distanceMeters: Math.round(distanceMeters(lat, lng, areaLat, areaLng)),\n    });\n  }\n\n  // Excluded areas are free text in the business's own words — \"the CBD\", \"the peninsula\",\n  // \"Frankston South\" — not place ids and not normalised. So they are matched loosely, in both\n  // directions: \"frankston\" excludes \"Frankston South\", and \"the peninsula\" is caught by a\n  // customer suburb that appears inside it. A false positive here costs one business a lead; a\n  // false negative sends them somewhere they said they will not go.\n  const excluded = (Array.isArray(area.excludedAreas) ? area.excludedAreas : [])\n    .map((entry) => (entry && typeof entry === 'object' ? (entry.name || entry.suburb || entry.postcode) : entry))\n    .filter(Boolean)\n    .map(slug)\n    .filter((entry) => entry.length > 2);\n  const excludedHere = excluded.some((entry) =>\n    customerKeys.some((key) => key.length > 2 && (entry.includes(key) || key.includes(entry))));\n  if (excludedHere) { dropped.excluded += 1; continue; }\n\n  const distance = distanceMeters(lat, lng, areaLat, areaLng);\n  if (distance > radiusMetres) { dropped.outsideRadius += 1; continue; }\n\n  matches.push({\n    business: {\n      uid: business.uid,\n      businessName: business.businessName || 'Unnamed business',\n      rating: num(business.rating),\n      reviewCount: num(business.reviewCount),\n      isAutoAcceptEnabled: business.isAutoAcceptEnabled === true,\n      autoAcceptsAi: business.isAiAutoAcceptEnabled === true,\n      distanceMeters: Math.round(distance),\n      distanceKm: Math.round(distance / 100) / 10,\n      suburb: place.displayLabel || checklist.suburb || '',\n    },\n    // The whole document, tagged with the shape it is in, so the trade workflow reading it never\n    // has to guess which generation of the data it was handed.\n    pricing: { shape: 'v2', ...data },\n  });\n}\n\n// The suburbs this trade is actually worked out of, nearest first, one entry each. Offered to a\n// customer nobody covers so the conversation has somewhere to go — the coordinates travel with\n// them, so picking one needs no second trip to Google.\nconst nearby = [];\nconst seenSuburb = new Set();\nfor (const area of covered.sort((a, b) => a.distanceMeters - b.distanceMeters)) {\n  const key = slug(area.suburb);\n  if (!key || seenSuburb.has(key)) continue;\n  seenSuburb.add(key);\n  nearby.push({ ...area, distanceKm: Math.round(area.distanceMeters / 100) / 10 });\n  if (nearby.length >= 6) break;\n}\n\nif (matches.length === 0) {\n  return [{\n    json: {\n      matched: false,\n      noMatchReason: dropped.outsideRadius > 0 || dropped.excluded > 0 ? 'radius'\n        : dropped.notConfirmed > 0 ? 'pricing' : 'suburb',\n      businesses: [],\n      pricing: [],\n      totalCovering: 0,\n      nearby,\n      // Read this in n8n when a run finds nobody unexpectedly. candidates is how many businesses\n      // claim the trade at all; exactly one of the dropped counters accounts for the rest.\n      diagnostics: {\n        candidates: candidates.length,\n        documents: docs.length,\n        ...dropped,\n        // The first document exactly as Firestore handed it over. When every counter looks\n        // wrong, this is the thing to read: it shows whether the nested maps arrived at all.\n        sample: docs.length ? {\n          keys: Object.keys(docs[0].json || {}),\n          status: (docs[0].json || {}).status ?? null,\n          dataKeys: Object.keys(((docs[0].json || {}).data) || {}),\n          serviceArea: (((docs[0].json || {}).data) || {}).serviceArea ?? null,\n          error: (docs[0].json || {}).error ?? null,\n        } : null,\n      },\n    },\n  }];\n}\n\n// Nearest first, so the list reads sensibly if anything downstream shows it unsorted. Price,\n// not distance, decides the actual ranking — that happens in the trade workflow.\nmatches.sort((a, b) => a.business.distanceMeters - b.business.distanceMeters);\n\nreturn [{\n  json: {\n    matched: true,\n    noMatchReason: null,\n    businesses: matches.map((entry) => entry.business),\n    pricing: matches.map((entry) => entry.pricing),\n    // Every business that covers them, including ones that cannot quote this particular job.\n    // That is what \"screened\" honestly means on the results page.\n    totalCovering: matches.length,\n    nearby,\n    diagnostics: { candidates: candidates.length, documents: docs.length, ...dropped },\n  },\n}];"
+      },
+      "id": "sm-match-v2",
+      "name": "Match & Pair (v2)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// The pre-migration path, still used by tiling, decking and retaining walls until their data\n// moves to services/{trade}/jsondata/extracted as well. Unchanged behaviour on purpose:\n//   1. SUBURB — the business's registered service area must BE the customer's suburb.\n//   2. RADIUS — inside that suburb, its own travel radius must still reach them.\n// Do not \"fix\" this to match the v2 path. These businesses were matched this way when their\n// radii were set, and loosening it here would show them jobs they never agreed to travel for.\nconst input = $('When Called by Subagent').first().json;\nconst checklist = input.checklist || {};\nconst place = input.place || null;\n\nconst slug = (value) =>\n  String(value == null ? '' : value).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');\n\n// Firestore values arrive plain through the n8n node, but a raw REST shape ({ doubleValue })\n// costs one line to tolerate and saves a whole class of \"why is everything zero\".\nconst num = (value) => {\n  const raw = value !== null && typeof value === 'object'\n    ? (value.doubleValue ?? value.integerValue ?? value.stringValue ?? null)\n    : value;\n  const parsed = Number(raw);\n  return Number.isFinite(parsed) ? parsed : null;\n};\n\n// Haversine, in metres. A spherical earth is well inside the error a 30 km service radius\n// already tolerates.\nconst distanceMeters = (fromLat, fromLng, toLat, toLng) => {\n  const R = 6371000;\n  const rad = (deg) => (deg * Math.PI) / 180;\n  const dLat = rad(toLat - fromLat);\n  const dLng = rad(toLng - fromLng);\n  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(fromLat)) * Math.cos(rad(toLat)) * Math.sin(dLng / 2) ** 2;\n  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));\n};\n\nconst lat = place ? num(place.latitude) : null;\nconst lng = place ? num(place.longitude) : null;\nif (lat === null || lng === null) return [{ json: { noMatch: true, noMatchReason: 'place' } }];\n\nconst wantedPlaceId = String((place && place.placeId) || '').trim();\nconst wantedSuburb = slug((place && (place.suburb || place.name)) || checklist.suburb);\n\nconst matches = [];\nlet outsideRadius = 0;\nfor (const item of $input.all()) {\n  const business = item.json || {};\n\n  const area = business.serviceArea || {};\n  const areaPlaceId = String(area.id || '').trim();\n  const sameSuburb = areaPlaceId && wantedPlaceId\n    ? areaPlaceId === wantedPlaceId\n    : !!wantedSuburb && slug(area.name) === wantedSuburb;\n  if (!sameSuburb) continue;\n\n  const areaLat = num(area.latitude);\n  const areaLng = num(area.longitude);\n  const radius = num(area.radiusMeters);\n  if (areaLat === null || areaLng === null || radius === null) continue;\n\n  const distance = distanceMeters(lat, lng, areaLat, areaLng);\n  if (distance > radius) { outsideRadius += 1; continue; }\n\n  matches.push({\n    json: {\n      uid: business.uid,\n      businessName: business.businessName || 'Unnamed business',\n      rating: num(business.rating),\n      reviewCount: num(business.reviewCount),\n      isAutoAcceptEnabled: business.isAutoAcceptEnabled === true,\n      autoAcceptsAi: business.isAiAutoAcceptEnabled === true,\n      distanceMeters: Math.round(distance),\n      distanceKm: Math.round(distance / 100) / 10,\n      suburb: (place && place.displayLabel) || checklist.suburb || '',\n    },\n  });\n}\n\nif (matches.length === 0) {\n  return [{ json: { noMatch: true, noMatchReason: outsideRadius > 0 ? 'radius' : 'suburb' } }];\n}\nmatches.sort((a, b) => a.json.distanceMeters - b.json.distanceMeters);\nreturn matches;"
+      },
+      "id": "sm-filter-legacy",
+      "name": "Filter Legacy Service Area",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "sm-any-legacy-c",
+              "leftValue": "={{ $json.noMatch === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "sm-any-legacy",
+      "name": "Any Legacy In Range?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "projectId": "quotemy-ai",
+        "collection": "=businesses/{{ $json.uid }}/pricing",
+        "documentId": "={{ $('When Called by Subagent').first().json.trade }}"
+      },
+      "id": "sm-fetch-legacy-pricing",
+      "name": "Fetch Legacy Pricing",
+      "type": "n8n-nodes-base.googleFirebaseCloudFirestore",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        620
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "googleFirebaseCloudFirestoreOAuth2Api": {
+          "id": "xNLb8t0yYKmPmXuX",
+          "name": "QuoteAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Both lists come back as one item so the caller gets a single, predictable shape. They are\n// index-aligned: pricing[i] belongs to businesses[i]. Tagged v1 so a trade workflow reading a\n// document knows which generation of the shape it is looking at.\nconst businesses = $('Filter Legacy Service Area').all().map((item) => item.json);\nconst pricing = $input.all().map((item) => ({ shape: 'v1', ...(item.json || {}) }));\n\nreturn [{\n  json: {\n    matched: true,\n    noMatchReason: null,\n    businesses,\n    pricing,\n    // Every business that covers them, including ones that cannot quote this particular job.\n    // That is what \"screened\" honestly means on the results page.\n    totalCovering: businesses.length,\n    nearby: [],\n  },\n}];"
+      },
+      "id": "sm-return-legacy",
+      "name": "Return Legacy Pricing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        620
+      ]
+    }
+  ],
+  "connections": {
+    "When Called by Subagent": {
+      "main": [
+        [
+          {
+            "node": "Fetch Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Businesses": {
+      "main": [
+        [
+          {
+            "node": "Filter Candidates by Trade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Candidates by Trade": {
+      "main": [
+        [
+          {
+            "node": "Any Candidate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Candidate?": {
+      "main": [
+        [
+          {
+            "node": "Return No Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "New Shape?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Shape?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Service Doc",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Filter Legacy Service Area",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Service Doc": {
+      "main": [
+        [
+          {
+            "node": "Match & Pair (v2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Legacy Service Area": {
+      "main": [
+        [
+          {
+            "node": "Any Legacy In Range?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Legacy In Range?": {
+      "main": [
+        [
+          {
+            "node": "Return No Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Legacy Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Legacy Pricing": {
+      "main": [
+        [
+          {
+            "node": "Return Legacy Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "886d78c3701091b0d47a11cec85a060077c03873e5f0d293e2535ab8adaace9d"
+  }
+}

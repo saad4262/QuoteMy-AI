@@ -22,6 +22,8 @@ export interface ModelCall<T> {
   files?: ModelFile[];
   maxOutputTokens: number;
   timeoutMs?: number;
+  /** Overrides the client's default model for this one call - e.g. a cheap model for a small, low-stakes turn. */
+  model?: string;
 }
 
 export interface StageUsage {
@@ -52,6 +54,7 @@ export const MODEL_PRICES: Record<string, { in: number; out: number }> = {
   'gpt-5.6-sol': { in: 5, out: 30 },
   'gpt-5.6-luna': { in: 0.2, out: 1.2 },
   'gpt-4o': { in: 2.5, out: 10 },
+  'gpt-4o-mini': { in: 0.15, out: 0.6 },
   mock: { in: 0, out: 0 },
 };
 
@@ -88,7 +91,7 @@ function buildInput(call: ModelCall<unknown>): OpenAI.Responses.ResponseInput | 
  * The single chokepoint. Nothing else in this codebase imports the OpenAI SDK — one file to audit
  * for key handling, one place that counts tokens, one place that retries.
  */
-class OpenAiClient implements AiClient {
+export class OpenAiClient implements AiClient {
   readonly model: string;
   private readonly sdk: OpenAI;
   /**
@@ -97,10 +100,13 @@ class OpenAiClient implements AiClient {
    * failing a real request over a knob.
    */
   private sendTemperature = true;
+  /** Tests set this to 0; nothing else should touch it. */
+  retryWaitMs = 300;
 
-  constructor(apiKey: string, model: string) {
+  /** `sdk` is injectable so the retry loop can be driven in tests without reaching the network. */
+  constructor(apiKey: string, model: string, sdk?: OpenAI) {
     this.model = model;
-    this.sdk = new OpenAI({ apiKey, maxRetries: 0 }); // retries are ours, below, and counted
+    this.sdk = sdk ?? new OpenAI({ apiKey, maxRetries: 0 }); // retries are ours, below, and counted
   }
 
   async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
@@ -125,7 +131,7 @@ class OpenAiClient implements AiClient {
           tokensIn,
           tokensOut,
           retries,
-          costUsd: costUsd(this.model, tokensIn, tokensOut),
+          costUsd: costUsd(call.model ?? this.model, tokensIn, tokensOut),
         };
         logger.info({ stage: call.name, ...usage }, 'model call');
         return { data: parsed.value, usage };
@@ -144,7 +150,56 @@ class OpenAiClient implements AiClient {
     throw new AppError(502, 'The model returned output we could not use', 'schema_violation');
   }
 
+  /**
+   * One call, with transient failures retried.
+   *
+   * The retry in `callStructured` above is a different thing: it answers a reply that arrived but
+   * did not fit the schema. This one answers a reply that never arrived - a 500 from the provider,
+   * a rate limit, a request that timed out. Those are the provider having a moment, and a customer
+   * mid-conversation should not have to send their message again because of one.
+   *
+   * Bounded two ways, because the two failures cost very different amounts of time. A provider
+   * that is down answers in milliseconds, so three attempts ~300ms and ~900ms apart cost nothing
+   * and usually recover. A provider that HANGS costs the full timeout every attempt - three of
+   * those on a chat turn is a customer watching a spinner for a minute - so the whole thing also
+   * shares one deadline: once the call's own timeout has been spent, there is no retry left to
+   * give, whatever the error was.
+   */
   private async request(
+    call: ModelCall<unknown>,
+    feedback: string,
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
+    const ATTEMPTS = 3;
+    const deadline = Date.now() + (call.timeoutMs ?? env.MODEL_TIMEOUT_MS);
+
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await this.attempt(call, feedback);
+      } catch (err) {
+        // Not a failure: this model refuses the parameter, so stop sending it and go again.
+        if (this.sendTemperature && isUnsupportedTemperature(err)) {
+          logger.warn({ model: call.model ?? this.model }, 'model does not accept temperature; continuing without it');
+          this.sendTemperature = false;
+          continue;
+        }
+
+        /* Jittered: without it every request that failed together retries together, and the
+           provider is hit by exactly the same spike that throttled it in the first place. */
+        const backoff = this.retryWaitMs * 3 ** (attempt - 1);
+        const waitMs = Math.round(backoff * (0.5 + Math.random()));
+        const spent = Date.now() + waitMs >= deadline;
+        if (!isTransient(err) || attempt >= ATTEMPTS || spent) throw toUpstreamError(err);
+
+        logger.warn(
+          { stage: call.name, attempt, waitMs, status: (err as { status?: number })?.status },
+          'model call failed, retrying',
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    }
+  }
+
+  private async attempt(
     call: ModelCall<unknown>,
     feedback: string,
   ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
@@ -154,7 +209,7 @@ class OpenAiClient implements AiClient {
     try {
       const response = await this.sdk.responses.create(
         {
-          model: this.model,
+          model: call.model ?? this.model,
           instructions: call.system + feedback,
           input: buildInput(call),
           max_output_tokens: call.maxOutputTokens,
@@ -176,14 +231,6 @@ class OpenAiClient implements AiClient {
         tokensIn: response.usage?.input_tokens ?? 0,
         tokensOut: response.usage?.output_tokens ?? 0,
       };
-    } catch (err) {
-      if (this.sendTemperature && isUnsupportedTemperature(err)) {
-        logger.warn({ model: this.model }, 'model does not accept temperature; continuing without it');
-        this.sendTemperature = false;
-        clearTimeout(timer);
-        return this.request(call, feedback);
-      }
-      throw toUpstreamError(err);
     } finally {
       clearTimeout(timer);
     }
@@ -203,6 +250,31 @@ class OpenAiClient implements AiClient {
   }
 }
 
+/**
+ * Worth trying again: the provider is rate limiting us, having a server-side problem, or the
+ * request timed out. A 4xx that is not 429 is our own request being wrong - retrying it just
+ * fails again more slowly.
+ */
+export const isTransient = (err: unknown): boolean => {
+  const name = (err as { name?: string })?.name;
+  if (name === 'AbortError' || name === 'TimeoutError') return true;
+  const status = (err as { status?: number })?.status;
+  // Not every 429 is worth waiting out. An empty credit balance answers 429 too, and no amount of
+  // retrying refills it - it just spends twelve seconds of a customer's time to fail identically.
+  if (status === 429) return !isOutOfCredit(err);
+  return typeof status === 'number' && status >= 500;
+};
+
+/**
+ * The provider says 429 both for "you are going too fast" and for "your balance is empty", which
+ * are opposite situations: one clears on its own in seconds, the other needs somebody to go and
+ * pay a bill and will never clear by itself.
+ */
+const isOutOfCredit = (err: unknown): boolean => {
+  const e = err as { error?: { type?: string; code?: string } };
+  return e?.error?.type === 'insufficient_quota' || e?.error?.code === 'credit_balance_exhausted';
+};
+
 const isUnsupportedTemperature = (err: unknown): boolean => {
   const e = err as { status?: number; message?: string; param?: string };
   return e?.status === 400 && /temperature/i.test(`${e.message ?? ''} ${e.param ?? ''}`);
@@ -217,7 +289,18 @@ function toUpstreamError(err: unknown): AppError {
   }
 
   const status = (err as { status?: number })?.status;
-  if (status === 429) return new AppError(429, 'The model is rate limiting us, try again shortly', 'rate_limited');
+  /* An empty balance is not a busy provider. Telling a customer "we're a bit busy, try again"
+     when the account has no credit is a lie they will act on repeatedly, and the retry above
+     would have burned twelve seconds proving it. This one needs an operator, not a customer. */
+  if (isOutOfCredit(err)) {
+    logger.error({ status }, 'OPENAI CREDIT BALANCE EXHAUSTED - add credits at platform.openai.com/settings/organization/billing');
+    return new AppError(503, 'The AI provider account is out of credit', 'at_capacity');
+  }
+
+  // Our own limiter also answers 429, and the two mean opposite things: that one is the customer
+  // going too fast, this one is us being throttled by the provider through no fault of theirs.
+  // A shared code left the frontend unable to tell "slow down" from "we are busy, try again".
+  if (status === 429) return new AppError(503, 'The model is rate limiting us, try again shortly', 'upstream_busy');
 
   // Never surface the provider's message verbatim — it can echo prompt content back to the caller.
   logger.error({ err }, 'model call failed');
@@ -319,6 +402,7 @@ export class MockAiClient implements AiClient {
     let data: unknown;
     if (call.name === 'transcribe') data = this.transcribe(call.files ?? []);
     else if (call.name === 'review') data = this.review(text, rates);
+    else if (call.name === 'turn') data = this.turn(text);
     else data = this.extraction(text, rates);
 
     const usage = {
@@ -424,6 +508,57 @@ export class MockAiClient implements AiClient {
       outcome: fixes.length === 0 ? 'approved' : 'needs_updates',
       fixes: fixes.slice(0, 5),
       alsoWorthAdding,
+    };
+  }
+
+  /**
+   * Offline stand-in for one turn of the customer quote chat (`client/agent.ts`). `text` is the
+   * full context `agent.ts` builds - the raw message first, then labelled sections - so this
+   * pulls the raw message back out and answers naively for whichever field was last asked.
+   *
+   * It cannot read a sentence the way a real model can, so it only ever fills the ONE field the
+   * conversation is currently asking about; `mergeAndDecide.ts`'s validation and its own
+   * `mentioned()` guard do the rest, exactly as they would for a real reply. That is enough to
+   * drive a full conversation through tapped multiple-choice options and typed one-word answers
+   * offline, without an API key.
+   */
+  private turn(context: string) {
+    const rawMessage = (context.split('\n\n')[0] ?? '').trim();
+    const lastAskedMatch = context.match(/--- The question you asked last turn ---\nfield: (\w+)/);
+    const lastAsked = lastAskedMatch?.[1] ?? null;
+
+    const checklist: Record<string, unknown> = {
+      material: null,
+      heightKey: null,
+      lengthMeters: null,
+      removal: null,
+      conditions: null,
+      gateType: null,
+      gateQty: null,
+      existingPrice: null,
+    };
+
+    if (lastAsked && lastAsked in checklist) {
+      if (lastAsked === 'lengthMeters' || lastAsked === 'gateQty') {
+        const n = Number(rawMessage.replace(/[^\d.]/g, ''));
+        if (Number.isFinite(n) && n > 0) checklist[lastAsked] = n;
+      } else if (lastAsked === 'conditions') {
+        checklist.conditions = /^\s*(none|nothing|no\b|nil)/i.test(rawMessage) ? [] : [rawMessage];
+      } else if (rawMessage) {
+        checklist[lastAsked] = rawMessage;
+      }
+    }
+
+    return {
+      ack: '',
+      checklist,
+      clearFields: [],
+      suggestedSuburb: null,
+      wantsMoreOptions: /\b(more|other|different)\b/i.test(rawMessage),
+      confirmed: /^\s*(y|ya|yes|yep|yeah|correct|confirmed?)\b/i.test(rawMessage),
+      // The offline reader cannot judge a subject, and guessing would fail real conversations
+      // in tests for no benefit. Judging this is the real model's job.
+      offTopic: false,
     };
   }
 
