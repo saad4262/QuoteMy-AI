@@ -468,7 +468,7 @@ while the older override keeps working.
 
 ---
 
-### [ ] Step 11 — Extend the drift warning to cover fields
+### [x] Step 11 — Extend the drift warning to cover fields — DONE
 
 **Goal.** `warnOnSchemaDrift` (`firestore.store.ts:364`) already catches a published `core` value
 that code cannot quote. Give `fields` the same protection.
@@ -477,6 +477,12 @@ that code cannot quote. Give `fields` the same protection.
 and when a field present in the compiled spec is missing from the published one.
 
 **Verify.** Unit test with a deliberately broken spec; assert the warning and the fallback.
+
+**Result.** `describeFieldDrift(compiled, published)` is a pure function, so it is tested directly
+rather than through Firestore. It reports three things: a question the published spec DROPS (never
+asked again, and nothing else would ever say so), a field only the document has (normal for a trade
+the code has never heard of), and a type nothing can execute (logged at error level, since the
+document is being ignored entirely). 200 tests green. **Phase 1 complete.**
 
 ---
 

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { runFencingChat } from '../../src/client/controller.js';
-import { FENCING_FIELDS } from '../../src/client/fieldSpec.js';
+import { describeFieldDrift, FENCING_FIELDS } from '../../src/client/fieldSpec.js';
 import { clearSchemaCache, loadTradeSchema } from '../../src/client/schema.js';
 import { MemoryRepository, type StoredTradeSchema } from '../../src/store.js';
 import type { Trade } from '../../src/vocab.js';
@@ -143,5 +143,37 @@ describe('a published field spec that cannot be executed', () => {
   it('falls back when the document publishes no fields at all', async () => {
     const schema = await loadTradeSchema('fencing', new MemoryRepository());
     expect(schema.fields).toEqual(FENCING_FIELDS);
+  });
+});
+
+describe('drift between the published checklist and the compiled one', () => {
+  it('says nothing when they agree', () => {
+    expect(describeFieldDrift(FENCING_FIELDS, compiledCopy())).toBeNull();
+    expect(describeFieldDrift(FENCING_FIELDS, [])).toBeNull();
+    expect(describeFieldDrift(FENCING_FIELDS, undefined)).toBeNull();
+  });
+
+  it('names a question this trade will now never ask', () => {
+    const fields = compiledCopy().filter((f) => f.key !== 'conditions');
+    expect(describeFieldDrift(FENCING_FIELDS, fields)).toEqual({
+      dropped: ['conditions'],
+      added: [],
+      unknownTypes: [],
+    });
+  });
+
+  it('names a field the code has never heard of, which is normal for a new trade', () => {
+    const fields = [...compiledCopy(), { key: 'tileSize', type: 'enum', source: 'core.tileSizes' }];
+    expect(describeFieldDrift(FENCING_FIELDS, fields)).toEqual({
+      dropped: [],
+      added: ['tileSize'],
+      unknownTypes: [],
+    });
+  });
+
+  it('names a type nothing can execute', () => {
+    const fields = compiledCopy();
+    fields[1]!.type = 'colour-picker';
+    expect(describeFieldDrift(FENCING_FIELDS, fields)?.unknownTypes).toEqual(['material']);
   });
 });

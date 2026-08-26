@@ -156,3 +156,44 @@ export const specOf = (fields: FieldSpec[], key: string): FieldSpec | undefined 
 
 /** The fields a customer is actually asked, in the order they are asked in. */
 export const askedFields = (fields: FieldSpec[]): FieldSpec[] => fields.filter((f) => f.asked !== false);
+
+/**
+ * How a published field spec differs from the compiled one.
+ *
+ * Differing is allowed - it is the entire point of publishing it. `CONTEXT.md` §8's warning is that
+ * vocabulary drift is the one failure here that is silent and permanent, and the same holds for the
+ * checklist: a question quietly dropped is not an error anywhere, it is just a field nobody is ever
+ * asked about. This is what stops it being silent.
+ *
+ * Pure so it can be tested without Firestore; the caller decides how loudly to say it.
+ */
+export interface FieldDrift {
+  /** In code, not in the published document - a question this trade will now never ask. */
+  dropped: string[];
+  /** In the document, not in code - normal for a trade code has never heard of. */
+  added: string[];
+  /** Names a type nothing can execute. The document is refused at load; this says so at boot. */
+  unknownTypes: string[];
+}
+
+export function describeFieldDrift(compiled: FieldSpec[], published: unknown): FieldDrift | null {
+  if (!Array.isArray(published) || !published.length) return null;
+
+  const keyOf = (entry: unknown): string => {
+    const key = (entry as FieldSpec | null)?.key;
+    return typeof key === 'string' ? key : '';
+  };
+
+  const publishedKeys = new Set(published.map(keyOf).filter(Boolean));
+  const compiledKeys = new Set(compiled.map((spec) => spec.key));
+
+  const drift: FieldDrift = {
+    dropped: [...compiledKeys].filter((key) => !publishedKeys.has(key)),
+    added: [...publishedKeys].filter((key) => !compiledKeys.has(key)),
+    unknownTypes: published
+      .filter((entry) => !FIELD_TYPES.includes((entry as FieldSpec | null)?.type as FieldType))
+      .map((entry) => keyOf(entry) || '(no key)'),
+  };
+
+  return drift.dropped.length || drift.added.length || drift.unknownTypes.length ? drift : null;
+}

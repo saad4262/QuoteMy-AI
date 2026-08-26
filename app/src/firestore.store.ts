@@ -15,7 +15,7 @@ import type {
   SubmissionRecord,
   SubmissionStatus,
 } from './store.js';
-import { FENCING_FIELDS } from './client/fieldSpec.js';
+import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
@@ -382,6 +382,24 @@ export class FirestoreRepository implements BusinessRepository {
         { trade, field, offeredButNotQuotable: notInCode, quotableButNotOffered: notPublished },
         'schema/{trade} differs from vocab.ts - the chat and the extractor disagree about this trade',
       );
+    }
+
+    /* The checklist drifts the same way the vocabulary does, and more quietly: a question dropped
+       from the published spec raises no error anywhere, it is simply never asked again. */
+    const drift = describeFieldDrift(FENCING_FIELDS, snap.get('fields'));
+    if (drift) {
+      if (drift.unknownTypes.length) {
+        logger.error(
+          { trade, fields: drift.unknownTypes },
+          'schema/{trade}.fields names a type the code cannot execute - the whole published spec is being ignored',
+        );
+      }
+      if (drift.dropped.length || drift.added.length) {
+        logger.warn(
+          { trade, neverAsked: drift.dropped, publishedOnly: drift.added },
+          'schema/{trade}.fields differs from the compiled checklist',
+        );
+      }
     }
   }
 
