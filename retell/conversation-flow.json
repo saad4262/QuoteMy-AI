@@ -1,0 +1,127 @@
+{
+  "start_speaker": "agent",
+  "start_node_id": "greeting",
+  "model_choice": {
+    "type": "cascading",
+    "model": "gpt-4.1"
+  },
+  "model_temperature": 0,
+  "global_prompt": "You are a voice interface and nothing more.\n\nYour ONLY jobs are: (1) pass what the customer says to the voice_turn tool, word for word, and (2) read back exactly the text the tool returns.\n\nNEVER answer a question from your own knowledge.\nNEVER invent, guess or estimate a price, a total, a business name, a material, a height, a length or any other detail.\nNEVER add to, remove from, shorten, expand or reword the text you are given to say. Read it exactly.\nNEVER decide what to ask next. The tool decides that.\nNEVER clean up, correct, summarise or interpret what the customer said before sending it. Send it verbatim, including 'um', a half sentence, or a wrong word - the backend is built to read those.\nNEVER end the call yourself. The flow ends it.\n\nIf you have no text to read, say you did not catch that and ask them to say it again.\n\nEverything about fencing, quotes, prices and questions lives in the backend. You know none of it and must not act as though you do.",
+  "default_dynamic_variables": {
+    "session_id": "",
+    "speak_text": "",
+    "is_done": "false"
+  },
+  "tools": [
+    {
+      "tool_id": "voice_turn",
+      "type": "custom",
+      "name": "voice_turn",
+      "description": "Send the customer's latest words to the quote assistant and get back the exact words to say next. Call this on every single customer turn, including the very first one and including when they say something that does not seem like an answer.",
+      "url": "https://REPLACE-WITH-YOUR-BACKEND/api/v1/voice/turn",
+      "method": "POST",
+      "query_params": {
+        "sessionId": "{{session_id}}"
+      },
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "spokenText": {
+            "type": "string",
+            "description": "The customer's words, transcribed verbatim. Do NOT clean it up, fix grammar, remove filler, summarise it, or map it onto one of the options you read out. Send exactly what you heard. All interpretation happens on the server."
+          }
+        },
+        "required": ["spokenText"]
+      },
+      "response_variables": {
+        "speak_text": "speakText",
+        "is_done": "isDone"
+      },
+      "speak_during_execution": true,
+      "timeout_ms": 30000
+    }
+  ],
+  "nodes": [
+    {
+      "id": "greeting",
+      "name": "Greeting",
+      "type": "conversation",
+      "instruction": {
+        "type": "static_text",
+        "text": "Hi there. I can get you fencing quotes from businesses near you. What are you after?"
+      },
+      "edges": [
+        {
+          "id": "edge_greeting_to_turn",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "The customer has said anything at all, including a greeting, a question, or something unrelated."
+          },
+          "destination_node_id": "turn"
+        }
+      ]
+    },
+    {
+      "id": "turn",
+      "name": "Ask the backend",
+      "type": "function",
+      "tool_id": "voice_turn",
+      "tool_type": "local",
+      "wait_for_result": true,
+      "speak_during_execution": true,
+      "instruction": {
+        "type": "static_text",
+        "text": "One moment."
+      },
+      "edges": [
+        {
+          "id": "edge_turn_to_finish",
+          "transition_condition": {
+            "type": "equation",
+            "operator": "&&",
+            "equations": [
+              {
+                "left": "{{is_done}}",
+                "operator": "==",
+                "right": "true"
+              }
+            ]
+          },
+          "destination_node_id": "finish"
+        }
+      ],
+      "else_edge": {
+        "id": "edge_turn_to_speak",
+        "destination_node_id": "speak"
+      }
+    },
+    {
+      "id": "speak",
+      "name": "Say it and listen",
+      "type": "conversation",
+      "instruction": {
+        "type": "static_text",
+        "text": "{{speak_text}}"
+      },
+      "edges": [
+        {
+          "id": "edge_speak_to_turn",
+          "transition_condition": {
+            "type": "prompt",
+            "prompt": "The customer has replied with anything at all."
+          },
+          "destination_node_id": "turn"
+        }
+      ]
+    },
+    {
+      "id": "finish",
+      "name": "Read the quote and hang up",
+      "type": "end",
+      "instruction": {
+        "type": "static_text",
+        "text": "{{speak_text}}"
+      }
+    }
+  ]
+}

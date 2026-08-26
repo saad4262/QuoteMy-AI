@@ -1,0 +1,13 @@
+{
+  "agent_name": "QuoteMy Fencing Voice",
+  "response_engine": {
+    "type": "conversation-flow",
+    "conversation_flow_id": "REPLACE-WITH-THE-ID-FROM-STEP-2"
+  },
+  "voice_id": "REPLACE-WITH-A-VOICE-ID-FROM-YOUR-DASHBOARD",
+  "language": "en-AU",
+  "allow_user_dtmf": false,
+  "interruption_sensitivity": 0.9,
+  "responsiveness": 1,
+  "max_call_duration_ms": 900000
+}
