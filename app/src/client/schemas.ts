@@ -190,4 +190,9 @@ export interface ChatResponse {
   avgRatePerMeter: number | null;
   comparison?: Comparison | null;
   alternatives?: AlternativeOffer[];
+  /**
+   * Where the finished quote was written, so the page can listen to it. Added by the route, not by
+   * the pipeline, and only on a turn that produced a result - see `saveResult.ts`.
+   */
+  resultId?: string;
 }

@@ -550,7 +550,7 @@ it would have been free to spend the whole ceiling again. 204 tests green.
 
 ---
 
-### [ ] Step 14 — Server-generated session ids, and `saveChatResult`
+### [x] Step 14 — Server-generated ids, and `saveChatResult` — DONE (backend); frontend listener is yours
 
 **Goal.** Write the final result somewhere the frontend can listen to — without leaking it.
 
@@ -573,6 +573,31 @@ the quote they already held.
 
 **Verify.** Integration test: complete a conversation, assert the document exists with the expected
 shape. Assert nothing is written on a question or confirmation turn.
+
+**Result, and a better answer than the plan proposed.** The plan wanted `sessionId` restricted to a
+UUID. That would have churned every test and moved every golden snapshot, because `sessionId` is
+echoed in every response - all to make a client-supplied value unguessable, which it can never
+really be.
+
+Instead the document is keyed by a `resultId` this service generates at write time and returns in
+the response. Nothing a caller sends ever becomes a document id, so the guarantee is stronger, and
+`sessionId` is untouched.
+
+`saveChatResult` is called from the ROUTE, not from `runFencingChat`. Persistence is a transport
+concern, and keeping it out means the pipeline stays a pure function of its input - which is what
+lets the golden conversations drive it with nothing to clean up between turns.
+
+**A wrong assumption the tests caught.** "Nobody covers your suburb" is NOT `type: 'result'` - it is
+the suburb-retry branch, and the conversation continues. The real empty result is `notCheaper`, or a
+brief nobody can quote with no alternative to offer. The test covers that instead.
+
+`firestore.rules` gained three blocks: `quoteResults` (world-readable, service-written - the UUID is
+the access control, and the reasoning is written out there), `chatSpend` and `schema` (both fully
+closed; the Admin SDK ignores rules).
+
+207 tests green, snapshots unmoved.
+
+**Still yours.** The frontend listener. That app is not in this repository.
 
 ---
 

@@ -306,3 +306,58 @@ describe('POST /client/fencing-chat', () => {
     expect(again.body.checklist.suburb).toBeNull();
   });
 });
+
+describe('the finished quote is written where the frontend can listen for it', () => {
+  const finished = (overrides: Partial<Checklist> = {}): Checklist => ({
+    suburb: 'Berwick, VIC 3806',
+    material: 'colorbond',
+    heightKey: '1.8m',
+    lengthMeters: 20,
+    removal: 'none',
+    conditions: [],
+    gateType: 'none',
+    gateQty: null,
+    existingPrice: null,
+    _ui: { turn: 9, cursor: {}, lastAsked: null, lastQuestion: '', lastValues: [], lastType: 'confirmation', fixing: false, rejectedPlaces: [], nearbyPlaces: {}, suburbHint: null, place: BERWICK },
+    ...overrides,
+  });
+
+  it('writes a result turn, under an id nobody could guess', async () => {
+    seedBusiness('biz-r1', 'Southeast Fencing & Gates');
+    const res = await chatTurn('yes', 'sr1', BERWICK, finished());
+
+    expect(res.body.type).toBe('result');
+    expect(res.body.resultId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
+    const saved = await repo.getQuoteResult(res.body.resultId);
+    expect(saved?.displayState).toBe('ready');
+    expect(saved?.results).toHaveLength(1);
+    expect(saved?.comparison).not.toBeNull();
+    expect(saved?.checklist.material).toBe('colorbond');
+    // Session mechanics are not part of a quote.
+    expect(saved?.checklist._ui).toBeUndefined();
+  });
+
+  it('writes a result with nothing in it, because that is still what the customer must see', async () => {
+    seedBusiness('biz-r2', 'Southeast Fencing & Gates');
+    // 20m at $110 is $2,200, so nothing here beats a quote they already hold at $1,000. That is a
+    // finished answer with an empty results list, and the page has to render it.
+    const res = await chatTurn('yes', 'sr2', BERWICK, finished({ existingPrice: 1000 }));
+
+    expect(res.body.type).toBe('result');
+    expect(res.body.noMatchReason).toBe('notCheaper');
+
+    const saved = await repo.getQuoteResult(res.body.resultId);
+    expect(saved?.results).toEqual([]);
+    expect(saved?.noMatchReason).toBe('notCheaper');
+    expect(saved?.intent).toBe('compare_quote');
+  });
+
+  it('writes nothing on a turn that is still asking', async () => {
+    seedBusiness('biz-r3', 'Southeast Fencing & Gates');
+    const res = await chatTurn('I need a fence', 'sr3', null, null);
+
+    expect(res.body.type).not.toBe('result');
+    expect(res.body.resultId).toBeUndefined();
+  });
+});

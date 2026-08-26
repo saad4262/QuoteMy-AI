@@ -9,6 +9,7 @@ import type {
   PendingSubmission,
   PricingDoc,
   PricingStatus,
+  QuoteResultDoc,
   ReviewDoc,
   ServiceExtract,
   StoredTradeSchema,
@@ -508,6 +509,23 @@ export class FirestoreRepository implements BusinessRepository {
 
   async addChatSpend(day: string, usd: number): Promise<void> {
     await this.spendRef(day).set({ usd: FieldValue.increment(usd), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+
+  /**
+   * `quoteResults/{resultId}` - world-readable by design, so the id is the access control. It is a
+   * UUID this service generates; nothing a caller sends ever becomes a document id here.
+   */
+  private resultRef = (resultId: string) => db().collection('quoteResults').doc(resultId);
+
+  async saveQuoteResult(resultId: string, doc: QuoteResultDoc): Promise<void> {
+    await this.resultRef(resultId).set({ ...doc, updatedAt: FieldValue.serverTimestamp() });
+  }
+
+  async getQuoteResult(resultId: string): Promise<QuoteResultDoc | null> {
+    const snap = await this.resultRef(resultId).get();
+    if (!snap.exists) return null;
+    const d = snap.data() as DocumentData;
+    return { ...d, updatedAt: toIso(d.updatedAt) ?? '' } as QuoteResultDoc;
   }
 
   async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {

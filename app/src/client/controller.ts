@@ -13,6 +13,7 @@ import { formatFencingResult } from './formatResult.js';
 import { matchBusinesses } from './matcher.js';
 import { mergeAndDecide } from './mergeAndDecide.js';
 import { priceAndRank } from './priceAndRank.js';
+import { saveChatResult } from './saveResult.js';
 import type { ChatBody, ChatResponse, Checklist, Place, UiState } from './schemas.js';
 
 /**
@@ -121,7 +122,11 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
 export async function fencingChat(req: Request, res: Response): Promise<void> {
   try {
     const response = await runFencingChat(req.body as ChatBody, filesOf(req));
-    res.status(200).json(response);
+    /* Written from the route rather than from the pipeline: persistence is a transport concern, and
+       keeping it out means `runFencingChat` stays a pure function of its input - which is what lets
+       the golden conversations drive it turn after turn with nothing to clean up in between. */
+    const resultId = await saveChatResult(response);
+    res.status(200).json(resultId ? { ...response, resultId } : response);
   } catch (err) {
     const known = err instanceof AppError;
     const status = known ? err.status : 500;
