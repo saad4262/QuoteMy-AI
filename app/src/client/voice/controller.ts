@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { logger } from '../../config.js';
+import { env, logger } from '../../config.js';
 import { AppError } from '../../http.js';
 import { getRepository, type BusinessRepository } from '../../store.js';
 import { runFencingChat } from '../controller.js';
@@ -112,7 +112,49 @@ export async function voiceTurn(req: Request, res: Response): Promise<void> {
   }
 }
 
-/** Mints a session for a browser about to start a call. */
-export function createVoiceCall(_req: Request, res: Response): void {
-  res.status(200).json({ sessionId: newVoiceSession() });
+/**
+ * Starts a call: a session id, and the token a browser needs to join.
+ *
+ * The Retell API key never leaves this process. A browser that held it could create calls against
+ * the account at will, so the token - which is scoped to one call - is the only thing handed out.
+ *
+ * The session id travels as a dynamic variable, so the agent can put it in the tool's query string
+ * without ever having to say it, hear it, or invent one.
+ *
+ * With no key configured this still answers with a session id, which is what makes the whole voice
+ * path testable from Postman with no Retell account at all.
+ */
+export async function createVoiceCall(_req: Request, res: Response): Promise<void> {
+  const sessionId = newVoiceSession();
+
+  if (!env.RETELL_API_KEY || !env.RETELL_AGENT_ID) {
+    res.status(200).json({ sessionId, accessToken: null, configured: false });
+    return;
+  }
+
+  try {
+    const created = await fetch('https://api.retellai.com/v2/create-web-call', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${env.RETELL_API_KEY}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agent_id: env.RETELL_AGENT_ID,
+        retell_llm_dynamic_variables: { session_id: sessionId },
+        metadata: { sessionId },
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!created.ok) {
+      logger.error({ status: created.status, body: await created.text() }, 'retell refused to create a web call');
+      res.status(502).json({ error: { code: 'voice_unavailable', message: 'Could not start a voice call' } });
+      return;
+    }
+
+    const { access_token: accessToken, call_id: callId } = (await created.json()) as { access_token?: string; call_id?: string };
+    logger.info({ sessionId, callId }, 'voice call created');
+    res.status(200).json({ sessionId, accessToken: accessToken ?? null, configured: true });
+  } catch (err) {
+    logger.error({ err }, 'could not reach retell to create a web call');
+    res.status(502).json({ error: { code: 'voice_unavailable', message: 'Could not start a voice call' } });
+  }
 }

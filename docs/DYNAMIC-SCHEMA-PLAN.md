@@ -672,7 +672,7 @@ through.
 
 ---
 
-### [ ] Step 17 — Retell agent, frontend, `VOICE.md`
+### [~] Step 17 — Retell agent, frontend, `VOICE.md` — PARTIAL, and the rest is yours
 
 **Do.** The Retell conversation flow JSON, the `create-call` token endpoint (the Retell API key
 stays server-side), the mic wiring, and setup docs.
@@ -684,6 +684,24 @@ here too.
 **Verify.** One real test call. Confirm whether Retell's `static_text` node interpolates
 `{{speak_text}}`; if not, use a prompt node saying "Say exactly this, word for word". Confirm the
 agent never speaks anything the backend did not send.
+
+**Done.** `POST /api/v1/voice/create-call` mints a real Retell web-call token (`POST
+/v2/create-web-call`, verified against their docs) and passes the session id as a dynamic variable.
+The API key stays server-side. With no key configured it still returns a session id, so the whole
+voice path is testable from Postman. `docs/VOICE.md` covers setup, env vars, a curl script that
+drives a whole call, and the exact agent to build.
+
+**NOT done, and deliberately not guessed: the flow JSON.** Retell publishes the node types but not
+the JSON field names for instructions, edges and tool configuration. A generated file would be a
+guess that fails to import, and debugging my guess would cost more than building four nodes. VOICE.md
+specifies the agent node by node instead - build it in the dashboard, export it, commit the export.
+
+**Also not done:** the frontend (that app is not in this repository) and the real test call (your
+Retell account).
+
+**One limitation worth knowing.** Voice needs a screen. `isMissing('suburb')` tests the geocoded
+place object, so a spoken suburb can never satisfy it - `toSpeech` asks them to pick it on screen
+and waits. A phone-only call cannot get past that question without a different mechanism.
 
 ---
 

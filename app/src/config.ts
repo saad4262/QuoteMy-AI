@@ -48,6 +48,12 @@ const schema = z.object({
   // (Vercel, and any other serverless target) where a key file cannot exist.
   FIREBASE_SERVICE_ACCOUNT_B64: z.string().optional(),
 
+  // --- voice ---
+  // Unset means the voice endpoints still work for Postman - /voice/create-call just hands back a
+  // session id and mints no Retell call. Speech is the only thing that needs these.
+  RETELL_API_KEY: z.string().optional(),
+  RETELL_AGENT_ID: z.string().optional(),
+
   // The sweeper. Its whole job is that a submission is never lost because one HTTP call failed.
   WORKER_ENABLED: z.stringbool().default(false),
   WORKER_INTERVAL_MS: z.coerce.number().default(120_000),
@@ -91,5 +97,5 @@ export const logger = pino({
   // separately because an uploaded .env can carry NODE_ENV=development there, and a missing
   // transport takes the whole process down at boot.
   ...(isProd || process.env.VERCEL ? {} : { transport: { target: 'pino-pretty' } }),
-  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64'],
+  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64', 'RETELL_API_KEY'],
 });
