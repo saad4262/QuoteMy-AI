@@ -280,7 +280,7 @@ unmoved.
 
 ---
 
-### [ ] Step 5 — `sourcesFrom` reads its lists from the spec
+### [x] Step 5 — `sourcesFrom` reads its lists from the spec — DONE
 
 **Goal.** The field → option-list mapping becomes data.
 
@@ -294,6 +294,18 @@ handling; it now reads `spec.source` first and falls back to `spec.options`.
 
 **Watch for.** `Sources` is currently a fixed 7-key interface with fencing field names. Change it to
 `Record<string, (string | number)[]>` in this step; the compiler will find every consumer.
+
+**Result.** `Sources` is a record; `heightsFor` is gone, replaced by `optionsFor(schema, spec, key)`.
+Two more hardcoded field names went with it: the material-keyed height lookup is now
+`spec.optionsKeyedBy`, and "one option is not a question" is `spec.fillWhenSingle` rather than
+`nextField === 'heightKey'`. The off-list check drives off `type === 'measure'`.
+
+**Coverage added.** The off-list path had no golden conversation at all, and Step 5 rewrote it.
+Conversation 13 covers it, and removing the check was confirmed to fail that conversation and only
+that one. 185 tests green, existing snapshots unmoved.
+
+**Process note.** `git checkout` during that break-test threw away this step's uncommitted work in
+the same file. Commit the step BEFORE breaking anything to test it.
 
 ---
 

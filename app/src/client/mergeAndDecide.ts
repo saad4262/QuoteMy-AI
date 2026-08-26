@@ -1,7 +1,7 @@
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
-import { heightsFor, makeLabelFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
+import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, TurnExtraction, UiState } from './schemas.js';
 import { ALL_FIELDS, FIELDS, type ChecklistField } from './vocab.js';
 
@@ -386,19 +386,33 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   };
 
   const sources: Sources = sourcesFrom(schema);
-  if (merged.material) sources.heightKey = heightsFor(schema, String(merged.material));
+  // A field whose options are keyed by another answer had no list until now. Fencing heights are
+  // the case: a trade that builds different types to different heights publishes them keyed by
+  // material, and until a material is chosen there is nothing to offer.
+  for (const spec of schema.fields) {
+    if (!spec.optionsKeyedBy) continue;
+    const keyValue = merged[spec.optionsKeyedBy];
+    if (keyValue) sources[spec.key] = optionsFor(schema, spec, String(keyValue));
+  }
 
-  // A height nobody builds at is not an answer, however clearly it was typed. Not silently
-  // rounded either: 1.65m snapped to 1.8m is a different fence at a different price.
+  /* A measurement nobody builds at is not an answer, however clearly it was typed. Not silently
+     rounded either: 1.65m snapped to 1.8m is a different fence at a different price. Only one
+     `measure` field exists today (height), which is why one off-list value is carried rather than
+     a map - a second one should widen this rather than pick the first. */
   let offListHeight: string | null = null;
-  if (merged.heightKey && sources.heightKey.length) {
-    const wanted = Number.parseFloat(String(merged.heightKey));
-    const onList = sources.heightKey.find((entry) => Math.abs(Number.parseFloat(String(entry)) - wanted) < 0.001);
-    if (onList === undefined) {
-      offListHeight = String(merged.heightKey);
-      merged.heightKey = null;
-    } else {
-      merged.heightKey = onList;
+  const measured = schema.fields.find((spec) => spec.type === 'measure');
+  if (measured) {
+    const list = sources[measured.key] ?? [];
+    const value = merged[measured.key];
+    if (value && list.length) {
+      const wanted = Number.parseFloat(String(value));
+      const onList = list.find((entry) => Math.abs(Number.parseFloat(String(entry)) - wanted) < 0.001);
+      if (onList === undefined) {
+        offListHeight = String(value);
+        merged[measured.key] = null;
+      } else {
+        merged[measured.key] = onList;
+      }
     }
   }
 

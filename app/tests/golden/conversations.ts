@@ -433,6 +433,26 @@ export const CONVERSATIONS: Conversation[] = [
   },
 
   {
+    name: '13 a height nobody builds at',
+    why: 'an off-list measure is refused rather than silently rounded to the nearest one',
+    seed: (repo) => seedBusiness(repo, 'biz-1', 'Southeast Fencing & Gates'),
+    turns: [
+      ...openTheChat,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'colorbond' },
+      // 1.65m is a real number and not a height anyone builds. Snapping it to 1.8m would be a
+      // different fence at a different price, so it is handed back rather than rounded.
+      { say: '1.65m' },
+      { say: '1.8m' },
+      { say: '20' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
     name: '12 nobody can quote the brief, so alternatives are offered',
     why: 'the alternatives fallback and the alt: prefix resolving two fields at once',
     seed: (repo) => seedBusiness(repo, 'biz-5', 'Only Does Colorbond'),

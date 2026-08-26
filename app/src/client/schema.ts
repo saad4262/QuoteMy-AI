@@ -3,8 +3,8 @@ import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from '../messages.js';
 import { getRepository } from '../store.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
-import { FENCING_FIELDS, type FieldSpec } from './fieldSpec.js';
-import { HEIGHT_FALLBACK, LENGTHS, QUANTITIES, type ChecklistField } from './vocab.js';
+import { FENCING_FIELDS, specOf, type FieldSpec } from './fieldSpec.js';
+import { type ChecklistField } from './vocab.js';
 
 /**
  * The trade's vocabulary, read from Firestore `schema/{trade}` at the start of a conversation.
@@ -136,48 +136,55 @@ export async function loadTradeSchema(trade: Trade): Promise<TradeSchema> {
 }
 
 /**
- * The choice list behind each question. Materials, gates, conditions and removals are the trade's
- * vocabulary and come from the schema; lengths and quantities do not - a length is a measurement
- * and a count is a count, neither is something a business publishes rates against.
+ * The choice list behind each question, keyed by field. Every list comes from the trade's own field
+ * spec: either a path into the schema document (the trade's vocabulary) or a literal list for the
+ * things no business publishes rates against - a length is a measurement and a count is a count.
  */
-export interface Sources {
-  material: string[];
-  removal: string[];
-  conditions: string[];
-  gateType: string[];
-  lengthMeters: (string | number)[];
-  gateQty: (string | number)[];
-  heightKey: string[];
-}
+export type Sources = Record<string, (string | number)[]>;
 
-export function sourcesFrom(schema: TradeSchema): Sources {
-  return {
-    material: [...schema.core.materials],
-    removal: [...schema.core.removes],
-    conditions: [...schema.core.conditions],
-    gateType: [...schema.core.gateTypes],
-    lengthMeters: [...LENGTHS],
-    gateQty: [...QUANTITIES],
-    heightKey: [],
-  };
+/** Dotted path into the loaded schema: `core.materials` -> `schema.core.materials`. */
+function at(schema: TradeSchema, path: string): unknown {
+  return path
+    .split('.')
+    .reduce<unknown>((node, key) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined), schema);
 }
 
 /**
- * Heights for a material. `core.heights` may be a flat list, or a map keyed by material for a
- * trade whose heights differ by type. Neither is published today, so this normally returns the
- * built-in band list - and a height nobody nearby actually builds is caught at the end, by the
- * alternatives fallback in `priceAndRank.ts`, where the answer is "here is what somebody CAN do".
+ * One field's options.
+ *
+ * `keyedByValue` is only consulted for a field whose published options are a map rather than a
+ * list - fencing heights, for a trade that builds different types to different heights. A flat
+ * published list wins over it, and the spec's literal list is the last resort. Neither is published
+ * today, so this normally returns the literal list, and a height nobody nearby actually builds is
+ * caught at the end by the alternatives fallback in `priceAndRank.ts`.
  */
-export function heightsFor(schema: TradeSchema, material: string | null): string[] {
-  const published = schema.core.heights;
+export function optionsFor(schema: TradeSchema, spec: FieldSpec, keyedByValue?: string | null): (string | number)[] {
+  const published = spec.source ? at(schema, spec.source) : undefined;
+
   if (Array.isArray(published) && published.length) return [...published];
-  if (published && typeof published === 'object') {
-    const byMaterial = published as Record<string, string[]>;
-    const key = Object.keys(byMaterial).find((candidate) => candidate.toLowerCase() === String(material ?? '').toLowerCase());
-    const found = key ? byMaterial[key] : null;
+
+  if (spec.optionsKeyedBy && published && typeof published === 'object') {
+    const byKey = published as Record<string, unknown>;
+    const wanted = String(keyedByValue ?? '').toLowerCase();
+    const key = Object.keys(byKey).find((candidate) => candidate.toLowerCase() === wanted);
+    const found = key ? byKey[key] : null;
     if (Array.isArray(found) && found.length) return [...found];
   }
-  return [...HEIGHT_FALLBACK];
+
+  return spec.options ? [...spec.options] : [];
+}
+
+/**
+ * Every field's options at the start of a turn. A field whose options are keyed by another answer
+ * gets an empty list here and is filled in by the caller once that answer exists - which is what
+ * keeps the off-list height check from running before a material has been chosen.
+ */
+export function sourcesFrom(schema: TradeSchema): Sources {
+  const sources: Sources = {};
+  for (const spec of schema.fields) {
+    sources[spec.key] = spec.optionsKeyedBy ? [] : optionsFor(schema, spec);
+  }
+  return sources;
 }
 
 const GROUPS: Partial<Record<ChecklistField, keyof TradeSchema['labels']>> = {

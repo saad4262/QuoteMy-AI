@@ -44,10 +44,12 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
   let missing = state.missing.slice();
   let nextField = state.nextField;
 
-  // A single published height is not a question - fill it in rather than asking.
-  if (nextField === 'heightKey' && (sources.heightKey || []).length === 1) {
-    checklist.heightKey = sources.heightKey[0]!;
-    missing = missing.filter((field) => field !== 'heightKey');
+  // A single published option is not a question - fill it in rather than asking. Opt-in per field:
+  // where a pinned "none of this" answer exists, one real choice still needs asking.
+  const nextSpec = nextField ? specOf(fields, nextField) : undefined;
+  if (nextSpec?.fillWhenSingle && (sources[nextSpec.key] ?? []).length === 1) {
+    (checklist as Record<string, unknown>)[nextSpec.key] = sources[nextSpec.key]![0]!;
+    missing = missing.filter((field) => field !== nextSpec.key);
     nextField = missing.length ? missing[0]! : null;
   }
 

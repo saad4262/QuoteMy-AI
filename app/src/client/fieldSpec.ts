@@ -52,6 +52,18 @@ export interface FieldSpec {
   /** False = merged and validated like any other field, but never asked. */
   asked?: boolean;
   /**
+   * This field's published options are a map keyed by another field's answer, so it has no list at
+   * all until that answer exists. Fencing heights are the case: a trade whose heights differ by
+   * material publishes `core.heights` as `{ colorbond: [...], timber_pine: [...] }`.
+   */
+  optionsKeyedBy?: string;
+  /**
+   * One option is not a question - fill it in rather than asking. Deliberately opt-in: for a field
+   * with a pinned "none of this" answer, a single real choice still needs asking, because "none"
+   * is a genuine answer to it.
+   */
+  fillWhenSingle?: boolean;
+  /**
    * `enum` only. A material a single business offers has no slug in the trade vocabulary and is
    * deliberately absent from the choice list - most businesses cannot do it, and putting one there
    * pushes out something everybody sells. A customer who names one by hand is naming something
@@ -90,6 +102,8 @@ export const FENCING_FIELDS: FieldSpec[] = [
     // Not published by `syncTradeSchema` today, so the literal list below is what is normally used.
     source: 'core.heights',
     options: [...HEIGHT_FALLBACK],
+    optionsKeyedBy: 'material',
+    fillWhenSingle: true,
   },
   {
     key: 'lengthMeters',
