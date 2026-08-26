@@ -98,7 +98,17 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   // The checklist's suburb is a display string derived from the confirmed place; the matcher uses it
   // only to widen its excluded-area comparison, so anything that is not text is simply not there.
   const suburb = typeof state.checklist.suburb === 'string' ? state.checklist.suburb : null;
+  /* Timed because this is the one step whose cost grows with the number of businesses: a service
+     document is read per candidate. The per-request and per-model-call logs already cover
+     everything else, so request ms minus model ms minus this is Firestore and cold start. */
+  const matchStarted = Date.now();
   const matcher = state.needsMatcher ? await matchBusinesses('fencing', state.place, suburb, repo) : null;
+  if (state.needsMatcher) {
+    logger.info(
+      { requestId: input.sessionId, ms: Date.now() - matchStarted, candidates: matcher?.diagnostics.candidates ?? 0, matched: matcher?.totalCovering ?? 0 },
+      'matcher',
+    );
+  }
 
   const formatted = formatFencingResult({ state, matcher });
   return matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;

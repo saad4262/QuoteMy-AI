@@ -491,7 +491,7 @@ document is being ignored entirely). 200 tests green. **Phase 1 complete.**
 Do not start this phase until Phase 1's step 10 manual check has passed. Voice built on the
 hardcoded engine would have to be written twice.
 
-### [ ] Step 12 — Parallelise the matcher
+### [x] Step 12 — Parallelise the matcher — DONE
 
 **Files.** `src/client/matcher.ts:92-97`.
 
@@ -510,6 +510,15 @@ Preserve exactly:
 
 **Also.** Add a `Date.now()` pair around the `matchBusinesses` call in `client/controller.ts:98` and
 log it with `state.needsMatcher`, so the improvement is measurable.
+
+**Result.** Reads happen 25 at a time; every decision after them stays sequential and in candidate
+order, so the same businesses come out in the same order. All five `dropped.*` buckets are
+unchanged, including that `errored` still counts a throw and a missing document alike.
+
+**The claim is measured, not assumed.** `tests/unit/matcher.test.ts` counts reads actually in flight:
+60 businesses peak above 1 (serial would be exactly 1), 200 peak at no more than 25, and two runs
+return the same order. A green suite alone would have said nothing about any of that.
+203 tests green, snapshots unmoved.
 
 ---
 

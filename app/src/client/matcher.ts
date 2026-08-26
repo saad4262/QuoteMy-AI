@@ -72,6 +72,35 @@ function emptyDiagnostics(candidates: number): MatchDiagnostics {
   return { candidates, errored: 0, notConfirmed: 0, noCoords: 0, outsideRadius: 0, excluded: 0 };
 }
 
+/**
+ * How many service documents to read at once.
+ *
+ * Reading them one after another cost a full round trip per business - twenty of them is two to
+ * three seconds on the confirm turn, which is the one turn a customer is already waiting on. An
+ * unbounded `Promise.all` is the other mistake: a serverless function shares 1,024 file descriptors
+ * across every concurrent execution, and a few hundred businesses would exhaust them.
+ */
+const READ_BATCH = 25;
+
+/**
+ * A read that failed and one that found nothing are the same answer here, and are counted alike.
+ * `Priced` carries the narrowing the old inline check did, so nothing downstream re-tests it.
+ */
+type Priced = ServiceExtract & { pricing: NonNullable<ServiceExtract['pricing']> };
+type Read = Priced | 'unusable';
+
+async function readExtract(repo: BusinessRepository, uid: string, trade: Trade): Promise<Read> {
+  try {
+    const extract = await repo.getServiceExtract(uid, trade);
+    // No document for this trade yet is the same as a business that never finished setting up its
+    // pricing - counted rather than ignored, so "nobody covers you" can be told apart from "every
+    // read errored".
+    return extract && extract.pricing ? (extract as Priced) : 'unusable';
+  } catch {
+    return 'unusable';
+  }
+}
+
 export async function matchBusinesses(
   trade: Trade,
   place: Place | null,
@@ -89,20 +118,18 @@ export async function matchBusinesses(
   const covered: NearbyArea[] = [];
   const dropped = { errored: 0, notConfirmed: 0, noCoords: 0, outsideRadius: 0, excluded: 0 };
 
-  for (const candidate of candidates) {
-    if (!candidate.uid) continue;
+  /* Reading is the slow part, so it happens in parallel; every decision below stays sequential and
+     in candidate order, so the same businesses come out in the same order they always did. */
+  const named = candidates.filter((candidate) => candidate.uid);
+  const reads: Read[] = [];
+  for (let i = 0; i < named.length; i += READ_BATCH) {
+    const batch = named.slice(i, i + READ_BATCH);
+    reads.push(...(await Promise.all(batch.map((candidate) => readExtract(repo, candidate.uid, trade)))));
+  }
 
-    let extract: ServiceExtract | null;
-    try {
-      extract = await repo.getServiceExtract(candidate.uid, trade);
-    } catch {
-      dropped.errored += 1;
-      continue;
-    }
-    // No document for this trade yet is the same as a business that never finished setting up its
-    // pricing - counted rather than ignored, so "nobody covers you" can be told apart from "every
-    // read errored".
-    if (!extract || !extract.pricing) {
+  for (const [index, candidate] of named.entries()) {
+    const extract = reads[index]!;
+    if (extract === 'unusable') {
       dropped.errored += 1;
       continue;
     }
