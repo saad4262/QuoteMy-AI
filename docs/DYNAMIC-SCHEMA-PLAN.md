@@ -707,6 +707,37 @@ and waits. A phone-only call cannot get past that question without a different m
 
 # Phase 3 — Multi-trade
 
+> **Status: step 18 done, steps 19-21 NOT started, and deliberately so.**
+>
+> Steps 19, 20 and 21 are one piece of work, and it starts somewhere this pass has no safety net.
+>
+> The golden conversations protect what `quoteFor` PRODUCES - conversations 1, 8, 11 and 12 pin
+> exact totals ($2,200, $3,400, $5,850, and the notCheaper answer), so a formula change that moved a
+> price could not pass. What they do not protect is `verify.ts` and the business-side extraction
+> schema, and that is where step 19 actually begins: `VerifiedPricing` is fencing-shaped in the type
+> system (`rates` is material x height, per METRE; removals and site conditions are per metre; gates
+> are fixed items). A trade that sells by the square metre needs that shape to change.
+>
+> `verify.ts` is the file `CLAUDE.md` calls out for source-quote checking and plausibility bounds,
+> under a standing instruction that accuracy there matters more than speed. Refactoring it without
+> first building the equivalent of the golden net for the business pipeline would be doing exactly
+> what step 2 proved is not safe: trusting a green suite to mean a guard is protected.
+>
+> **So there is a step 0 for this phase that the plan did not have:**
+>
+> ### [ ] Step 18a — A golden net for the business pipeline
+>
+> The same treatment `tests/golden/` gives the chat, applied to submission -> review -> extraction ->
+> verification. Fixtures already exist (`tests/fixtures/description-*.txt`). Snapshot the whole
+> verified output for each, including every source quote and every rejected field, so a change to
+> the extraction schema or the pricing shape cannot move a figure unnoticed.
+>
+> Doing a HALF step 19 - moving only the checklist field names into a pricing spec, leaving
+> `VerifiedPricing` alone - was considered and rejected. It enables nothing until the business-side
+> shape changes, and adds a layer of indirection for it, which is the opposite of what `CLAUDE.md`
+> asks for.
+
+
 ### [x] Step 18 — Extras promotion ladder — DONE
 
 **Goal.** The rule from the top of this file, made real.
