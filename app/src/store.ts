@@ -223,10 +223,17 @@ export interface StoredTradeSchema {
     removes?: Record<string, string>;
   };
   questions?: Record<string, string>;
+  /**
+   * The trade's checklist: which fields it has, in what order, and where each one's answers come
+   * from. Deliberately `unknown[]` - it arrives from a document anyone with console access can
+   * edit, so it is validated in `client/schema.ts` before a single field of it is trusted.
+   */
+  fields?: unknown[];
   extras?: Record<string, ExtraValue>;
 }
 
-export const SCHEMA_VERSION = 1;
+/** 2 (2026-08-26): `schema/{trade}` gained `fields` - the checklist itself, published rather than compiled. */
+export const SCHEMA_VERSION = 2;
 
 /**
  * In-memory stand-in for Firestore. Same interface, same document shapes - so wiring Firebase later

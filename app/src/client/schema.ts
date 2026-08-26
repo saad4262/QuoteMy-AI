@@ -1,9 +1,9 @@
 import { logger } from '../config.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from '../messages.js';
-import { getRepository } from '../store.js';
+import { getRepository, type BusinessRepository } from '../store.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
-import { FENCING_FIELDS, specOf, type FieldSpec } from './fieldSpec.js';
+import { FENCING_FIELDS, FIELD_TYPES, specOf, type FieldSpec } from './fieldSpec.js';
 import { type ChecklistField } from './vocab.js';
 
 /**
@@ -36,6 +36,11 @@ export interface TradeSchema {
     conditions: Record<string, string>;
     removes: Record<string, string>;
   };
+  /**
+   * Wording PUBLISHED for this trade, and only that - not a copy of the compiled defaults. Keeping
+   * the two apart is what lets an override be told from a default: a document that says nothing
+   * about a question leaves the field's own wording standing, and one that does say something wins.
+   */
   questions: Record<string, string>;
   /**
    * Which fields this trade's checklist has, in the order they are asked. Compiled for now; the
@@ -68,7 +73,7 @@ function fallbackSchema(trade: Trade, extras: Record<string, ExtraValue> = {}): 
       conditions: { ...CUSTOMER_LABEL_GROUPS.conditions },
       removes: { ...CUSTOMER_LABEL_GROUPS.removes },
     },
-    questions: { ...FALLBACK_QUESTIONS },
+    questions: {},
     fields: [...FENCING_FIELDS],
     extras,
     fromFirestore: false,
@@ -90,18 +95,65 @@ const map = (value: unknown, fallback: Record<string, string>): Record<string, s
  * the worst case is a customer part-way through a chat seeing a material a business added four
  * minutes ago - which is the right way round.
  */
+/**
+ * A published field spec this code cannot execute is worse than no published spec at all: it
+ * reaches a customer as a question with no answers, or a field nothing knows how to validate.
+ *
+ * Checked once at load, and an unusable document falls back WHOLE to the compiled spec rather than
+ * being half-used - a half-applied spec is the shape of bug that looks like the chat forgetting a
+ * question rather than like a bad document.
+ */
+function structurallyUsable(fields: unknown, trade: Trade): FieldSpec[] | null {
+  if (!Array.isArray(fields) || !fields.length) return null;
+
+  const refuse = (why: string): null => {
+    logger.warn({ trade, why }, 'published field spec is unusable, falling back to the compiled one');
+    return null;
+  };
+
+  const specs: FieldSpec[] = [];
+  const keys = new Set<string>();
+  for (const entry of fields) {
+    const spec = entry as FieldSpec;
+    if (!spec || typeof spec.key !== 'string' || !spec.key) return refuse('a field has no key');
+    if (keys.has(spec.key)) return refuse(`${spec.key} is named twice`);
+    if (!FIELD_TYPES.includes(spec.type)) return refuse(`${spec.key} has unknown type ${String(spec.type)}`);
+    keys.add(spec.key);
+    specs.push(spec);
+  }
+
+  for (const spec of specs) {
+    if (spec.dependsOn && !keys.has(spec.dependsOn.field)) {
+      return refuse(`${spec.key} depends on ${spec.dependsOn.field}, which is not a field`);
+    }
+    if (spec.optionsKeyedBy && !keys.has(spec.optionsKeyedBy)) {
+      return refuse(`${spec.key} is keyed by ${spec.optionsKeyedBy}, which is not a field`);
+    }
+  }
+  return specs;
+}
+
+/** A multiple choice with nothing in it is a dead end, so a field that cannot offer one is refused. */
+function canOffer(schema: TradeSchema, spec: FieldSpec): boolean {
+  if (spec.type !== 'enum' && spec.type !== 'multiEnum') return true; // free text is a real answer
+  if (spec.options?.length) return true;
+  const published = spec.source ? at(schema, spec.source) : undefined;
+  if (Array.isArray(published) && published.length) return true;
+  return Boolean(spec.optionsKeyedBy && published && typeof published === 'object');
+}
+
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<Trade, { at: number; value: TradeSchema }>();
 
 export const clearSchemaCache = () => cache.clear();
 
-export async function loadTradeSchema(trade: Trade): Promise<TradeSchema> {
+export async function loadTradeSchema(trade: Trade, repo: BusinessRepository = getRepository()): Promise<TradeSchema> {
   const hit = cache.get(trade);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   let value = fallbackSchema(trade);
   try {
-    const stored = await getRepository().getTradeSchema(trade);
+    const stored = await repo.getTradeSchema(trade);
     if (stored) {
       const base = fallbackSchema(trade, stored.extras ?? {});
       value = {
@@ -122,8 +174,19 @@ export async function loadTradeSchema(trade: Trade): Promise<TradeSchema> {
           removes: map(stored.labels?.removes, base.labels.removes),
         },
         questions: { ...base.questions, ...(stored.questions ?? {}) },
-        fromFirestore: Boolean(stored.core || stored.labels || stored.questions),
+        fields: structurallyUsable(stored.fields, trade) ?? base.fields,
+        fromFirestore: Boolean(stored.core || stored.labels || stored.questions || stored.fields),
       };
+
+      // Only now is the whole document assembled, so only now can a field's source be resolved.
+      const dead = value.fields.filter((spec) => !canOffer(value, spec));
+      if (dead.length) {
+        logger.warn(
+          { trade, fields: dead.map((spec) => spec.key) },
+          'published field spec has questions with no answers, falling back to the compiled one',
+        );
+        value = { ...value, fields: [...base.fields] };
+      }
     }
   } catch (err) {
     // A schema we cannot read is not a reason to refuse a conversation - the compiled vocabulary
@@ -219,9 +282,17 @@ export function makeLabelFor(schema: TradeSchema) {
 
 export type LabelFor = ReturnType<typeof makeLabelFor>;
 
-/** The question text for a field, from the schema, falling back to the compiled wording. */
+/**
+ * The wording a field is asked in.
+ *
+ * A wording published in the trade's `questions` map wins, because saying it there is an explicit
+ * override and there is a test that says so. Otherwise the field's own spec answers, which is where
+ * wording belongs now and the one place to edit it. The compiled map is the last resort, for a
+ * trade whose document has not been published yet.
+ */
 export function questionFor(schema: TradeSchema, field: string): string {
-  return String(schema.questions[field] || FALLBACK_QUESTIONS[field] || '').trim() || field;
+  const spec = specOf(schema.fields, field);
+  return String(schema.questions[field] || spec?.question || FALLBACK_QUESTIONS[field] || '').trim() || field;
 }
 
 export { titleCase };

@@ -57,7 +57,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   // (process-cached, 5-minute TTL) rather than per turn - this is what makes the chat pick up a
   // business-side vocabulary change without a redeploy, and what will make a second trade a new
   // document rather than a new code path.
-  const schema = await loadTradeSchema('fencing');
+  const schema = await loadTradeSchema('fencing', repo);
 
   /* A tapped option needs no model at all.
      The value came from a list this code generated last turn, so this code already knows exactly

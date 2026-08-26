@@ -15,6 +15,7 @@ import type {
   SubmissionRecord,
   SubmissionStatus,
 } from './store.js';
+import { FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
@@ -327,6 +328,7 @@ export class FirestoreRepository implements BusinessRepository {
       },
       labels: CUSTOMER_LABEL_GROUPS,
       questions: QUESTIONS,
+      fields: FENCING_FIELDS,
     };
 
     await db().runTransaction(async (tx) => {
@@ -337,6 +339,9 @@ export class FirestoreRepository implements BusinessRepository {
       if (!snap.exists || !snap.get('core')) seed.core = compiled.core;
       if (!snap.exists || !snap.get('labels')) seed.labels = compiled.labels;
       if (!snap.exists || !snap.get('questions')) seed.questions = compiled.questions;
+      // Same rule as `core`: seeded once so a trade nobody has published still has a chat, and
+      // never overwritten afterwards, so an edit made in the console survives the next boot.
+      if (!snap.exists || !snap.get('fields')) seed.fields = compiled.fields;
       if (!snap.exists) {
         seed.trade = trade;
         seed.schemaVersion = SCHEMA_VERSION;

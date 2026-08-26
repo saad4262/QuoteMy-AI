@@ -414,7 +414,7 @@ falls back whole to the compiled spec, so a bad document never reaches a custome
 
 ---
 
-### [ ] Step 10 — Move the spec into Firestore
+### [x] Step 10 — Move the spec into Firestore — DONE (code); manual Firestore check is yours
 
 **Goal.** The actual dynamic switch. Everything before this was preparation.
 
@@ -444,6 +444,27 @@ runs and behaviour is identical). Then a manual check against real Firestore:
 
 **Done when.** Step 3 of that manual check passes. **This is the milestone the whole phase exists
 for.**
+
+**Result.** `tests/unit/publishedSchema.test.ts` proves the mechanism without needing a console: a
+repository that publishes a `fields` array changes the question wording, the order and the titles,
+and six kinds of unusable document are each refused. 196 tests green, golden snapshots unmoved.
+
+Refusal is WHOLE, never field by field - one broken field alongside seven good ones drops the
+document. Taking the seven would look like the chat forgetting a question rather than like a bad
+document, and that is much harder to diagnose.
+
+`loadTradeSchema` now takes the repository rather than reaching for the global one, and
+`controller.ts` hands it the same repo it already resolved - without that, a caller supplying its
+own repository silently got a different schema.
+
+**A precedence decision worth knowing about.** `TradeSchema.questions` used to be pre-filled with
+the compiled wording, which made "published override" and "compiled default" indistinguishable. It
+now holds ONLY what the document published. Order is: published `questions` wins (there is an
+existing integration test that says an explicitly published map reaches the screen), then the
+field's own `spec.question`, then the compiled map. So wording has one obvious home - the field -
+while the older override keeps working.
+
+**Still yours to do.** The console check in the box above. I cannot reach your Firestore.
 
 ---
 
