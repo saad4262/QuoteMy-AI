@@ -382,7 +382,7 @@ constant it used to compare against no longer exists - the golden snapshots are 
 
 ---
 
-### [ ] Step 9 — Widen the types
+### [x] Step 9 — Widen the types — DONE
 
 **Goal.** `Checklist` stops being a fencing-shaped interface.
 
@@ -400,6 +400,17 @@ snapshots unmoved.
 **Watch for.** This is the widest-blast-radius step in the plan and it is where type safety is
 genuinely reduced. Compensate by making the spec lookup the only way to reach a field: a helper
 `fieldSpec(schema, key)` that throws on an unknown key means a typo still fails loudly.
+
+**Result.** 22 compiler errors, 21 of them in `priceAndRank.ts` and one in `controller.ts` - which is
+a fair map of where the checklist is still read by field name. All of them are the fencing pricing
+model, so they are answered with explicit coercion at the boundary (`asNumber`, `asText`,
+`asTextList`) rather than casts. 185 tests green, snapshots unmoved.
+
+**The throwing helper was NOT added, deliberately.** It would not buy what the plan hoped. The
+danger after widening is indexing the checklist with a mistyped key, which no spec lookup sees; and
+throwing mid-conversation would turn a bad published document into a customer-facing crash. The
+compile-time safety is bought back at LOAD time instead - step 10 rejects an unusable document and
+falls back whole to the compiled spec, so a bad document never reaches a customer at all.
 
 ---
 

@@ -31,6 +31,15 @@ function makeMaterialNaming(schema: TradeSchema) {
   return { canonicalMaterial, materialLabel };
 }
 
+/* The checklist is untyped data as of step 9 - which fields exist is the trade's business, published
+   in its schema document. Fencing's pricing model reads the ones it needs and coerces at the
+   boundary rather than trusting a shape nobody guarantees. Step 19 of the migration plan is what
+   makes these names come from the pricing spec too. */
+const asNumber = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+const asText = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+const asTextList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+
 const GST_MULTIPLIER = 1.1;
 /** Every figure shown or compared is what the customer would actually pay - an exclusive rate looks 10% cheaper than it is. */
 const payable = (amount: number, gstIncluded: boolean): number => (gstIncluded ? Math.round(amount) : Math.round(amount * GST_MULTIPLIER));
@@ -201,16 +210,21 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     return fail(base, 'No fencing business covers that suburb yet. Try a nearby suburb?', matcher.noMatchReason || 'area');
   }
 
-  const wantedMaterial = slug(checklist.material);
-  const wantedHeight = Number.parseFloat(String(checklist.heightKey || ''));
+  const material = asText(checklist.material);
+  const heightKey = asText(checklist.heightKey);
+  const removal = asText(checklist.removal);
+  const gateType = asText(checklist.gateType);
+
+  const wantedMaterial = slug(material);
+  const wantedHeight = Number.parseFloat(String(heightKey ?? ''));
   const brief: Brief = {
     material: wantedMaterial,
     heightMetres: wantedHeight,
-    lengthMetres: checklist.lengthMeters ?? 0,
-    conditions: Array.isArray(checklist.conditions) ? checklist.conditions : [],
-    removal: checklist.removal && checklist.removal !== 'none' ? slug(checklist.removal) : null,
-    gateType: checklist.gateType && checklist.gateType !== 'none' ? slug(checklist.gateType) : null,
-    gateQty: Math.max(1, Math.round(checklist.gateQty ?? 1)),
+    lengthMetres: asNumber(checklist.lengthMeters) ?? 0,
+    conditions: asTextList(checklist.conditions),
+    removal: removal && removal !== 'none' ? slug(removal) : null,
+    gateType: gateType && gateType !== 'none' ? slug(gateType) : null,
+    gateQty: Math.max(1, Math.round(asNumber(checklist.gateQty) ?? 1)),
   };
 
   const quotes: Quote[] = [];
@@ -220,7 +234,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     const business = matcher.businesses[i]!;
     const extract = matcher.pricing[i]!;
     if (!extract.pricing) continue;
-    const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, checklist.heightKey ?? '', brief);
+    const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief);
     if ('blocked' in quote) {
       blocked[quote.blocked] += 1;
       continue;
@@ -230,7 +244,8 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
   quotes.sort((a, b) => a.projectTotalMin - b.projectTotalMin || b.ratePerMeter - a.ratePerMeter);
 
-  const existingPrice = checklist.existingPrice !== null && checklist.existingPrice > 0 ? checklist.existingPrice : null;
+  const claimed = asNumber(checklist.existingPrice);
+  const existingPrice = claimed !== null && claimed > 0 ? claimed : null;
   const average = quotes.length > 0 ? Math.round(quotes.reduce((sum, q) => sum + q.projectTotalMin, 0) / quotes.length) : null;
 
   // "Beat this price" has one honest answer: only what actually beats it.
@@ -292,7 +307,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     }
 
     if (offers.length) {
-      const asked = materialLabel(checklist.material ?? '') + (checklist.heightKey && checklist.heightKey !== 'any' ? ' at ' + checklist.heightKey : '');
+      const asked = materialLabel(material ?? '') + (heightKey && heightKey !== 'any' ? ' at ' + heightKey : '');
       const previousUi: UiState = checklist._ui ?? { turn: 0, cursor: {}, lastAsked: null, lastQuestion: '', lastValues: [], lastType: 'message', fixing: false, rejectedPlaces: [], nearbyPlaces: {}, suburbHint: null, place: null };
       const uiOut: UiState = {
         ...previousUi,

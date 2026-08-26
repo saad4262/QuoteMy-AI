@@ -95,7 +95,10 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     schema,
   });
 
-  const matcher = state.needsMatcher ? await matchBusinesses('fencing', state.place, state.checklist.suburb, repo) : null;
+  // The checklist's suburb is a display string derived from the confirmed place; the matcher uses it
+  // only to widen its excluded-area comparison, so anything that is not text is simply not there.
+  const suburb = typeof state.checklist.suburb === 'string' ? state.checklist.suburb : null;
+  const matcher = state.needsMatcher ? await matchBusinesses('fencing', state.place, suburb, repo) : null;
 
   const formatted = formatFencingResult({ state, matcher });
   return matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
