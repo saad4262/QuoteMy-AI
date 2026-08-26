@@ -393,8 +393,22 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   if (!(Number(merged.existingPrice) > 0)) merged.existingPrice = null;
 
   const isMissing = (field: ChecklistField): boolean => {
-    if (field === 'suburb') return !place;
-    if (field === 'gateQty') return merged.gateType !== 'none' && (merged.gateQty === null || merged.gateQty === undefined);
+    const spec = specOf(schema.fields, field);
+
+    /* A place is not so much stored as re-derived from the confirmed pick every turn, and ranking
+       measures distance so it needs coordinates - which is why the geocoded object is tested here
+       and never the display string sitting in the checklist. */
+    if (spec?.type === 'place') return !place;
+
+    /* A field whose dependency does not hold is not missing - it does not apply. "No gates" is a
+       complete answer, and asking how many of them there are would be asking about nothing. */
+    const dependency = spec?.dependsOn;
+    if (dependency) {
+      const other = merged[dependency.field];
+      if (dependency.notEquals !== undefined && other === dependency.notEquals) return false;
+      if (dependency.equals !== undefined && other !== dependency.equals) return false;
+    }
+
     const value = merged[field];
     return value === null || value === undefined || value === '';
   };

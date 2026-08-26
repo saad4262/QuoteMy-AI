@@ -342,7 +342,7 @@ unmoved; breaking the pinned short-circuit was confirmed to fail conversations t
 
 ---
 
-### [ ] Step 7 — `isMissing` reads `dependsOn`
+### [x] Step 7 — `isMissing` reads `dependsOn` — DONE
 
 **Goal.** The gate-quantity rule becomes data, so any trade can express "only ask B if A is not X".
 
@@ -354,6 +354,11 @@ value) — that is not a dependency, it is a different source of truth.
 
 **Verify.** `npx vitest run` — **conversation 8 is the one that matters.** If gate quantity gets
 asked when the customer said "no gates", this step is wrong.
+
+**Result.** Both hardcoded names are gone. The suburb case is keyed on `type === 'place'`; the gate
+quantity rule is `spec.dependsOn`, supporting `equals` and `notEquals`. Conversations 1 and 8 cover
+both directions - 1 taps "no gates" and must never be asked a quantity, 8 picks a real gate and must
+be. 185 tests green, snapshots unmoved.
 
 ---
 
