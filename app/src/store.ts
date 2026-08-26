@@ -1,4 +1,4 @@
-import type { ExtraValue } from './vocabulary.js';
+import { resolveExisting, type ExtraValue } from './vocabulary.js';
 import type { Trade } from './vocab.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
 
@@ -400,8 +400,10 @@ export class MemoryRepository implements BusinessRepository {
     const extras = this.extras.get(trade) ?? {};
     const at = new Date().toISOString();
     for (const { slug, label } of seen) {
-      const existing = extras[slug];
-      extras[slug] = existing
+      // Same join as Firestore: a second spelling of one offering must not become a second slug.
+      const key = extras[slug] ? slug : (resolveExisting(label, extras) ?? slug);
+      const existing = extras[key];
+      extras[key] = existing
         ? {
             ...existing,
             aliases: [...new Set([...existing.aliases, label.toLowerCase()])],

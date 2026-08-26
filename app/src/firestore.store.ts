@@ -21,7 +21,7 @@ import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
-import type { ExtraValue } from './vocabulary.js';
+import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
 
 /**
@@ -447,8 +447,13 @@ export class FirestoreRepository implements BusinessRepository {
       const extras = ((snap.exists ? snap.get('extras') : {}) ?? {}) as Record<string, ExtraValue>;
 
       for (const { slug, label } of seen) {
-        const existing = extras[slug];
-        extras[slug] = existing
+        /* The same offering under a different name joins the one that exists rather than starting a
+           second. `slugify` already handles a plural; this handles "Bamboo screening" against
+           "bamboo screen", which would otherwise be two slugs for one thing - each invisible to a
+           search for the other, with no error raised anywhere. */
+        const key = extras[slug] ? slug : (resolveExisting(label, extras) ?? slug);
+        const existing = extras[key];
+        extras[key] = existing
           ? {
               ...existing,
               aliases: [...new Set([...(existing.aliases ?? []), label.toLowerCase()])].slice(0, 12),
@@ -458,7 +463,32 @@ export class FirestoreRepository implements BusinessRepository {
           : { label, aliases: [label.toLowerCase()], businessCount: 1, firstSeen: at, lastSeen: at };
       }
 
-      tx.set(ref, { trade, extras, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      /* The one place the trade's own vocabulary is allowed to grow, and it is never the model that
+         does it. An extra three independent businesses have all offered has stopped being one
+         business's word for something; below that it stays recognised-but-not-offered.
+
+         Adding only. A slug already published keeps its spelling for ever - `CONTEXT.md` §8 - so
+         nothing here renames or removes, and a customer mid-conversation cannot lose an answer they
+         have already given. */
+      const core = ((snap.exists ? snap.get('core') : null) ?? {}) as Record<string, string[]>;
+      const labels = ((snap.exists ? snap.get('labels') : null) ?? {}) as Record<string, Record<string, string>>;
+      const materials = Array.isArray(core.materials) ? core.materials : [...MATERIALS];
+      const promoted = readyForPromotion(extras, materials);
+
+      const write: Record<string, unknown> = { trade, extras, updatedAt: FieldValue.serverTimestamp() };
+      if (promoted.length) {
+        write.core = { ...core, materials: [...materials, ...promoted] };
+        write.labels = {
+          ...labels,
+          materials: { ...(labels.materials ?? {}), ...Object.fromEntries(promoted.map((slug) => [slug, extras[slug]!.label])) },
+        };
+        logger.info(
+          { trade, promoted, businessCount: promoted.map((slug) => extras[slug]!.businessCount) },
+          'extras promoted into the trade vocabulary - every customer is offered these now',
+        );
+      }
+
+      tx.set(ref, write, { merge: true });
     });
   }
 

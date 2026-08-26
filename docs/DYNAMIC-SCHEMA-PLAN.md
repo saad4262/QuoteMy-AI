@@ -707,7 +707,7 @@ and waits. A phone-only call cannot get past that question without a different m
 
 # Phase 3 — Multi-trade
 
-### [ ] Step 18 — Extras promotion ladder
+### [x] Step 18 — Extras promotion ladder — DONE
 
 **Goal.** The rule from the top of this file, made real.
 
@@ -722,6 +722,21 @@ and waits. A phone-only call cannot get past that question without a different m
 
 **Verify.** Unit tests: same offering phrased three different ways lands on one slug with three
 aliases and `businessCount: 3`, then promotes.
+
+**Result.** `resolveExisting(label, extras)` joins a second spelling to the slug that exists, in
+both repositories. Promotion happens inside the same Firestore transaction as the merge, adds to
+`core.materials` and `labels.materials`, never renames or removes anything, and is logged.
+
+**Matching is on words, not edit distance.** Two offerings sharing every distinctive word are the
+same offering; two differing by one letter usually are not ("pool glass" / "pool grass"). A tie
+resolves to nothing - a wrong join has already lost data, a duplicate can still be merged later.
+
+**One thing the test caught.** `slugify` drops a trailing plural, so "bamboo screens" and "bamboo
+screen" already agreed - but "bamboo screening" did not, and became a second slug. That is exactly
+the case the module comment says this is FOR. Words now match on a prefix from five characters, so
+screen/screening join while pool/poolside do not.
+
+231 tests green, snapshots unmoved.
 
 ---
 
