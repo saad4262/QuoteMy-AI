@@ -184,6 +184,30 @@ export interface BusinessRepository {
   saveQuoteResult(resultId: string, doc: QuoteResultDoc): Promise<void>;
   /** Tests, and anything that needs to read back what a customer was shown. */
   getQuoteResult(resultId: string): Promise<QuoteResultDoc | null>;
+
+  // --- voice sessions (src/client/voice/sessions.ts) ---
+
+  /** Null when there is none, or when the one there has gone stale. */
+  readVoiceSession(sessionId: string): Promise<VoiceSession | null>;
+  writeVoiceSession(sessionId: string, session: VoiceSession): Promise<void>;
+}
+
+/**
+ * A voice call's state between turns.
+ *
+ * The text chat keeps none of this: the client holds the checklist and sends it back every turn.
+ * That cannot work here - the state would have to travel through the speech agent's own model,
+ * which is slow and would corrupt it - so voice is the one path with a server-side session.
+ *
+ * `options` is what was last offered, label and value together. `_ui.lastValues` carries the values
+ * alone, which is enough to recognise a tap but not enough to recognise somebody SAYING one of them
+ * out loud, because what they heard was the label.
+ */
+export interface VoiceSession {
+  checklist: Record<string, unknown>;
+  place: unknown;
+  options: { label: string; value: string | number }[];
+  updatedAt: string;
 }
 
 /**
@@ -426,6 +450,16 @@ export class MemoryRepository implements BusinessRepository {
     return this.quoteResults.get(resultId) ?? null;
   }
 
+  private voiceSessions = new Map<string, VoiceSession>();
+
+  async readVoiceSession(sessionId: string): Promise<VoiceSession | null> {
+    return this.voiceSessions.get(sessionId) ?? null;
+  }
+
+  async writeVoiceSession(sessionId: string, session: VoiceSession): Promise<void> {
+    this.voiceSessions.set(sessionId, session);
+  }
+
   /** Tests only - registers a business the candidate search can find. */
   addCandidate(candidate: BusinessCandidate): void {
     this.candidates.set(candidate.uid, candidate);
@@ -440,6 +474,7 @@ export class MemoryRepository implements BusinessRepository {
     this.extras.clear();
     this.chatSpend.clear();
     this.quoteResults.clear();
+    this.voiceSessions.clear();
   }
 }
 

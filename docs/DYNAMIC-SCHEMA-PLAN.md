@@ -601,7 +601,7 @@ closed; the Admin SDK ignores rules).
 
 ---
 
-### [ ] Step 15 — Voice adapter: session store and `matchSpokenToOption`
+### [x] Step 15 — Voice adapter: session store and `matchSpokenToOption` — DONE
 
 **Files.** New: `src/client/voice/sessions.ts`, `src/client/voice/matchSpoken.ts`.
 
@@ -619,9 +619,21 @@ closed; the Admin SDK ignores rules).
 
 **Verify.** Unit tests for `matchSpokenToOption`, including the cases where it must return `null`.
 
+**Result.** `voiceSessions/{sessionId}` in Firestore with a 30-minute TTL, checked on read. `_ui` is
+stored whole and a test asserts it.
+
+**One change to the plan's signature, and it was necessary.** `matchSpokenToOption(spoken,
+lastValues)` cannot recognise somebody saying a choice out loud, because what they HEARD was the
+label and `_ui.lastValues` carries only the values. It takes the offered options - label and value
+together - and those are kept in the voice session. Matching itself reuses `oneOf` from
+`fuzzyMatch.ts`, which already resolves exactly-or-nothing and refuses ties.
+
+A real answer beats a position when the two collide: asked how many gates, "two" is the answer 2,
+not the second choice.
+
 ---
 
-### [ ] Step 16 — `toSpeech` and the voice route
+### [x] Step 16 — `toSpeech` and the voice route — DONE
 
 **Files.** New: `src/client/voice/toSpeech.ts`, `src/client/voice/route.ts`.
 
@@ -642,6 +654,21 @@ whole, `saveChatResult` on result, return speech.
 **Verify.** Drive a full conversation through the voice route with Postman — no Retell needed. Then
 a test asserting **zero** model calls on a spoken-option turn, by injecting a counting `AiClient`
 through `deps.ai` (do not assert on log lines — that is brittle).
+
+**Result.** `POST /api/v1/voice/turn?sessionId=…` returns `{ speakText, isDone, resultId? }`, and
+`POST /api/v1/voice/create-call` mints a session so a browser never invents one. 16 voice tests,
+223 in total, golden snapshots unmoved.
+
+The zero-model turn is measured with a counting client, and the same test asserts the option was
+actually resolved - otherwise "no calls" would pass for the wrong reason.
+
+`toSpeech` refuses to read a suburb list and says it will wait, reads a confirmation as a yes/no
+rather than as lettered choices, and narrates a result instead of reading a table: the cheapest by
+name and price, the rest counted, detail left on the screen.
+
+Every failure leaves the route as speech with `isDone: false`, never a status the agent cannot
+read. A call that gets a 500 goes silent, and silence is the one failure a caller will not sit
+through.
 
 ---
 

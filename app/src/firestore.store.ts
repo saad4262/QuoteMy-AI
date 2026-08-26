@@ -15,6 +15,7 @@ import type {
   StoredTradeSchema,
   SubmissionRecord,
   SubmissionStatus,
+  VoiceSession,
 } from './store.js';
 import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
@@ -526,6 +527,42 @@ export class FirestoreRepository implements BusinessRepository {
     if (!snap.exists) return null;
     const d = snap.data() as DocumentData;
     return { ...d, updatedAt: toIso(d.updatedAt) ?? '' } as QuoteResultDoc;
+  }
+
+  /**
+   * `voiceSessions/{sessionId}`.
+   *
+   * In Firestore rather than in memory from the first day, because this runs on a platform that
+   * starts fresh processes whenever it likes. An in-memory session would lose every call in flight
+   * at a cold start, and the customer would hear a question they had already answered - a failure
+   * that looks random and is close to impossible to reproduce.
+   */
+  private voiceRef = (sessionId: string) => db().collection('voiceSessions').doc(sessionId);
+
+  /** Half an hour. A call that has been quiet longer than that is over, whatever the document says. */
+  private static readonly VOICE_TTL_MS = 30 * 60 * 1000;
+
+  async readVoiceSession(sessionId: string): Promise<VoiceSession | null> {
+    const snap = await this.voiceRef(sessionId).get();
+    if (!snap.exists) return null;
+    const d = snap.data() as DocumentData;
+    const updatedAt = toMillis(d.updatedAt);
+    if (updatedAt && Date.now() - updatedAt > FirestoreRepository.VOICE_TTL_MS) return null;
+    return {
+      checklist: (d.checklist ?? {}) as Record<string, unknown>,
+      place: d.place ?? null,
+      options: Array.isArray(d.options) ? d.options : [],
+      updatedAt: toIso(d.updatedAt) ?? '',
+    };
+  }
+
+  async writeVoiceSession(sessionId: string, session: VoiceSession): Promise<void> {
+    await this.voiceRef(sessionId).set({
+      checklist: session.checklist,
+      place: session.place ?? null,
+      options: session.options,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   }
 
   async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {
