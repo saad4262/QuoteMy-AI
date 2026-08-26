@@ -18,7 +18,7 @@
       "type": "custom",
       "name": "voice_turn",
       "description": "Send the customer's latest words to the quote assistant and get back the exact words to say next. Call this on every single customer turn, including the very first one and including when they say something that does not seem like an answer.",
-      "url": "https://REPLACE-WITH-YOUR-BACKEND/api/v1/voice/turn",
+      "url": "https://quote-my-ai.vercel.app/api/v1/voice/turn",
       "method": "POST",
       "query_params": {
         "sessionId": "{{session_id}}"
@@ -31,7 +31,9 @@
             "description": "The customer's words, transcribed verbatim. Do NOT clean it up, fix grammar, remove filler, summarise it, or map it onto one of the options you read out. Send exactly what you heard. All interpretation happens on the server."
           }
         },
-        "required": ["spokenText"]
+        "required": [
+          "spokenText"
+        ]
       },
       "response_variables": {
         "speak_text": "speakText",
@@ -73,9 +75,22 @@
         "type": "static_text",
         "text": "One moment."
       },
+      "success_edge": {
+        "id": "edge_turn_ok",
+        "destination_node_id": "route"
+      },
+      "failure_edge": {
+        "id": "edge_turn_fail",
+        "destination_node_id": "speak"
+      }
+    },
+    {
+      "id": "route",
+      "name": "Done or keep going",
+      "type": "branch",
       "edges": [
         {
-          "id": "edge_turn_to_finish",
+          "id": "edge_route_finish",
           "transition_condition": {
             "type": "equation",
             "operator": "&&",
@@ -91,8 +106,12 @@
         }
       ],
       "else_edge": {
-        "id": "edge_turn_to_speak",
-        "destination_node_id": "speak"
+        "id": "edge_route_speak",
+        "destination_node_id": "speak",
+        "transition_condition": {
+          "type": "prompt",
+          "prompt": "Else"
+        }
       }
     },
     {

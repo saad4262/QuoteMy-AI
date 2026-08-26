@@ -2,9 +2,9 @@
   "agent_name": "QuoteMy Fencing Voice",
   "response_engine": {
     "type": "conversation-flow",
-    "conversation_flow_id": "REPLACE-WITH-THE-ID-FROM-STEP-2"
+    "conversation_flow_id": "conversation_flow_f53c56682df5"
   },
-  "voice_id": "REPLACE-WITH-A-VOICE-ID-FROM-YOUR-DASHBOARD",
+  "voice_id": "11labs-Noah",
   "language": "en-AU",
   "allow_user_dtmf": false,
   "interruption_sensitivity": 0.9,

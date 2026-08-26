@@ -9,6 +9,25 @@ here.
 
 ---
 
+## Already created on this account
+
+| | |
+|---|---|
+| Conversation flow | `conversation_flow_f53c56682df5` |
+| Agent | `agent_29da95d54d4b96b211dbdf95bf` |
+| Voice | `11labs-Noah` — Australian, male. Swap with any id from `list-voices` |
+
+The files here are the payloads that produced those, verified against the live API. Re-run Steps 2
+and 4 only to create a second flow/agent or to rebuild on another account; to change an existing one
+use `update-conversation-flow` / `update-agent` instead.
+
+**Do not use the dashboard's Import button.** It expects an agent *export bundle* (one object holding
+both `agent` and `conversationFlow`) exported from another Retell workspace. Handing it either file
+here fails with `undefined is not an object (evaluating 'e.conversationFlow.is_transfer_cf')`. The
+API below is the way in.
+
+---
+
 ## Before you start
 
 - A Retell account, and your API key from **Dashboard → API Keys**.
@@ -18,7 +37,7 @@ here.
 Check the backend first — this must answer before anything else is worth doing:
 
 ```bash
-curl -sX POST "https://YOUR-BACKEND/api/v1/voice/create-call"
+curl -sX POST "https://quote-my-ai.vercel.app/api/v1/voice/create-call"
 # {"sessionId":"…","accessToken":null,"configured":false}
 ```
 
@@ -26,15 +45,15 @@ curl -sX POST "https://YOUR-BACKEND/api/v1/voice/create-call"
 
 ---
 
-## Step 1 — Put your backend URL in the flow
+## Step 1 — The backend URL is already in the flow
 
-Open [`conversation-flow.json`](conversation-flow.json) and replace one thing:
+[`conversation-flow.json`](conversation-flow.json) already points at the deployed backend:
 
 ```
-"url": "https://REPLACE-WITH-YOUR-BACKEND/api/v1/voice/turn"
+"url": "https://quote-my-ai.vercel.app/api/v1/voice/turn"
 ```
 
-Nothing else in that file needs editing.
+Change it only if you deploy somewhere else. Nothing else in that file needs editing.
 
 ---
 
@@ -43,7 +62,7 @@ Nothing else in that file needs editing.
 ```bash
 export RETELL_KEY=your_api_key_here
 
-curl -sX POST https://api.retellai.com/v2/create-conversation-flow \
+curl -sX POST https://api.retellai.com/create-conversation-flow \
   -H "authorization: Bearer $RETELL_KEY" \
   -H "content-type: application/json" \
   -d @retell/conversation-flow.json
@@ -69,7 +88,7 @@ There is no way to choose this from here — it is a taste decision and the ids 
 Put the flow id and the voice id into [`agent.json`](agent.json), then:
 
 ```bash
-curl -sX POST https://api.retellai.com/v2/create-agent \
+curl -sX POST https://api.retellai.com/create-agent \
   -H "authorization: Bearer $RETELL_KEY" \
   -H "content-type: application/json" \
   -d @retell/agent.json
@@ -94,7 +113,7 @@ against your account.
 Redeploy, then:
 
 ```bash
-curl -sX POST "https://YOUR-BACKEND/api/v1/voice/create-call"
+curl -sX POST "https://quote-my-ai.vercel.app/api/v1/voice/create-call"
 # {"sessionId":"…","accessToken":"…","configured":true}
 ```
 
@@ -122,11 +141,22 @@ Say *"I need a fence quote"*. Four things to watch, in this order:
 Two fields in the flow are the only ones the published schema left ambiguous. Both are one-line
 fixes, and you will know immediately which one you hit.
 
-### "unknown field tool_id" on the tool, or "tool not found"
+### "must match exactly one schema in oneOf" on a node
 
-Retell may generate tool ids itself rather than accepting ours. If so, remove `"tool_id":
-"voice_turn"` from the object inside `tools`, create the flow, read the generated id out of the
-reply, and put **that** id into the `turn` node's `tool_id`. Then update the flow.
+The node validator prints every `oneOf` branch it tried, so the real cause is one line inside a wall
+of noise. Three rules the published docs do not state, all learned from that wall:
+
+- a `function` node takes `success_edge` and `failure_edge` — never `edges` / `else_edge`
+- every `else_edge` needs a `transition_condition`, and its prompt must be the literal string
+  `"Else"` — no other wording is accepted
+- conditional routing after a function call needs its own `branch` node
+
+All three are already correct in `conversation-flow.json`.
+
+### `POST /v2/create-conversation-flow` returns "Cannot POST"
+
+Those two endpoints are **unversioned** — `/create-conversation-flow` and `/create-agent`, no `/v2`.
+Only `/v2/create-web-call` (which the backend calls, not you) carries the prefix.
 
 ### The agent reads `{{speak_text}}` out loud, literally
 
@@ -148,7 +178,8 @@ default.
 
 ### `language: en-AU` is rejected
 
-Use `en-US` in `agent.json`. It changes the accent, nothing else.
+It is not — `create-agent` accepted it on this account. If a future change rejects it, `en-US` in
+`agent.json` costs you the accent and nothing else.
 
 ---
 
@@ -169,18 +200,23 @@ their docs.
 ## What each node does
 
 ```
-greeting  ──▶  turn  ──[ is_done == "true" ]──▶  finish
-                ▲  │
-                │  └──[ anything else ]──▶  speak
-                └──────────────────────────────┘
+greeting  ──▶  turn  ──▶  route  ──[ is_done == "true" ]──▶  finish
+                ▲                │
+                │                └──[ else ]──▶  speak
+                └──────────────────────────────────────┘
 ```
 
 - **greeting** — one fixed opening line, then listens.
-- **turn** — calls our backend. Waits for the answer (`wait_for_result: true`) and says "One moment"
-  while it waits, because the final turn does real work. It does **not** speak afterwards
-  (`speak_after_execution` is absent) — we do not want a model rewriting our words.
+- **turn** — `function` node, calls our backend. Waits for the answer (`wait_for_result: true`) and
+  says "One moment" while it waits, because the final turn does real work. It does **not** speak
+  afterwards (`speak_after_execution` is absent) — we do not want a model rewriting our words.
+- **route** — `branch` node, the only place the call's ending is decided.
 - **speak** — reads `{{speak_text}}` exactly, listens, loops back.
 - **finish** — reads the last `{{speak_text}}` and hangs up.
+
+A `function` node cannot branch on its own result: it carries `success_edge` / `failure_edge` and
+nothing else. That is why **route** exists as a separate node rather than the `turn` node holding the
+`is_done` edge itself.
 
 The `is_done` edge is an **equation**, not a prompt. Whether a call ends is a fact our backend
 already decided; letting a model judge it gives you calls that hang up mid-sentence, or never hang up
