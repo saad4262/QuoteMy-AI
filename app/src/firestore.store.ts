@@ -9,16 +9,19 @@ import type {
   PendingSubmission,
   PricingDoc,
   PricingStatus,
+  QuoteResultDoc,
   ReviewDoc,
   ServiceExtract,
   StoredTradeSchema,
   SubmissionRecord,
   SubmissionStatus,
+  VoiceSession,
 } from './store.js';
+import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
-import type { ExtraValue } from './vocabulary.js';
+import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
 
 /**
@@ -327,6 +330,7 @@ export class FirestoreRepository implements BusinessRepository {
       },
       labels: CUSTOMER_LABEL_GROUPS,
       questions: QUESTIONS,
+      fields: FENCING_FIELDS,
     };
 
     await db().runTransaction(async (tx) => {
@@ -337,6 +341,9 @@ export class FirestoreRepository implements BusinessRepository {
       if (!snap.exists || !snap.get('core')) seed.core = compiled.core;
       if (!snap.exists || !snap.get('labels')) seed.labels = compiled.labels;
       if (!snap.exists || !snap.get('questions')) seed.questions = compiled.questions;
+      // Same rule as `core`: seeded once so a trade nobody has published still has a chat, and
+      // never overwritten afterwards, so an edit made in the console survives the next boot.
+      if (!snap.exists || !snap.get('fields')) seed.fields = compiled.fields;
       if (!snap.exists) {
         seed.trade = trade;
         seed.schemaVersion = SCHEMA_VERSION;
@@ -377,6 +384,24 @@ export class FirestoreRepository implements BusinessRepository {
         { trade, field, offeredButNotQuotable: notInCode, quotableButNotOffered: notPublished },
         'schema/{trade} differs from vocab.ts - the chat and the extractor disagree about this trade',
       );
+    }
+
+    /* The checklist drifts the same way the vocabulary does, and more quietly: a question dropped
+       from the published spec raises no error anywhere, it is simply never asked again. */
+    const drift = describeFieldDrift(FENCING_FIELDS, snap.get('fields'));
+    if (drift) {
+      if (drift.unknownTypes.length) {
+        logger.error(
+          { trade, fields: drift.unknownTypes },
+          'schema/{trade}.fields names a type the code cannot execute - the whole published spec is being ignored',
+        );
+      }
+      if (drift.dropped.length || drift.added.length) {
+        logger.warn(
+          { trade, neverAsked: drift.dropped, publishedOnly: drift.added },
+          'schema/{trade}.fields differs from the compiled checklist',
+        );
+      }
     }
   }
 
@@ -422,8 +447,13 @@ export class FirestoreRepository implements BusinessRepository {
       const extras = ((snap.exists ? snap.get('extras') : {}) ?? {}) as Record<string, ExtraValue>;
 
       for (const { slug, label } of seen) {
-        const existing = extras[slug];
-        extras[slug] = existing
+        /* The same offering under a different name joins the one that exists rather than starting a
+           second. `slugify` already handles a plural; this handles "Bamboo screening" against
+           "bamboo screen", which would otherwise be two slugs for one thing - each invisible to a
+           search for the other, with no error raised anywhere. */
+        const key = extras[slug] ? slug : (resolveExisting(label, extras) ?? slug);
+        const existing = extras[key];
+        extras[key] = existing
           ? {
               ...existing,
               aliases: [...new Set([...(existing.aliases ?? []), label.toLowerCase()])].slice(0, 12),
@@ -433,7 +463,32 @@ export class FirestoreRepository implements BusinessRepository {
           : { label, aliases: [label.toLowerCase()], businessCount: 1, firstSeen: at, lastSeen: at };
       }
 
-      tx.set(ref, { trade, extras, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      /* The one place the trade's own vocabulary is allowed to grow, and it is never the model that
+         does it. An extra three independent businesses have all offered has stopped being one
+         business's word for something; below that it stays recognised-but-not-offered.
+
+         Adding only. A slug already published keeps its spelling for ever - `CONTEXT.md` §8 - so
+         nothing here renames or removes, and a customer mid-conversation cannot lose an answer they
+         have already given. */
+      const core = ((snap.exists ? snap.get('core') : null) ?? {}) as Record<string, string[]>;
+      const labels = ((snap.exists ? snap.get('labels') : null) ?? {}) as Record<string, Record<string, string>>;
+      const materials = Array.isArray(core.materials) ? core.materials : [...MATERIALS];
+      const promoted = readyForPromotion(extras, materials);
+
+      const write: Record<string, unknown> = { trade, extras, updatedAt: FieldValue.serverTimestamp() };
+      if (promoted.length) {
+        write.core = { ...core, materials: [...materials, ...promoted] };
+        write.labels = {
+          ...labels,
+          materials: { ...(labels.materials ?? {}), ...Object.fromEntries(promoted.map((slug) => [slug, extras[slug]!.label])) },
+        };
+        logger.info(
+          { trade, promoted, businessCount: promoted.map((slug) => extras[slug]!.businessCount) },
+          'extras promoted into the trade vocabulary - every customer is offered these now',
+        );
+      }
+
+      tx.set(ref, write, { merge: true });
     });
   }
 
@@ -467,6 +522,79 @@ export class FirestoreRepository implements BusinessRepository {
    * `savePricing`/`saveCapabilities` stored them - one read instead of the two `getPricing` +
    * `getCapabilities` would cost, which matters once this runs per candidate business.
    */
+  /**
+   * `chatSpend/{day}` - one document a day, shared by every instance.
+   *
+   * A per-process counter is not a ceiling on a platform that runs many of them: each cold start
+   * begins at zero, so the real limit is the ceiling multiplied by however many instances happen to
+   * be alive. `increment` is applied by the server, so two instances recording at the same moment
+   * both count.
+   */
+  private spendRef = (day: string) => db().collection('chatSpend').doc(day);
+
+  async readChatSpend(day: string): Promise<number> {
+    const snap = await this.spendRef(day).get();
+    const total = snap.get('usd');
+    return typeof total === 'number' && Number.isFinite(total) ? total : 0;
+  }
+
+  async addChatSpend(day: string, usd: number): Promise<void> {
+    await this.spendRef(day).set({ usd: FieldValue.increment(usd), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+
+  /**
+   * `quoteResults/{resultId}` - world-readable by design, so the id is the access control. It is a
+   * UUID this service generates; nothing a caller sends ever becomes a document id here.
+   */
+  private resultRef = (resultId: string) => db().collection('quoteResults').doc(resultId);
+
+  async saveQuoteResult(resultId: string, doc: QuoteResultDoc): Promise<void> {
+    await this.resultRef(resultId).set({ ...doc, updatedAt: FieldValue.serverTimestamp() });
+  }
+
+  async getQuoteResult(resultId: string): Promise<QuoteResultDoc | null> {
+    const snap = await this.resultRef(resultId).get();
+    if (!snap.exists) return null;
+    const d = snap.data() as DocumentData;
+    return { ...d, updatedAt: toIso(d.updatedAt) ?? '' } as QuoteResultDoc;
+  }
+
+  /**
+   * `voiceSessions/{sessionId}`.
+   *
+   * In Firestore rather than in memory from the first day, because this runs on a platform that
+   * starts fresh processes whenever it likes. An in-memory session would lose every call in flight
+   * at a cold start, and the customer would hear a question they had already answered - a failure
+   * that looks random and is close to impossible to reproduce.
+   */
+  private voiceRef = (sessionId: string) => db().collection('voiceSessions').doc(sessionId);
+
+  /** Half an hour. A call that has been quiet longer than that is over, whatever the document says. */
+  private static readonly VOICE_TTL_MS = 30 * 60 * 1000;
+
+  async readVoiceSession(sessionId: string): Promise<VoiceSession | null> {
+    const snap = await this.voiceRef(sessionId).get();
+    if (!snap.exists) return null;
+    const d = snap.data() as DocumentData;
+    const updatedAt = toMillis(d.updatedAt);
+    if (updatedAt && Date.now() - updatedAt > FirestoreRepository.VOICE_TTL_MS) return null;
+    return {
+      checklist: (d.checklist ?? {}) as Record<string, unknown>,
+      place: d.place ?? null,
+      options: Array.isArray(d.options) ? d.options : [],
+      updatedAt: toIso(d.updatedAt) ?? '',
+    };
+  }
+
+  async writeVoiceSession(sessionId: string, session: VoiceSession): Promise<void> {
+    await this.voiceRef(sessionId).set({
+      checklist: session.checklist,
+      place: session.place ?? null,
+      options: session.options,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
   async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {
     const snap = await this.extractedRef(uid, trade).get();
     if (!snap.exists) return null;

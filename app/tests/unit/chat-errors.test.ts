@@ -151,15 +151,36 @@ describe('the daily spend ceiling', () => {
     const { assertWithinDailyBudget, recordSpend } = await import('../../src/client/spend.js');
     const ceiling = chatSpendToday().ceilingUsd;
 
-    expect(() => assertWithinDailyBudget()).not.toThrow();
-    recordSpend(ceiling);
-    expect(() => assertWithinDailyBudget()).toThrow(AppError);
+    await expect(assertWithinDailyBudget()).resolves.toBeUndefined();
+    await recordSpend(ceiling);
+    await expect(assertWithinDailyBudget()).rejects.toThrow(AppError);
 
     try {
-      assertWithinDailyBudget();
+      await assertWithinDailyBudget();
     } catch (err) {
       expect((err as AppError).code).toBe('at_capacity');
       expect((err as AppError).status).toBe(503);
     }
+  });
+
+  it('holds the ceiling across instances, not just within one', async () => {
+    // Two "instances" sharing one store, which is what a serverless deployment actually is. Each
+    // has its own module state, so the only thing that can hold a ceiling between them is the
+    // store - and before this the counter lived in the process and there was no ceiling at all.
+    const { assertWithinDailyBudget, recordSpend, resetChatSpend } = await import('../../src/client/spend.js');
+    const shared = new MemoryRepository();
+    const ceiling = chatSpendToday().ceilingUsd;
+
+    // Instance A spends the day's budget.
+    resetChatSpend();
+    await recordSpend(ceiling, shared);
+
+    // Instance B starts cold: nothing of its own recorded, and it must still be refused.
+    resetChatSpend();
+    await expect(assertWithinDailyBudget(shared)).rejects.toThrow(AppError);
+
+    // A different day's store has nothing in it, so a fresh instance is free to talk again.
+    resetChatSpend();
+    await expect(assertWithinDailyBudget(new MemoryRepository())).resolves.toBeUndefined();
   });
 });

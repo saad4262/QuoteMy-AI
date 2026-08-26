@@ -13,6 +13,7 @@ import { formatFencingResult } from './formatResult.js';
 import { matchBusinesses } from './matcher.js';
 import { mergeAndDecide } from './mergeAndDecide.js';
 import { priceAndRank } from './priceAndRank.js';
+import { saveChatResult } from './saveResult.js';
 import type { ChatBody, ChatResponse, Checklist, Place, UiState } from './schemas.js';
 
 /**
@@ -57,7 +58,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   // (process-cached, 5-minute TTL) rather than per turn - this is what makes the chat pick up a
   // business-side vocabulary change without a redeploy, and what will make a second trade a new
   // document rather than a new code path.
-  const schema = await loadTradeSchema('fencing');
+  const schema = await loadTradeSchema('fencing', repo);
 
   /* A tapped option needs no model at all.
      The value came from a list this code generated last turn, so this code already knows exactly
@@ -75,12 +76,12 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   if (tapped) {
     turnResult = { data: SAID_NOTHING, usage: null };
   } else {
-    assertWithinDailyBudget();
+    await assertWithinDailyBudget(repo);
     turnResult = await runTurn(
       { message: input.message, extractedText, docFacts, docSuburbHint, known, ui },
       { ai: deps.ai },
     );
-    recordSpend(turnResult.usage.costUsd);
+    await recordSpend(turnResult.usage.costUsd, repo);
   }
 
   const state = mergeAndDecide({
@@ -95,7 +96,20 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     schema,
   });
 
-  const matcher = state.needsMatcher ? await matchBusinesses('fencing', state.place, state.checklist.suburb, repo) : null;
+  // The checklist's suburb is a display string derived from the confirmed place; the matcher uses it
+  // only to widen its excluded-area comparison, so anything that is not text is simply not there.
+  const suburb = typeof state.checklist.suburb === 'string' ? state.checklist.suburb : null;
+  /* Timed because this is the one step whose cost grows with the number of businesses: a service
+     document is read per candidate. The per-request and per-model-call logs already cover
+     everything else, so request ms minus model ms minus this is Firestore and cold start. */
+  const matchStarted = Date.now();
+  const matcher = state.needsMatcher ? await matchBusinesses('fencing', state.place, suburb, repo) : null;
+  if (state.needsMatcher) {
+    logger.info(
+      { requestId: input.sessionId, ms: Date.now() - matchStarted, candidates: matcher?.diagnostics.candidates ?? 0, matched: matcher?.totalCovering ?? 0 },
+      'matcher',
+    );
+  }
 
   const formatted = formatFencingResult({ state, matcher });
   return matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
@@ -108,7 +122,11 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
 export async function fencingChat(req: Request, res: Response): Promise<void> {
   try {
     const response = await runFencingChat(req.body as ChatBody, filesOf(req));
-    res.status(200).json(response);
+    /* Written from the route rather than from the pipeline: persistence is a transport concern, and
+       keeping it out means `runFencingChat` stays a pure function of its input - which is what lets
+       the golden conversations drive it turn after turn with nothing to clean up in between. */
+    const resultId = await saveChatResult(response);
+    res.status(200).json(resultId ? { ...response, resultId } : response);
   } catch (err) {
     const known = err instanceof AppError;
     const status = known ? err.status : 500;

@@ -110,18 +110,13 @@ export interface Place {
   longitude: number;
 }
 
-export interface Checklist {
-  suburb: string | null;
-  material: string | null;
-  heightKey: string | null;
-  lengthMeters: number | null;
-  removal: Removal | null;
-  conditions: string[] | null;
-  gateType: GateChoice | null;
-  gateQty: number | null;
-  existingPrice: number | null;
-  _ui?: UiState;
-}
+/**
+ * Whatever this trade's fields are, plus the session state. Untyped on purpose: the field set is
+ * published per trade, so naming fencing's keys here would make a second trade a code change -
+ * which is the whole thing this migration removes. `_ui` stays typed because it is ours, not the
+ * trade's, and every one of its fields exists to stop a bug the comments describe.
+ */
+export type Checklist = Record<string, unknown> & { _ui?: UiState };
 
 export interface ChatOption {
   label: string;
@@ -132,7 +127,7 @@ export interface ChecklistDisplayEntry {
   title: string;
   value: string;
 }
-export type ChecklistDisplay = Partial<Record<ChecklistField, ChecklistDisplayEntry>>;
+export type ChecklistDisplay = Record<string, ChecklistDisplayEntry>;
 
 export interface QuoteResult {
   businessId: string;
@@ -195,4 +190,9 @@ export interface ChatResponse {
   avgRatePerMeter: number | null;
   comparison?: Comparison | null;
   alternatives?: AlternativeOffer[];
+  /**
+   * Where the finished quote was written, so the page can listen to it. Added by the route, not by
+   * the pipeline, and only on a turn that produced a result - see `saveResult.ts`.
+   */
+  resultId?: string;
 }

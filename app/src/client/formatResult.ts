@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, askedFields, specOf } from './fieldSpec.js';
 import { questionFor } from './schema.js';
 import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
@@ -17,26 +18,7 @@ import type { ChecklistField } from './vocab.js';
  * published rates).
  */
 
-const PAGE_SIZE = 3;
-const PINNED: Partial<Record<ChecklistField, ChatOption>> = {
-  removal: { label: 'Nothing to remove', value: 'none' },
-  conditions: { label: 'Nothing tricky', value: 'none' },
-  gateType: { label: 'No gates', value: 'none' },
-};
-
 const WANTS_MORE = /\b(more|other|others|another|different|else|alternativ\w*|aur|koi\s+aur)\b/i;
-
-/** What each field is called on screen - the brief panel, and the "which one?" correction turn. */
-const FIELD_TITLES: Record<ChecklistField, string> = {
-  suburb: 'Suburb',
-  material: 'Material',
-  heightKey: 'Height',
-  lengthMeters: 'Length',
-  removal: 'Old fence',
-  conditions: 'Site conditions',
-  gateType: 'Gate',
-  gateQty: 'Gates',
-};
 
 export interface FormatResultInput {
   state: MergedState;
@@ -53,15 +35,21 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
   // Bound to the schema document this conversation loaded, so every label on screen is the
   // business side's current wording rather than a copy compiled into this file.
   const labelFor = state.labelFor;
+  // Titles, pinned answers and page sizes now belong to the trade's own field spec, so this file
+  // no longer knows anything fencing-specific about them.
+  const fields = state.schema.fields;
+  const titleOf = (field: ChecklistField): string => specOf(fields, field)?.title ?? field;
 
   const sources = { ...state.sources };
   let missing = state.missing.slice();
   let nextField = state.nextField;
 
-  // A single published height is not a question - fill it in rather than asking.
-  if (nextField === 'heightKey' && (sources.heightKey || []).length === 1) {
-    checklist.heightKey = sources.heightKey[0]!;
-    missing = missing.filter((field) => field !== 'heightKey');
+  // A single published option is not a question - fill it in rather than asking. Opt-in per field:
+  // where a pinned "none of this" answer exists, one real choice still needs asking.
+  const nextSpec = nextField ? specOf(fields, nextField) : undefined;
+  if (nextSpec?.fillWhenSingle && (sources[nextSpec.key] ?? []).length === 1) {
+    (checklist as Record<string, unknown>)[nextSpec.key] = sources[nextSpec.key]![0]!;
+    missing = missing.filter((field) => field !== nextSpec.key);
     nextField = missing.length ? missing[0]! : null;
   }
 
@@ -75,8 +63,10 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
 
   const buildOptions = (field: ChecklistField): ChatOption[] => {
     const list = sources[field as keyof typeof sources] ?? [];
-    const pinned = PINNED[field] ?? null;
-    const slots = pinned ? PAGE_SIZE - 1 : PAGE_SIZE;
+    const spec = specOf(fields, field);
+    const pinned: ChatOption | null = spec?.pinned ? { ...spec.pinned } : null;
+    const pageSize = spec?.pageSize ?? DEFAULT_PAGE_SIZE;
+    const slots = pinned ? pageSize - 1 : pageSize;
 
     let cursor = Number(cursors[field] || 0);
     if (!Number.isFinite(cursor) || cursor < 0) cursor = 0;
@@ -144,7 +134,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
             : 'No fencing business covers ' + failed + ' yet.';
 
     if (suggestions.length) {
-      const shown = suggestions.slice(0, PAGE_SIZE);
+      const shown = suggestions.slice(0, DEFAULT_PAGE_SIZE);
       nearbyOffered = {};
       for (const area of shown) {
         const label = [area.suburb, area.state, area.postcode].filter(Boolean).join(', ');
@@ -211,7 +201,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
 
     message = "Sorry, I didn't catch which one — which of these should I change?";
     type = 'question';
-    options = answered.slice(0, PAGE_SIZE).map((field) => ({ label: FIELD_TITLES[field], value: field }));
+    options = answered.slice(0, DEFAULT_PAGE_SIZE).map((field) => ({ label: titleOf(field), value: field }));
     options.push({ label: 'Other', value: '__other__' });
     fixing = true; // still correcting - the next reply must keep the same freedom to move a field
   } else if (nextField) {
@@ -301,7 +291,8 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
   };
 
   const checklistDisplay: ChecklistDisplay = {};
-  for (const field of Object.keys(FIELD_TITLES) as ChecklistField[]) {
+  for (const spec of askedFields(fields)) {
+    const field = spec.key as ChecklistField;
     const value = checklist[field];
     if (value === null || value === undefined || value === ('' as unknown)) continue;
     let text: string;
@@ -311,7 +302,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     } else if (field === 'removal') text = value === 'none' ? 'Nothing to remove' : labelFor('removal', value);
     else if (field === 'gateType') text = value === 'none' ? 'No gates' : labelFor('gateType', value);
     else text = labelFor(field, value);
-    const entry: ChecklistDisplayEntry = { title: FIELD_TITLES[field], value: text };
+    const entry: ChecklistDisplayEntry = { title: titleOf(field), value: text };
     checklistDisplay[field] = entry;
   }
 

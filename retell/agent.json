@@ -1,0 +1,13 @@
+{
+  "agent_name": "QuoteMy Fencing Voice",
+  "response_engine": {
+    "type": "conversation-flow",
+    "conversation_flow_id": "conversation_flow_f53c56682df5"
+  },
+  "voice_id": "11labs-Noah",
+  "language": "en-AU",
+  "allow_user_dtmf": false,
+  "interruption_sensitivity": 0.9,
+  "responsiveness": 1,
+  "max_call_duration_ms": 900000
+}

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { business } from './controller.js';
 import { fencingChat } from './client/controller.js';
+import { createVoiceCall, voiceTurn, voiceTurnBody } from './client/voice/controller.js';
 import { chatBody } from './client/schemas.js';
 import { chatIpLimiter, chatLimiter } from './client/limits.js';
 import { chatSpendToday } from './client/spend.js';
@@ -66,3 +67,15 @@ routes.post(
   chatLimiter,
   fencingChat,
 );
+
+/**
+ * The customer side again, spoken. One turn per call, same pipeline, same guards - the only thing
+ * that differs is that the words arrive transcribed and leave as words to be read out.
+ *
+ * `sessionId` is a query parameter rather than part of the body on purpose: the speech agent fills
+ * the body from what it heard, and a session id is not something anybody says out loud.
+ */
+routes.post('/voice/turn', chatIpLimiter, validateBody(voiceTurnBody), voiceTurn);
+
+/** A browser about to start a call asks for a session here, so it never invents one itself. */
+routes.post('/voice/create-call', submitLimiter, createVoiceCall);

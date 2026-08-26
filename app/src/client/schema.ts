@@ -1,9 +1,10 @@
 import { logger } from '../config.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from '../messages.js';
-import { getRepository } from '../store.js';
+import { getRepository, type BusinessRepository } from '../store.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
-import { HEIGHT_FALLBACK, LENGTHS, QUANTITIES, type ChecklistField } from './vocab.js';
+import { FENCING_FIELDS, FIELD_TYPES, specOf, type FieldSpec } from './fieldSpec.js';
+import { type ChecklistField } from './vocab.js';
 
 /**
  * The trade's vocabulary, read from Firestore `schema/{trade}` at the start of a conversation.
@@ -35,7 +36,17 @@ export interface TradeSchema {
     conditions: Record<string, string>;
     removes: Record<string, string>;
   };
+  /**
+   * Wording PUBLISHED for this trade, and only that - not a copy of the compiled defaults. Keeping
+   * the two apart is what lets an override be told from a default: a document that says nothing
+   * about a question leaves the field's own wording standing, and one that does say something wins.
+   */
   questions: Record<string, string>;
+  /**
+   * Which fields this trade's checklist has, in the order they are asked. Compiled for now; the
+   * whole point of `docs/DYNAMIC-SCHEMA-PLAN.md` is that this ends up published alongside `core`.
+   */
+  fields: FieldSpec[];
   extras: Record<string, ExtraValue>;
   /** False when this fell back to the compiled vocabulary - surfaced in logs, not to the customer. */
   fromFirestore: boolean;
@@ -62,7 +73,8 @@ function fallbackSchema(trade: Trade, extras: Record<string, ExtraValue> = {}): 
       conditions: { ...CUSTOMER_LABEL_GROUPS.conditions },
       removes: { ...CUSTOMER_LABEL_GROUPS.removes },
     },
-    questions: { ...FALLBACK_QUESTIONS },
+    questions: {},
+    fields: [...FENCING_FIELDS],
     extras,
     fromFirestore: false,
   };
@@ -83,18 +95,65 @@ const map = (value: unknown, fallback: Record<string, string>): Record<string, s
  * the worst case is a customer part-way through a chat seeing a material a business added four
  * minutes ago - which is the right way round.
  */
+/**
+ * A published field spec this code cannot execute is worse than no published spec at all: it
+ * reaches a customer as a question with no answers, or a field nothing knows how to validate.
+ *
+ * Checked once at load, and an unusable document falls back WHOLE to the compiled spec rather than
+ * being half-used - a half-applied spec is the shape of bug that looks like the chat forgetting a
+ * question rather than like a bad document.
+ */
+function structurallyUsable(fields: unknown, trade: Trade): FieldSpec[] | null {
+  if (!Array.isArray(fields) || !fields.length) return null;
+
+  const refuse = (why: string): null => {
+    logger.warn({ trade, why }, 'published field spec is unusable, falling back to the compiled one');
+    return null;
+  };
+
+  const specs: FieldSpec[] = [];
+  const keys = new Set<string>();
+  for (const entry of fields) {
+    const spec = entry as FieldSpec;
+    if (!spec || typeof spec.key !== 'string' || !spec.key) return refuse('a field has no key');
+    if (keys.has(spec.key)) return refuse(`${spec.key} is named twice`);
+    if (!FIELD_TYPES.includes(spec.type)) return refuse(`${spec.key} has unknown type ${String(spec.type)}`);
+    keys.add(spec.key);
+    specs.push(spec);
+  }
+
+  for (const spec of specs) {
+    if (spec.dependsOn && !keys.has(spec.dependsOn.field)) {
+      return refuse(`${spec.key} depends on ${spec.dependsOn.field}, which is not a field`);
+    }
+    if (spec.optionsKeyedBy && !keys.has(spec.optionsKeyedBy)) {
+      return refuse(`${spec.key} is keyed by ${spec.optionsKeyedBy}, which is not a field`);
+    }
+  }
+  return specs;
+}
+
+/** A multiple choice with nothing in it is a dead end, so a field that cannot offer one is refused. */
+function canOffer(schema: TradeSchema, spec: FieldSpec): boolean {
+  if (spec.type !== 'enum' && spec.type !== 'multiEnum') return true; // free text is a real answer
+  if (spec.options?.length) return true;
+  const published = spec.source ? at(schema, spec.source) : undefined;
+  if (Array.isArray(published) && published.length) return true;
+  return Boolean(spec.optionsKeyedBy && published && typeof published === 'object');
+}
+
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<Trade, { at: number; value: TradeSchema }>();
 
 export const clearSchemaCache = () => cache.clear();
 
-export async function loadTradeSchema(trade: Trade): Promise<TradeSchema> {
+export async function loadTradeSchema(trade: Trade, repo: BusinessRepository = getRepository()): Promise<TradeSchema> {
   const hit = cache.get(trade);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   let value = fallbackSchema(trade);
   try {
-    const stored = await getRepository().getTradeSchema(trade);
+    const stored = await repo.getTradeSchema(trade);
     if (stored) {
       const base = fallbackSchema(trade, stored.extras ?? {});
       value = {
@@ -115,8 +174,19 @@ export async function loadTradeSchema(trade: Trade): Promise<TradeSchema> {
           removes: map(stored.labels?.removes, base.labels.removes),
         },
         questions: { ...base.questions, ...(stored.questions ?? {}) },
-        fromFirestore: Boolean(stored.core || stored.labels || stored.questions),
+        fields: structurallyUsable(stored.fields, trade) ?? base.fields,
+        fromFirestore: Boolean(stored.core || stored.labels || stored.questions || stored.fields),
       };
+
+      // Only now is the whole document assembled, so only now can a field's source be resolved.
+      const dead = value.fields.filter((spec) => !canOffer(value, spec));
+      if (dead.length) {
+        logger.warn(
+          { trade, fields: dead.map((spec) => spec.key) },
+          'published field spec has questions with no answers, falling back to the compiled one',
+        );
+        value = { ...value, fields: [...base.fields] };
+      }
     }
   } catch (err) {
     // A schema we cannot read is not a reason to refuse a conversation - the compiled vocabulary
@@ -129,48 +199,55 @@ export async function loadTradeSchema(trade: Trade): Promise<TradeSchema> {
 }
 
 /**
- * The choice list behind each question. Materials, gates, conditions and removals are the trade's
- * vocabulary and come from the schema; lengths and quantities do not - a length is a measurement
- * and a count is a count, neither is something a business publishes rates against.
+ * The choice list behind each question, keyed by field. Every list comes from the trade's own field
+ * spec: either a path into the schema document (the trade's vocabulary) or a literal list for the
+ * things no business publishes rates against - a length is a measurement and a count is a count.
  */
-export interface Sources {
-  material: string[];
-  removal: string[];
-  conditions: string[];
-  gateType: string[];
-  lengthMeters: (string | number)[];
-  gateQty: (string | number)[];
-  heightKey: string[];
-}
+export type Sources = Record<string, (string | number)[]>;
 
-export function sourcesFrom(schema: TradeSchema): Sources {
-  return {
-    material: [...schema.core.materials],
-    removal: [...schema.core.removes],
-    conditions: [...schema.core.conditions],
-    gateType: [...schema.core.gateTypes],
-    lengthMeters: [...LENGTHS],
-    gateQty: [...QUANTITIES],
-    heightKey: [],
-  };
+/** Dotted path into the loaded schema: `core.materials` -> `schema.core.materials`. */
+function at(schema: TradeSchema, path: string): unknown {
+  return path
+    .split('.')
+    .reduce<unknown>((node, key) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[key] : undefined), schema);
 }
 
 /**
- * Heights for a material. `core.heights` may be a flat list, or a map keyed by material for a
- * trade whose heights differ by type. Neither is published today, so this normally returns the
- * built-in band list - and a height nobody nearby actually builds is caught at the end, by the
- * alternatives fallback in `priceAndRank.ts`, where the answer is "here is what somebody CAN do".
+ * One field's options.
+ *
+ * `keyedByValue` is only consulted for a field whose published options are a map rather than a
+ * list - fencing heights, for a trade that builds different types to different heights. A flat
+ * published list wins over it, and the spec's literal list is the last resort. Neither is published
+ * today, so this normally returns the literal list, and a height nobody nearby actually builds is
+ * caught at the end by the alternatives fallback in `priceAndRank.ts`.
  */
-export function heightsFor(schema: TradeSchema, material: string | null): string[] {
-  const published = schema.core.heights;
+export function optionsFor(schema: TradeSchema, spec: FieldSpec, keyedByValue?: string | null): (string | number)[] {
+  const published = spec.source ? at(schema, spec.source) : undefined;
+
   if (Array.isArray(published) && published.length) return [...published];
-  if (published && typeof published === 'object') {
-    const byMaterial = published as Record<string, string[]>;
-    const key = Object.keys(byMaterial).find((candidate) => candidate.toLowerCase() === String(material ?? '').toLowerCase());
-    const found = key ? byMaterial[key] : null;
+
+  if (spec.optionsKeyedBy && published && typeof published === 'object') {
+    const byKey = published as Record<string, unknown>;
+    const wanted = String(keyedByValue ?? '').toLowerCase();
+    const key = Object.keys(byKey).find((candidate) => candidate.toLowerCase() === wanted);
+    const found = key ? byKey[key] : null;
     if (Array.isArray(found) && found.length) return [...found];
   }
-  return [...HEIGHT_FALLBACK];
+
+  return spec.options ? [...spec.options] : [];
+}
+
+/**
+ * Every field's options at the start of a turn. A field whose options are keyed by another answer
+ * gets an empty list here and is filled in by the caller once that answer exists - which is what
+ * keeps the off-list height check from running before a material has been chosen.
+ */
+export function sourcesFrom(schema: TradeSchema): Sources {
+  const sources: Sources = {};
+  for (const spec of schema.fields) {
+    sources[spec.key] = spec.optionsKeyedBy ? [] : optionsFor(schema, spec);
+  }
+  return sources;
 }
 
 const GROUPS: Partial<Record<ChecklistField, keyof TradeSchema['labels']>> = {
@@ -205,9 +282,17 @@ export function makeLabelFor(schema: TradeSchema) {
 
 export type LabelFor = ReturnType<typeof makeLabelFor>;
 
-/** The question text for a field, from the schema, falling back to the compiled wording. */
+/**
+ * The wording a field is asked in.
+ *
+ * A wording published in the trade's `questions` map wins, because saying it there is an explicit
+ * override and there is a test that says so. Otherwise the field's own spec answers, which is where
+ * wording belongs now and the one place to edit it. The compiled map is the last resort, for a
+ * trade whose document has not been published yet.
+ */
 export function questionFor(schema: TradeSchema, field: string): string {
-  return String(schema.questions[field] || FALLBACK_QUESTIONS[field] || '').trim() || field;
+  const spec = specOf(schema.fields, field);
+  return String(schema.questions[field] || spec?.question || FALLBACK_QUESTIONS[field] || '').trim() || field;
 }
 
 export { titleCase };

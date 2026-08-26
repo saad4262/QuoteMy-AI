@@ -60,5 +60,33 @@ service cloud.firestore {
         allow write: if false;
       }
     }
+
+    // The finished quote for one customer, so their results page can listen for it. Written only by
+    // this service.
+    //
+    // Readable without auth on purpose: a customer asking for a quote has not signed in, and asking
+    // them to before they can see it would lose the job. The id is what protects the document - a
+    // UUID this service generates, never anything a caller sent. It carries business names, real
+    // prices, the customer's suburb and whatever they were quoted elsewhere, so an id anyone could
+    // guess would hand all of that to them.
+    //
+    // If that trade ever stops being acceptable, the fix is to key these by the Firebase Auth uid
+    // and require a signed-in customer - not to add a rule here, which cannot tell the difference.
+    match /quoteResults/{resultId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // What the customer chat has spent today. The service's own bookkeeping; nobody else reads or
+    // writes it, and a client that could would be able to talk us past our own ceiling.
+    match /chatSpend/{day} {
+      allow read, write: if false;
+    }
+
+    // The trade vocabulary and checklist the chat is built from. Read by the service with the Admin
+    // SDK, which ignores these rules; no client has any business touching it.
+    match /schema/{trade} {
+      allow read, write: if false;
+    }
   }
 }

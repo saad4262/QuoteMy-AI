@@ -1,9 +1,10 @@
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
-import { heightsFor, makeLabelFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
+import { askedFields, specOf } from './fieldSpec.js';
+import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, TurnExtraction, UiState } from './schemas.js';
-import { ALL_FIELDS, FIELDS, type ChecklistField } from './vocab.js';
+import { type ChecklistField } from './vocab.js';
 
 /**
  * Everything the conversation knows, settled in one place, before anything is said back. Ported
@@ -16,48 +17,61 @@ import { ALL_FIELDS, FIELDS, type ChecklistField } from './vocab.js';
  */
 
 /**
- * Extras are things one business offers that the trade vocabulary has no slug for - deliberately
- * absent from the material choice list, so they never appear as one of three options (most
- * businesses can't do them, and putting one there pushes out something everybody sells). A
- * customer who names one by hand is naming something real, so it is still recognised.
- */
-function materialChoices(schema: TradeSchema): string[] {
-  return [...schema.core.materials, ...Object.keys(schema.extras)];
-}
-
-/**
- * Field-aware validation - every value from the model, the attachment or the customer's own typed
- * reply passes through here before it is allowed into the checklist. Every list it validates
- * against comes from the trade's own schema document, so a business-side vocabulary change is
- * accepted here the moment it is published.
+ * Type-aware validation - every value from the model, the attachment or the customer's own typed
+ * reply passes through here before it is allowed into the checklist.
+ *
+ * It dispatches on the field's TYPE, never on its name, which is what lets a trade this code has
+ * never heard of validate its own answers. The types are a closed set (`fieldSpec.ts`): a published
+ * document selects one, it can never invent one. Every list validated against comes from the
+ * trade's own schema document, so a business-side vocabulary change is accepted the moment it is
+ * published.
  */
 function validate(field: string, value: unknown, schema: TradeSchema, labelFor: LabelFor): unknown {
   if (value === null || value === undefined) return null;
-  switch (field as ChecklistField | 'existingPrice') {
-    case 'suburb':
+  const spec = specOf(schema.fields, field);
+  if (!spec) return null;
+
+  const label = (entry: string) => labelFor(field as ChecklistField, entry);
+  const choices = () => optionsFor(schema, spec).map(String);
+
+  switch (spec.type) {
+    case 'place':
       return null; // never trusted from anywhere but the picker - see mergeAndDecide()
-    case 'material':
-      return oneOf(value, materialChoices(schema), (entry) => labelFor('material', entry));
-    case 'heightKey':
+
+    case 'enum': {
+      /* A pinned answer is the field's own "there is none of this" - "No gates", "Nothing to
+         remove". It is not part of the trade's vocabulary and must not be read against it, so a
+         negative resolves straight to it. Keyed off the spec rather than off the field's name,
+         which is what previously tied this to removal and gateType. */
+      if (spec.pinned && (slug(value) === spec.pinned.value || NOTHING.test(String(value || '')))) {
+        return spec.pinned.value;
+      }
+      /* Extras are things one business offers that the trade vocabulary has no slug for -
+         deliberately absent from the choice list, so they never push out something everybody
+         sells. A customer who names one by hand is naming something real, so it is recognised. */
+      const list = spec.acceptsExtras ? [...choices(), ...Object.keys(schema.extras)] : choices();
+      return oneOf(value, list, label);
+    }
+
+    case 'multiEnum':
+      // No pinned short-circuit: an explicit "nothing tricky" is a valid EMPTY answer here, which
+      // conditionsFrom already tells apart from "not asked yet".
+      return conditionsFrom(value, choices(), label);
+
+    case 'measure':
       return heightKeyFrom(value);
-    case 'lengthMeters':
+
+    case 'number':
       return positiveNumber(value);
-    case 'removal':
-      return slug(value) === 'none' || NOTHING.test(String(value || ''))
-        ? 'none'
-        : oneOf(value, schema.core.removes, (entry) => labelFor('removal', entry));
-    case 'conditions':
-      return conditionsFrom(value, schema.core.conditions, (entry) => labelFor('conditions', entry));
-    case 'gateType':
-      return slug(value) === 'none' || NOTHING.test(String(value || ''))
-        ? 'none'
-        : oneOf(value, schema.core.gateTypes, (entry) => labelFor('gateType', entry));
-    case 'gateQty': {
+
+    case 'count': {
       const n = positiveNumber(value);
       return n === null ? null : Math.round(n);
     }
-    case 'existingPrice':
+
+    case 'money':
       return positiveNumber(value);
+
     default:
       return null;
   }
@@ -289,10 +303,16 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      What still gets through is the direct resolution below: a tap or a typed answer to the
      question actually on screen is resolved in code, never by the model, so a genuine answer the
      model happened to misjudge is not lost. */
+  /* Which fields exist and what order they are asked in belongs to the trade's own spec now.
+     `everyField` includes the ones never asked - existingPrice is merged and validated like any
+     other value, it just has no question. */
+  const everyField = schema.fields.map((spec) => spec.key);
+  const askedInOrder = askedFields(schema.fields).map((spec) => spec.key as ChecklistField);
+
   const docFacts = parsed.offTopic ? {} : input.docFacts;
   const agentChecklist = parsed.offTopic ? {} : (parsed.checklist || {});
   const merged: Record<string, unknown> = {};
-  for (const field of ALL_FIELDS) {
+  for (const field of everyField) {
     const knownValue = validate(field, (known as Record<string, unknown>)[field], schema, labelFor);
     const agentValue = validate(field, (agentChecklist as Record<string, unknown>)[field], schema, labelFor);
     const docValue = validate(
@@ -348,7 +368,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   }
 
   const clearedFields: string[] = [];
-  for (const field of ALL_FIELDS) {
+  for (const field of everyField) {
     if (!namedWrong.has(slug(field))) continue;
     /* "Actually make it two gates" names a field AND replaces it in the same breath, and clearing
        it would throw the new answer away and ask for it again. But only a DIFFERENT value counts
@@ -379,30 +399,58 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   if (!(Number(merged.existingPrice) > 0)) merged.existingPrice = null;
 
   const isMissing = (field: ChecklistField): boolean => {
-    if (field === 'suburb') return !place;
-    if (field === 'gateQty') return merged.gateType !== 'none' && (merged.gateQty === null || merged.gateQty === undefined);
+    const spec = specOf(schema.fields, field);
+
+    /* A place is not so much stored as re-derived from the confirmed pick every turn, and ranking
+       measures distance so it needs coordinates - which is why the geocoded object is tested here
+       and never the display string sitting in the checklist. */
+    if (spec?.type === 'place') return !place;
+
+    /* A field whose dependency does not hold is not missing - it does not apply. "No gates" is a
+       complete answer, and asking how many of them there are would be asking about nothing. */
+    const dependency = spec?.dependsOn;
+    if (dependency) {
+      const other = merged[dependency.field];
+      if (dependency.notEquals !== undefined && other === dependency.notEquals) return false;
+      if (dependency.equals !== undefined && other !== dependency.equals) return false;
+    }
+
     const value = merged[field];
     return value === null || value === undefined || value === '';
   };
 
   const sources: Sources = sourcesFrom(schema);
-  if (merged.material) sources.heightKey = heightsFor(schema, String(merged.material));
+  // A field whose options are keyed by another answer had no list until now. Fencing heights are
+  // the case: a trade that builds different types to different heights publishes them keyed by
+  // material, and until a material is chosen there is nothing to offer.
+  for (const spec of schema.fields) {
+    if (!spec.optionsKeyedBy) continue;
+    const keyValue = merged[spec.optionsKeyedBy];
+    if (keyValue) sources[spec.key] = optionsFor(schema, spec, String(keyValue));
+  }
 
-  // A height nobody builds at is not an answer, however clearly it was typed. Not silently
-  // rounded either: 1.65m snapped to 1.8m is a different fence at a different price.
+  /* A measurement nobody builds at is not an answer, however clearly it was typed. Not silently
+     rounded either: 1.65m snapped to 1.8m is a different fence at a different price. Only one
+     `measure` field exists today (height), which is why one off-list value is carried rather than
+     a map - a second one should widen this rather than pick the first. */
   let offListHeight: string | null = null;
-  if (merged.heightKey && sources.heightKey.length) {
-    const wanted = Number.parseFloat(String(merged.heightKey));
-    const onList = sources.heightKey.find((entry) => Math.abs(Number.parseFloat(String(entry)) - wanted) < 0.001);
-    if (onList === undefined) {
-      offListHeight = String(merged.heightKey);
-      merged.heightKey = null;
-    } else {
-      merged.heightKey = onList;
+  const measured = schema.fields.find((spec) => spec.type === 'measure');
+  if (measured) {
+    const list = sources[measured.key] ?? [];
+    const value = merged[measured.key];
+    if (value && list.length) {
+      const wanted = Number.parseFloat(String(value));
+      const onList = list.find((entry) => Math.abs(Number.parseFloat(String(entry)) - wanted) < 0.001);
+      if (onList === undefined) {
+        offListHeight = String(value);
+        merged[measured.key] = null;
+      } else {
+        merged[measured.key] = onList;
+      }
     }
   }
 
-  const missing = FIELDS.filter(isMissing);
+  const missing = askedInOrder.filter(isMissing);
   const nextField = missing.length ? missing[0]! : null;
 
   const turn = Number(ui.turn || 0) + 1;
@@ -421,7 +469,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      reopened, no value replaced. Saying "I didn't catch that" and offering the list is the only
      honest answer - handing back the same recap makes it look like the chat is ignoring them,
      which is exactly what a customer reported after typing "lenght". */
-  const changedSomething = ALL_FIELDS.some((field) => {
+  const changedSomething = everyField.some((field) => {
     // The suburb is the one field `validate` always answers null for - it is written from the
     // confirmed place, not from the checklist - so comparing its validated form would report a
     // change on every single turn and hide every unresolved one behind it.

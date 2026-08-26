@@ -170,3 +170,74 @@ export async function recordExtras(trade: Trade, seen: OfferingSeen[]): Promise<
     logger.warn({ err, trade }, 'could not record trade extras');
   }
 }
+
+// ------------------------------------------------------------------------------------------------
+// The one place vocabulary is allowed to grow.
+
+/**
+ * The same offering, phrased differently, resolved back to the slug that already exists.
+ *
+ * `slugify` handles the easy half - "bamboo screens" and "bamboo screen" already land together. It
+ * cannot handle "Bamboo screening", "bamboo privacy screen" or "screening - bamboo", and each of
+ * those creates a second slug for one real thing. Both are then invisible to a search for the
+ * other, with no error raised anywhere: `CONTEXT.md` §8's silent, permanent failure.
+ *
+ * Matched on words rather than on edit distance. Two offerings that share every distinctive word
+ * are the same offering; two that differ by one letter usually are not ("pool glass" and "pool
+ * grass"). Ties resolve to nothing, the same discipline as `oneOf` - a wrong join is worse than a
+ * duplicate, because a duplicate can still be merged later and a wrong join has already lost data.
+ */
+/**
+ * "screen" and "screening" are one word for this purpose; "pool" and "poolside" are not.
+ *
+ * `slugify` already drops a trailing plural, which is the common case. What it cannot do is the
+ * other endings the same offering gets written with - screen/screening, paint/painted - and each of
+ * those is a second slug for one real thing. A prefix is enough to join them, but only from five
+ * characters: below that too many unrelated words share a start.
+ */
+const sameWord = (a: string, b: string): boolean => {
+  if (a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length >= 5 && long.startsWith(short);
+};
+
+export function resolveExisting(label: string, extras: Record<string, ExtraValue>): string | null {
+  const wanted = slugify(label).split('-').filter((word) => word.length > 2);
+  if (!wanted.length) return null;
+
+  const scored: { slug: string; shared: number }[] = [];
+  for (const [slug, value] of Object.entries(extras)) {
+    // Its own slug and every spelling any business has used for it.
+    const known = [...new Set(
+      [slug, ...(value.aliases ?? []), value.label ?? '']
+        .flatMap((text) => slugify(String(text)).split('-'))
+        .filter((word) => word.length > 2),
+    )];
+    if (!known.length) continue;
+
+    const shared = wanted.filter((word) => known.some((entry) => sameWord(word, entry))).length;
+    // Every distinctive word of the shorter phrase has to be answered by the longer one.
+    if (shared && shared === Math.min(wanted.length, known.length)) scored.push({ slug, shared });
+  }
+
+  scored.sort((a, b) => b.shared - a.shared);
+  if (!scored.length) return null;
+  return scored.length === 1 || scored[0]!.shared > scored[1]!.shared ? scored[0]!.slug : null;
+}
+
+/**
+ * How many independent businesses have to offer something before every customer is shown it.
+ *
+ * One business naming a thing is that business's own offering: it is recognised when a customer
+ * types it, and never put on screen as one of three choices, because most businesses cannot do it
+ * and offering it pushes out something everybody sells. Three is where it stops being one
+ * business's word for something and starts being the trade's.
+ */
+export const PROMOTE_AT = 3;
+
+/** Which extras have earned a place in the trade's own vocabulary. */
+export function readyForPromotion(extras: Record<string, ExtraValue>, core: readonly string[]): string[] {
+  return Object.entries(extras)
+    .filter(([slug, value]) => value.businessCount >= PROMOTE_AT && !core.includes(slug))
+    .map(([slug]) => slug);
+}
