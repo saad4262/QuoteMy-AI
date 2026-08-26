@@ -260,7 +260,7 @@ the kind of hardcoding this migration removes.
 
 ---
 
-### [ ] Step 4 — `formatResult` reads titles, pinned and pageSize from the spec
+### [x] Step 4 — `formatResult` reads titles, pinned and pageSize from the spec — DONE
 
 **Goal.** Delete the first three hardcoded constants by reading them from `FieldSpec`.
 
@@ -271,6 +271,12 @@ constants' values identical. Do not touch `buildOptions`' paging logic yet.
 
 **Verify.** `npx vitest run` — **snapshots must not move**. If conversation 4 moves, `pageSize` was
 read wrong.
+
+**Result.** `PAGE_SIZE`, `PINNED` and `FIELD_TITLES` are gone from `formatResult.ts`. The spec now
+travels on `TradeSchema.fields`, so what reaches the screen belongs to the trade's document rather
+than to this file. The three non-per-field uses of `PAGE_SIZE` (how many nearby suburbs, how many
+fields to offer on the correction turn) became `DEFAULT_PAGE_SIZE`. 184 tests green, snapshots
+unmoved.
 
 ---
 

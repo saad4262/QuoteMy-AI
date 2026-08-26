@@ -3,6 +3,7 @@ import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from '../messages.js';
 import { getRepository } from '../store.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
+import { FENCING_FIELDS, type FieldSpec } from './fieldSpec.js';
 import { HEIGHT_FALLBACK, LENGTHS, QUANTITIES, type ChecklistField } from './vocab.js';
 
 /**
@@ -36,6 +37,11 @@ export interface TradeSchema {
     removes: Record<string, string>;
   };
   questions: Record<string, string>;
+  /**
+   * Which fields this trade's checklist has, in the order they are asked. Compiled for now; the
+   * whole point of `docs/DYNAMIC-SCHEMA-PLAN.md` is that this ends up published alongside `core`.
+   */
+  fields: FieldSpec[];
   extras: Record<string, ExtraValue>;
   /** False when this fell back to the compiled vocabulary - surfaced in logs, not to the customer. */
   fromFirestore: boolean;
@@ -63,6 +69,7 @@ function fallbackSchema(trade: Trade, extras: Record<string, ExtraValue> = {}): 
       removes: { ...CUSTOMER_LABEL_GROUPS.removes },
     },
     questions: { ...FALLBACK_QUESTIONS },
+    fields: [...FENCING_FIELDS],
     extras,
     fromFirestore: false,
   };
