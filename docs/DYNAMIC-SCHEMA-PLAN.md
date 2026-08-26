@@ -362,7 +362,7 @@ be. 185 tests green, snapshots unmoved.
 
 ---
 
-### [ ] Step 8 — Field order comes from the spec
+### [x] Step 8 — Field order comes from the spec — DONE
 
 **Goal.** Delete `FIELDS` and `ALL_FIELDS` from `client/vocab.ts`.
 
@@ -373,6 +373,12 @@ entry"; the asked/not-asked distinction becomes `spec.asked !== false` (that is 
 `existingPrice` merged but never asked).
 
 **Verify.** `npx vitest run` — snapshots unmoved. Conversations 1, 2 and 8 cover order.
+
+**Result.** `FIELDS` and `ALL_FIELDS` are gone; nothing in `src/` or `tests/` references them.
+`everyField` and `askedInOrder` come off `schema.fields`, and the asked/not-asked split is
+`spec.asked !== false`. `tests/unit/fieldSpec.test.ts` restates the order literally now, since the
+constant it used to compare against no longer exists - the golden snapshots are what hold it still.
+185 tests green, snapshots unmoved.
 
 ---
 

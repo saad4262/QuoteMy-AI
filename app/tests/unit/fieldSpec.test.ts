@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QUESTIONS } from '../../src/messages.js';
 import { askedFields, FENCING_FIELDS, FIELD_TYPES, specOf } from '../../src/client/fieldSpec.js';
-import { ALL_FIELDS, FIELDS, HEIGHT_FALLBACK, LENGTHS, QUANTITIES } from '../../src/client/vocab.js';
+import { HEIGHT_FALLBACK, LENGTHS, QUANTITIES } from '../../src/client/vocab.js';
 
 /**
  * `FENCING_FIELDS` is a restatement of constants that still live in three other files, and the
@@ -16,12 +16,17 @@ import { ALL_FIELDS, FIELDS, HEIGHT_FALLBACK, LENGTHS, QUANTITIES } from '../../
 
 describe('FENCING_FIELDS', () => {
   it('lists every field, in the order the chat asks them', () => {
-    expect(FENCING_FIELDS.map((f) => f.key)).toEqual([...FIELDS, 'existingPrice']);
-    expect(FENCING_FIELDS.map((f) => f.key)).toEqual([...ALL_FIELDS]);
+    // Restated rather than compared against a constant: as of step 8 the spec IS the order, and the
+    // golden snapshots are what hold it still.
+    expect(FENCING_FIELDS.map((f) => f.key)).toEqual([
+      'suburb', 'material', 'heightKey', 'lengthMeters', 'removal', 'conditions', 'gateType', 'gateQty', 'existingPrice',
+    ]);
   });
 
   it('asks everything except existingPrice', () => {
-    expect(askedFields(FENCING_FIELDS).map((f) => f.key)).toEqual([...FIELDS]);
+    expect(askedFields(FENCING_FIELDS).map((f) => f.key)).toEqual([
+      'suburb', 'material', 'heightKey', 'lengthMeters', 'removal', 'conditions', 'gateType', 'gateQty',
+    ]);
     expect(specOf(FENCING_FIELDS, 'existingPrice')?.asked).toBe(false);
   });
 

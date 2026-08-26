@@ -3,8 +3,9 @@
  *
  * Materials, gate types, conditions and removals all come from `schema/{trade}` in Firestore at
  * runtime (see `schema.ts`) - never from here - so a business-side change reaches the chat
- * without a redeploy. What is left in this file is the two things no business publishes rates
- * against, plus the field list that defines the order questions are asked in.
+ * without a redeploy. What is left is the option lists for the two things no business publishes
+ * rates against. Which fields exist and what order they are asked in moved to `fieldSpec.ts`, on
+ * its way to the trade's own schema document.
  */
 
 /** Not a vocabulary: a length is a measurement and a quantity is a count. Same "3 + Other" paging. */
@@ -29,20 +30,6 @@ export type ChecklistField =
   | 'gateType'
   | 'gateQty';
 
-/**
- * The order questions are asked in - the first field still empty is the one asked next, which is
- * what guarantees nothing is skipped and nothing is asked twice.
- */
-export const FIELDS: ChecklistField[] = [
-  'suburb',
-  'material',
-  'heightKey',
-  'lengthMeters',
-  'removal',
-  'conditions',
-  'gateType',
-  'gateQty',
-];
-
-/** `existingPrice` is merged and validated like any other field, but never asked for. */
-export const ALL_FIELDS = [...FIELDS, 'existingPrice'] as const;
+/* The order questions are asked in - and which fields there are at all - now lives in
+   `fieldSpec.ts` as `FENCING_FIELDS`. The rule it encodes is unchanged: the first field still empty
+   is the one asked next, which is what guarantees nothing is skipped and nothing is asked twice. */

@@ -1,10 +1,10 @@
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
-import { specOf } from './fieldSpec.js';
+import { askedFields, specOf } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, TurnExtraction, UiState } from './schemas.js';
-import { ALL_FIELDS, FIELDS, type ChecklistField } from './vocab.js';
+import { type ChecklistField } from './vocab.js';
 
 /**
  * Everything the conversation knows, settled in one place, before anything is said back. Ported
@@ -303,10 +303,16 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      What still gets through is the direct resolution below: a tap or a typed answer to the
      question actually on screen is resolved in code, never by the model, so a genuine answer the
      model happened to misjudge is not lost. */
+  /* Which fields exist and what order they are asked in belongs to the trade's own spec now.
+     `everyField` includes the ones never asked - existingPrice is merged and validated like any
+     other value, it just has no question. */
+  const everyField = schema.fields.map((spec) => spec.key);
+  const askedInOrder = askedFields(schema.fields).map((spec) => spec.key as ChecklistField);
+
   const docFacts = parsed.offTopic ? {} : input.docFacts;
   const agentChecklist = parsed.offTopic ? {} : (parsed.checklist || {});
   const merged: Record<string, unknown> = {};
-  for (const field of ALL_FIELDS) {
+  for (const field of everyField) {
     const knownValue = validate(field, (known as Record<string, unknown>)[field], schema, labelFor);
     const agentValue = validate(field, (agentChecklist as Record<string, unknown>)[field], schema, labelFor);
     const docValue = validate(
@@ -362,7 +368,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   }
 
   const clearedFields: string[] = [];
-  for (const field of ALL_FIELDS) {
+  for (const field of everyField) {
     if (!namedWrong.has(slug(field))) continue;
     /* "Actually make it two gates" names a field AND replaces it in the same breath, and clearing
        it would throw the new answer away and ask for it again. But only a DIFFERENT value counts
@@ -444,7 +450,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     }
   }
 
-  const missing = FIELDS.filter(isMissing);
+  const missing = askedInOrder.filter(isMissing);
   const nextField = missing.length ? missing[0]! : null;
 
   const turn = Number(ui.turn || 0) + 1;
@@ -463,7 +469,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      reopened, no value replaced. Saying "I didn't catch that" and offering the list is the only
      honest answer - handing back the same recap makes it look like the chat is ignoring them,
      which is exactly what a customer reported after typing "lenght". */
-  const changedSomething = ALL_FIELDS.some((field) => {
+  const changedSomething = everyField.some((field) => {
     // The suburb is the one field `validate` always answers null for - it is written from the
     // confirmed place, not from the checklist - so comparing its validated form would report a
     // change on every single turn and hide every unresolved one behind it.
