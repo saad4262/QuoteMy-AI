@@ -181,7 +181,7 @@ picked place: Berwick, VIC 3806
 
 ## turn 4
 
-customer: "30m colorbond fence, nothing to remove"
+customer: "30m colorbond fence, none to remove"
 
 ```json
 {

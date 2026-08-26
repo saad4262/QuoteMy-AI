@@ -579,7 +579,7 @@ customer: "none"
 
 ## turn 8
 
-customer: "nothing tricky"
+customer: "none of that"
 
 ```json
 {

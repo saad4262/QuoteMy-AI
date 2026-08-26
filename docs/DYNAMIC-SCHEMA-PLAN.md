@@ -129,7 +129,7 @@ reach the state it claims — not merely to produce a snapshot:
 
 ---
 
-### [ ] Step 2 — Prove the harness actually catches regressions
+### [x] Step 2 — Prove the harness actually catches regressions — DONE
 
 **Goal.** A safety net you have not tested is not a safety net.
 
@@ -141,6 +141,29 @@ reach the state it claims — not merely to produce a snapshot:
 **Verify.** Each break fails the expected conversation. `git checkout` after each.
 
 **Done when.** All three breaks were caught. Working tree clean.
+
+**Result.** All three caught, but only after the third one exposed a hole in Step 1.
+
+| Break | Predicted | Actually failed |
+|---|---|---|
+| `FIELDS` reversed | 1, 2, 8 | **all 12** — field order reaches every conversation |
+| `PAGE_SIZE` 3 -> 2 | 4 | **all 12** — every question turn renders options |
+| `isNegative` removed | 9 | **nothing at first**, then exactly 3 and 9 |
+
+**The hole this found.** Conversations 3 and 9 were passing for the wrong reason. `isNegative` only
+ever engages when the word "none" is in what the customer actually wrote — `mentioned()`
+(`mergeAndDecide.ts:258`) blocks the volunteered value on its own otherwise, which is precisely what
+the comment at `mergeAndDecide.ts:272-280` says. Both conversations used "nothing tricky" / "nothing
+to remove", so `mentioned()` refused the value and `isNegative` never ran. The guard looked covered
+and was not.
+
+Fixed by changing those two messages to "none of that" and "none to remove" — they carry the word,
+so `mentioned()` passes and only `isNegative` can stop the value. Neither can be a bare "none",
+because that is on screen and would take the tapped path without consulting the model at all.
+
+**The lesson for Steps 3-11.** A green golden test is not proof a guard is protected. When a step's
+"Watch for" note names a guard, break it deliberately and confirm the snapshot moves before trusting
+that the step preserved it.
 
 ---
 

@@ -248,7 +248,7 @@ export const CONVERSATIONS: Conversation[] = [
       { say: 'Berwick', place: BERWICK },
       // Material and length land together. `removal: "none"` does NOT, because a negative only ever
       // answers the question actually on screen - mergeAndDecide.ts:272-281.
-      { say: '30m colorbond fence, nothing to remove' },
+      { say: '30m colorbond fence, none to remove' },
       { say: '1.8m' },
       { say: 'none' },
       { say: 'none' },
@@ -364,7 +364,7 @@ export const CONVERSATIONS: Conversation[] = [
     why: 'isNegative() - a negative answers only the question on screen',
     seed: (repo) => seedBusiness(repo, 'biz-1', 'Southeast Fencing & Gates'),
     ai: scriptedAi((message) =>
-      message === 'nothing tricky' ? { checklist: { conditions: [], gateType: 'none' } } : null,
+      message === 'none of that' ? { checklist: { conditions: [], gateType: 'none' } } : null,
     ),
     turns: [
       ...openTheChat,
@@ -373,9 +373,12 @@ export const CONVERSATIONS: Conversation[] = [
       { say: '1.8m' },
       { say: '20' },
       { say: 'none' },
-      // conditions is the field on screen so `[]` is accepted; `gateType: "none"` is not, and the
-      // gate question must still be asked on the next turn.
-      { say: 'nothing tricky' },
+      /* The message has to carry the word "none" for this to be the real test. `mentioned()` looks
+         for the value's own words in what the customer wrote, so "nothing tricky" blocks a
+         volunteered `gateType: "none"` on its own and isNegative never runs - the guard would look
+         covered while being untested. It cannot be a bare "none" either, because that is on screen
+         and would take the tapped path without consulting the model at all. */
+      { say: 'none of that' },
       { say: 'none' },
       { say: 'yes' },
     ],
