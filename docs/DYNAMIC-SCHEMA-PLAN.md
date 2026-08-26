@@ -225,7 +225,7 @@ it never invents. And `dependsOn` is the data form of the hardcoded `gateQty` ru
 
 ---
 
-### [ ] Step 3 — Create the field spec module (still hardcoded)
+### [x] Step 3 — Create the field spec module (still hardcoded) — DONE
 
 **Goal.** One place that describes every field, built by hand in TypeScript. No behaviour change.
 
@@ -243,6 +243,20 @@ it never invents. And `dependsOn` is the data form of the hardcoded `gateQty` ru
 
 **Done when.** The file exists and a unit test asserts `FENCING_FIELDS` field keys, in order, equal
 today's `FIELDS` array plus `existingPrice`.
+
+**Result.** `src/client/fieldSpec.ts` plus `tests/unit/fieldSpec.test.ts` (9 assertions, checking the
+spec against the originals in `vocab.ts`/`messages.ts` rather than a second hand-written copy).
+184 tests green, golden snapshots unmoved, nothing imports it yet.
+
+**Deviation from the plan, deliberate.** The type list gained `number` alongside `measure`. The plan
+proposed inferring the difference from whether the options were strings or numbers, which is
+implicit and fragile. They are genuinely different things: a `measure` keys a rate table and must be
+normalised to the exact published form ("1800mm" and "6ft" both becoming "1.8m"), while a `number`
+is a raw quantity that goes into arithmetic and must not be normalised at all.
+
+`acceptsExtras` was also added, because only `material` recognises a one-business offering that has
+no slug in the vocabulary (`mergeAndDecide.ts:24`). Inferring that from the field name is exactly
+the kind of hardcoding this migration removes.
 
 ---
 
