@@ -1,6 +1,7 @@
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
+import { specOf } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, TurnExtraction, UiState } from './schemas.js';
 import { ALL_FIELDS, FIELDS, type ChecklistField } from './vocab.js';
@@ -16,48 +17,61 @@ import { ALL_FIELDS, FIELDS, type ChecklistField } from './vocab.js';
  */
 
 /**
- * Extras are things one business offers that the trade vocabulary has no slug for - deliberately
- * absent from the material choice list, so they never appear as one of three options (most
- * businesses can't do them, and putting one there pushes out something everybody sells). A
- * customer who names one by hand is naming something real, so it is still recognised.
- */
-function materialChoices(schema: TradeSchema): string[] {
-  return [...schema.core.materials, ...Object.keys(schema.extras)];
-}
-
-/**
- * Field-aware validation - every value from the model, the attachment or the customer's own typed
- * reply passes through here before it is allowed into the checklist. Every list it validates
- * against comes from the trade's own schema document, so a business-side vocabulary change is
- * accepted here the moment it is published.
+ * Type-aware validation - every value from the model, the attachment or the customer's own typed
+ * reply passes through here before it is allowed into the checklist.
+ *
+ * It dispatches on the field's TYPE, never on its name, which is what lets a trade this code has
+ * never heard of validate its own answers. The types are a closed set (`fieldSpec.ts`): a published
+ * document selects one, it can never invent one. Every list validated against comes from the
+ * trade's own schema document, so a business-side vocabulary change is accepted the moment it is
+ * published.
  */
 function validate(field: string, value: unknown, schema: TradeSchema, labelFor: LabelFor): unknown {
   if (value === null || value === undefined) return null;
-  switch (field as ChecklistField | 'existingPrice') {
-    case 'suburb':
+  const spec = specOf(schema.fields, field);
+  if (!spec) return null;
+
+  const label = (entry: string) => labelFor(field as ChecklistField, entry);
+  const choices = () => optionsFor(schema, spec).map(String);
+
+  switch (spec.type) {
+    case 'place':
       return null; // never trusted from anywhere but the picker - see mergeAndDecide()
-    case 'material':
-      return oneOf(value, materialChoices(schema), (entry) => labelFor('material', entry));
-    case 'heightKey':
+
+    case 'enum': {
+      /* A pinned answer is the field's own "there is none of this" - "No gates", "Nothing to
+         remove". It is not part of the trade's vocabulary and must not be read against it, so a
+         negative resolves straight to it. Keyed off the spec rather than off the field's name,
+         which is what previously tied this to removal and gateType. */
+      if (spec.pinned && (slug(value) === spec.pinned.value || NOTHING.test(String(value || '')))) {
+        return spec.pinned.value;
+      }
+      /* Extras are things one business offers that the trade vocabulary has no slug for -
+         deliberately absent from the choice list, so they never push out something everybody
+         sells. A customer who names one by hand is naming something real, so it is recognised. */
+      const list = spec.acceptsExtras ? [...choices(), ...Object.keys(schema.extras)] : choices();
+      return oneOf(value, list, label);
+    }
+
+    case 'multiEnum':
+      // No pinned short-circuit: an explicit "nothing tricky" is a valid EMPTY answer here, which
+      // conditionsFrom already tells apart from "not asked yet".
+      return conditionsFrom(value, choices(), label);
+
+    case 'measure':
       return heightKeyFrom(value);
-    case 'lengthMeters':
+
+    case 'number':
       return positiveNumber(value);
-    case 'removal':
-      return slug(value) === 'none' || NOTHING.test(String(value || ''))
-        ? 'none'
-        : oneOf(value, schema.core.removes, (entry) => labelFor('removal', entry));
-    case 'conditions':
-      return conditionsFrom(value, schema.core.conditions, (entry) => labelFor('conditions', entry));
-    case 'gateType':
-      return slug(value) === 'none' || NOTHING.test(String(value || ''))
-        ? 'none'
-        : oneOf(value, schema.core.gateTypes, (entry) => labelFor('gateType', entry));
-    case 'gateQty': {
+
+    case 'count': {
       const n = positiveNumber(value);
       return n === null ? null : Math.round(n);
     }
-    case 'existingPrice':
+
+    case 'money':
       return positiveNumber(value);
+
     default:
       return null;
   }

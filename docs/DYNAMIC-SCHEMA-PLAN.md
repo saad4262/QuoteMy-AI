@@ -309,7 +309,7 @@ the same file. Commit the step BEFORE breaking anything to test it.
 
 ---
 
-### [ ] Step 6 — `validate()` dispatches on type, not on field name
+### [x] Step 6 — `validate()` dispatches on type, not on field name — DONE
 
 **Goal.** The most important refactor in the phase. This is what lets a trade the code has never
 heard of validate its own answers.
@@ -333,6 +333,12 @@ if it does, the type mapping is wrong, not the snapshot.
 **Watch for.** The `none` handling currently lives in the `removal` and `gateType` cases and checks
 `NOTHING.test(...)`. It must move to "this field has a `pinned` value" rather than "this field is
 named removal or gateType".
+
+**Result.** Nine `case` arms keyed on field name became seven keyed on type. `materialChoices` is
+gone: `acceptsExtras` says which field recognises a one-business offering. The `none` short-circuit
+is keyed on `spec.pinned` and deliberately does NOT apply to `multiEnum`, because `conditionsFrom`
+already tells an explicit empty answer apart from an unanswered one. 185 tests green, snapshots
+unmoved; breaking the pinned short-circuit was confirmed to fail conversations that tap "none".
 
 ---
 
