@@ -490,6 +490,26 @@ export class FirestoreRepository implements BusinessRepository {
    * `savePricing`/`saveCapabilities` stored them - one read instead of the two `getPricing` +
    * `getCapabilities` would cost, which matters once this runs per candidate business.
    */
+  /**
+   * `chatSpend/{day}` - one document a day, shared by every instance.
+   *
+   * A per-process counter is not a ceiling on a platform that runs many of them: each cold start
+   * begins at zero, so the real limit is the ceiling multiplied by however many instances happen to
+   * be alive. `increment` is applied by the server, so two instances recording at the same moment
+   * both count.
+   */
+  private spendRef = (day: string) => db().collection('chatSpend').doc(day);
+
+  async readChatSpend(day: string): Promise<number> {
+    const snap = await this.spendRef(day).get();
+    const total = snap.get('usd');
+    return typeof total === 'number' && Number.isFinite(total) ? total : 0;
+  }
+
+  async addChatSpend(day: string, usd: number): Promise<void> {
+    await this.spendRef(day).set({ usd: FieldValue.increment(usd), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+
   async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {
     const snap = await this.extractedRef(uid, trade).get();
     if (!snap.exists) return null;

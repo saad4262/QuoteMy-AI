@@ -75,12 +75,12 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   if (tapped) {
     turnResult = { data: SAID_NOTHING, usage: null };
   } else {
-    assertWithinDailyBudget();
+    await assertWithinDailyBudget(repo);
     turnResult = await runTurn(
       { message: input.message, extractedText, docFacts, docSuburbHint, known, ui },
       { ai: deps.ai },
     );
-    recordSpend(turnResult.usage.costUsd);
+    await recordSpend(turnResult.usage.costUsd, repo);
   }
 
   const state = mergeAndDecide({

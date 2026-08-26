@@ -522,7 +522,7 @@ return the same order. A green suite alone would have said nothing about any of 
 
 ---
 
-### [ ] Step 13 — Shared spend cap
+### [x] Step 13 — Shared spend cap — DONE
 
 **Goal.** On serverless, `spend.ts` and both limiters in `limits.ts` are per-instance, so the
 ceiling does not actually exist. Voice doubles the traffic against it.
@@ -533,6 +533,20 @@ ceiling does not actually exist. Voice doubles the traffic against it.
 of it, so the common case costs nothing.
 
 **Verify.** Unit test that two independent "instances" share one ceiling.
+
+**Result.** `chatSpend/{day}`, one document a day, written with `FieldValue.increment` so two
+instances recording at the same moment both count. `assertWithinDailyBudget` and `recordSpend` are
+async now and take the repository.
+
+Deliberately still approximate: the shared total is re-read at most every 30 seconds and this
+instance's own unreported spend is added on top, so the ceiling can be overshot by a few turns.
+Reading it on every turn would put a Firestore round trip in front of every message to save a few
+dollars in the worst case, which is the wrong trade. A read that fails does not refuse the
+conversation - it falls back to this instance's own counter, which is what the old behaviour was.
+
+The test simulates two instances by resetting module state around one shared store: instance A
+spends the budget, instance B starts cold with nothing of its own and is still refused. Before this
+it would have been free to spend the whole ceiling again. 204 tests green.
 
 ---
 

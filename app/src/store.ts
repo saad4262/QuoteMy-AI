@@ -170,6 +170,13 @@ export interface BusinessRepository {
   findCandidates(trade: Trade): Promise<BusinessCandidate[]>;
   /** One business's service doc for one trade, read once for both pricing and capabilities. */
   getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null>;
+
+  // --- customer-chat spend (src/client/spend.ts) ---
+
+  /** What the customer chat has spent today, across every instance rather than just this one. */
+  readChatSpend(day: string): Promise<number>;
+  /** Must be atomic: two instances recording at the same moment have to both count. */
+  addChatSpend(day: string, usd: number): Promise<void>;
 }
 
 /**
@@ -359,6 +366,18 @@ export class MemoryRepository implements BusinessRepository {
     return { status: pricing?.status ?? null, pricing, capabilities };
   }
 
+  // In memory the counter is this process's own, which is exactly the behaviour the shared one
+  // replaces - and exactly what a test wants, since each test gets a fresh repository.
+  private chatSpend = new Map<string, number>();
+
+  async readChatSpend(day: string): Promise<number> {
+    return this.chatSpend.get(day) ?? 0;
+  }
+
+  async addChatSpend(day: string, usd: number): Promise<void> {
+    this.chatSpend.set(day, (this.chatSpend.get(day) ?? 0) + usd);
+  }
+
   /** Tests only - registers a business the candidate search can find. */
   addCandidate(candidate: BusinessCandidate): void {
     this.candidates.set(candidate.uid, candidate);
@@ -371,6 +390,7 @@ export class MemoryRepository implements BusinessRepository {
     this.candidates.clear();
     this.submissions = [];
     this.extras.clear();
+    this.chatSpend.clear();
   }
 }
 
