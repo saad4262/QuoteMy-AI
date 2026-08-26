@@ -433,6 +433,27 @@ export const CONVERSATIONS: Conversation[] = [
   },
 
   {
+    name: '14 changing the suburb after answering everything',
+    why: 'clearing the place, and that the response says so rather than leaving a stale one standing',
+    seed: (repo) => seedBusiness(repo, 'biz-1', 'Southeast Fencing & Gates'),
+    turns: [
+      ...openTheChat,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'colorbond' },
+      { say: '1.8m' },
+      { say: '20' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'no' },
+      // The one thing allowed to empty a field. Emptying `suburb` alone would be undone on the next
+      // turn - the display string is re-derived from the confirmed place - so the PLACE is dropped,
+      // and `response.place` has to say so or a client echoing its own copy puts it straight back.
+      { say: 'I want to change the suburb' },
+    ],
+  },
+
+  {
     name: '13 a height nobody builds at',
     why: 'an off-list measure is refused rather than silently rounded to the nearest one',
     seed: (repo) => seedBusiness(repo, 'biz-1', 'Southeast Fencing & Gates'),
