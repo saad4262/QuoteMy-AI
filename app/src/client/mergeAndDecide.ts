@@ -3,7 +3,7 @@ import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
 import { askedFields, specOf } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
-import type { Checklist, Place, TurnExtraction, UiState } from './schemas.js';
+import type { Checklist, Place, PlaceHint, TurnExtraction, UiState } from './schemas.js';
 import { type ChecklistField } from './vocab.js';
 
 /**
@@ -95,6 +95,8 @@ export interface MergeAndDecideInput {
   haystackText: string;
   /** The trade's vocabulary, read from `schema/{trade}` at the start of the conversation. */
   schema: TradeSchema;
+  /** Suburbs the customer's words could mean, when they could mean more than one. See `suburb.ts`. */
+  suburbChoices?: PlaceHint[];
 }
 
 export interface MergedState {
@@ -114,6 +116,11 @@ export interface MergedState {
   labelFor: LabelFor;
   ack: string;
   suggestedSuburb: string | null;
+  /**
+   * Several real suburbs answer to the name the customer gave, so none of them is the answer yet.
+   * Resolved before this runs (`suburb.ts`) because it needs Google, and this function is pure.
+   */
+  suburbChoices: PlaceHint[];
   wantsMoreOptions: boolean;
   confirmed: boolean;
   docSuburbHint: string | null;
@@ -505,6 +512,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     labelFor,
     ack: typeof parsed.ack === 'string' ? parsed.ack.trim().slice(0, 40) : '',
     suggestedSuburb: typeof parsed.suggestedSuburb === 'string' && parsed.suggestedSuburb.trim() ? parsed.suggestedSuburb.trim() : null,
+    suburbChoices: place ? [] : (input.suburbChoices ?? []),
     wantsMoreOptions: parsed.wantsMoreOptions === true,
     confirmed: parsed.confirmed === true,
     docSuburbHint: input.docSuburbHint,

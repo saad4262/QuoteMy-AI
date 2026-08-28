@@ -582,6 +582,7 @@ export class FirestoreRepository implements BusinessRepository {
       checklist: (d.checklist ?? {}) as Record<string, unknown>,
       place: d.place ?? null,
       options: Array.isArray(d.options) ? d.options : [],
+      turns: Array.isArray(d.turns) ? d.turns : [],
       updatedAt: toIso(d.updatedAt) ?? '',
     };
   }
@@ -591,6 +592,7 @@ export class FirestoreRepository implements BusinessRepository {
       checklist: session.checklist,
       place: session.place ?? null,
       options: session.options,
+      turns: session.turns,
       updatedAt: FieldValue.serverTimestamp(),
     });
   }

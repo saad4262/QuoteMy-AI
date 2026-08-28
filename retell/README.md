@@ -15,7 +15,7 @@ here.
 |---|---|
 | Conversation flow | `conversation_flow_f53c56682df5` |
 | Agent | `agent_29da95d54d4b96b211dbdf95bf` |
-| Voice | `11labs-Noah` — Australian, male. Swap with any id from `list-voices` |
+| Voice | `11labs-Amy` — British, female, young. See the note below on why not Australian |
 
 The files here are the payloads that produced those, verified against the live API. Re-run Steps 2
 and 4 only to create a second flow/agent or to rebuild on another account; to change an existing one
@@ -96,6 +96,42 @@ curl -sX POST https://api.retellai.com/create-agent \
 
 The reply contains `agent_id`. **Copy it.**
 
+### There is no Australian female voice
+
+`list-voices` returns 300 voices and exactly **two** Australian ones — `11labs-Noah` and
+`11labs-charlie`, both male, both middle-aged. There is no young Australian female voice to pick.
+
+`11labs-Amy` (British, female, young) is the closest available and is what is set. To an Australian
+ear a British voice sits far nearer than an American one, which is the only other option. The other
+two worth hearing are `11labs-Maren` and `11labs-Dorothy`; every voice has a `preview_audio_url` in
+the `list-voices` response, so listen before deciding.
+
+A genuinely Australian female voice means bringing one from ElevenLabs' own library under your own
+ElevenLabs key. That is the only route, and it is a Retell dashboard setting rather than anything in
+these files.
+
+### What `agent.json` sets beyond the voice
+
+| Field | Why |
+|---|---|
+| `stt_mode: "accurate"` | The default is `fast`, which trades transcription accuracy for latency. Wrong on this side of the product: a misheard height becomes a wrong quote, silently. |
+| `boosted_keywords` | Biases the transcriber toward words it otherwise mangles — `Colorbond`, `merbau`, `Pakenham`. Without it, suburb and material names come through as something else entirely. |
+| `denoising_mode` | Background speech cancelled as well as noise; these calls are made in kitchens and utes. |
+| `enable_backchannel: false` | "Uh-huh" while the customer is mid-sentence is words we did not write. |
+| `voice_speed: 0.95` | Slightly under a native pace. The customer is being read suburb names, heights and prices, and every one of them is a number they have to hold. |
+| `interruption_sensitivity: 0.7` | Was `0.9`, which cut the agent off mid-list. A customer who genuinely wants to interrupt still can; a cough no longer does. |
+| `responsiveness: 0.9` | Slightly less eager, so a pause while somebody thinks is not read as their turn ending. |
+| `begin_message_delay_ms: 500` | Half a second before the greeting, so the first three words are not lost while the browser finishes opening the microphone. |
+
+`normalize_for_speech` is deliberately absent: Retell stores it as `null` on this engine, and the
+words are normalised on our side already ([`toSpeech.ts`](../app/src/client/voice/toSpeech.ts)) —
+"1.8m" to "one point eight metres", "VIC 3806" to "Victoria three eight zero six". Two layers of
+number-reading would fight each other.
+
+`boosted_keywords` is the one place trade vocabulary leaks into this folder. There is no
+trade-agnostic way to bias a transcriber, so a second trade adds its materials to that list — the
+flow itself still needs no change.
+
 ---
 
 ## Step 5 — Tell the backend
@@ -131,8 +167,8 @@ Say *"I need a fence quote"*. Four things to watch, in this order:
 |---|---|
 | It speaks **only** what our backend sent — no extra sentences, no invented prices | The `speak` node instruction is wrong. See [When it complains](#when-it-complains) |
 | Saying a lettered option ("option B") is noticeably faster than a full sentence | The tool is not being called with verbatim text, or `sessionId` is not reaching it |
-| At the suburb question it asks you to pick on screen and waits | Expected — voice cannot take a suburb, see VOICE.md |
-| The call ends after the quote, and not before | The `is_done` edge is wrong — it must be the **equation**, never a prompt |
+| The suburb is asked out loud, and "Berwick 3806" is accepted | `GEOCODING_API_KEY` is missing on the server — the lookup returns nothing rather than a guess, which looks exactly like the old bug |
+| The call ends **on the recap**, saying to check the screen | The `is_done` edge is wrong — it must be the **equation**, never a prompt |
 
 ---
 
@@ -146,12 +182,14 @@ fixes, and you will know immediately which one you hit.
 The node validator prints every `oneOf` branch it tried, so the real cause is one line inside a wall
 of noise. Three rules the published docs do not state, all learned from that wall:
 
-- a `function` node takes `success_edge` and `failure_edge` — never `edges` / `else_edge`
 - every `else_edge` needs a `transition_condition`, and its prompt must be the literal string
-  `"Else"` — no other wording is accepted
-- conditional routing after a function call needs its own `branch` node
+  `"Else"` — no other wording is accepted. This is the error that reads as though it were about
+  something else; it was once misread here as "a function node cannot take `edges`", which cost a
+  working flow.
+- a `function` node takes `edges` and `else_edge`, exactly like a conversation node, and branches on
+  its own result. It needs no `branch` node after it.
 
-All three are already correct in `conversation-flow.json`.
+Both are already correct in `conversation-flow.json`.
 
 ### `POST /v2/create-conversation-flow` returns "Cannot POST"
 
@@ -200,27 +238,46 @@ their docs.
 ## What each node does
 
 ```
-greeting  ──▶  turn  ──▶  route  ──[ is_done == "true" ]──▶  finish
-                ▲                │
-                │                └──[ else ]──▶  speak
-                └──────────────────────────────────────┘
+greeting  ──▶  turn  ──[ is_done == "true" ]──▶  finish
+            ▲   │
+            │   └──[ else ]──▶  speak
+            └─────────────────┘
 ```
 
 - **greeting** — one fixed opening line, then listens.
 - **turn** — `function` node, calls our backend. Waits for the answer (`wait_for_result: true`) and
-  says "One moment" while it waits, because the final turn does real work. It does **not** speak
-  afterwards (`speak_after_execution` is absent) — we do not want a model rewriting our words.
-- **route** — `branch` node, the only place the call's ending is decided.
+  says "One moment." while it waits, because the final turn does real work. It branches on the
+  result itself; there is no separate routing node.
 - **speak** — reads `{{speak_text}}` exactly, listens, loops back.
 - **finish** — reads the last `{{speak_text}}` and hangs up.
 
-A `function` node cannot branch on its own result: it carries `success_edge` / `failure_edge` and
-nothing else. That is why **route** exists as a separate node rather than the `turn` node holding the
-`is_done` edge itself.
+### `speak_after_execution` must be explicitly `false`
 
-The `is_done` edge is an **equation**, not a prompt. Whether a call ends is a fact our backend
-already decided; letting a model judge it gives you calls that hang up mid-sentence, or never hang up
-at all.
+Leave it out and Retell defaults it **on**, which hands the model the microphone the moment the tool
+returns. It reads our words — and then keeps going, inventing the next question, and the next,
+because nothing has told it to stop. The call that proved this ran 128 seconds and reached our
+backend exactly once; every question after the first was written by Retell's model, not by us. All
+speaking belongs to the **speak** node, which reads `{{speak_text}}` and nothing else.
+
+### The `turn` node's exits are `edges` / `else_edge`
+
+Not `success_edge` / `failure_edge`. Those two validate — the API stores them without complaint —
+and then the flow engine finds no exit it recognises and the call never leaves the node. Nothing
+errors: the model simply carries on talking, sounding perfectly fine, using none of our questions.
+
+So read a call's own log rather than trusting a transcript. `get-call` returns a `public_log_url`,
+and one `Transitioning from node … to node …` line per customer turn is what a healthy call looks
+like:
+
+```bash
+curl -s "https://api.retellai.com/v2/get-call/CALL_ID" -H "authorization: Bearer $RETELL_KEY" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["public_log_url"])'
+```
+
+### The `is_done` edge is an equation, not a prompt
+
+Whether a call ends is a fact our backend already decided; letting a model judge it gives you calls
+that hang up mid-sentence, or never hang up at all.
 
 ---
 

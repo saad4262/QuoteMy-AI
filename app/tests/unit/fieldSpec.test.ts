@@ -39,7 +39,7 @@ describe('FENCING_FIELDS', () => {
       expect(specOf(FENCING_FIELDS, key)?.question).toBe(question);
     }
     // The one question that is not in QUESTIONS - it lives in schema.ts's FALLBACK_QUESTIONS.
-    expect(specOf(FENCING_FIELDS, 'suburb')?.question).toBe('Which suburb is the fence going in?');
+    expect(specOf(FENCING_FIELDS, 'suburb')?.question).toBe('Which suburb is the fence going in? A postcode works too.');
   });
 
   it('carries the same literal option lists', () => {

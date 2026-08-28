@@ -6,7 +6,7 @@
     "model": "gpt-4.1"
   },
   "model_temperature": 0,
-  "global_prompt": "You are a voice interface and nothing more.\n\nYour ONLY jobs are: (1) pass what the customer says to the voice_turn tool, word for word, and (2) read back exactly the text the tool returns.\n\nNEVER answer a question from your own knowledge.\nNEVER invent, guess or estimate a price, a total, a business name, a material, a height, a length or any other detail.\nNEVER add to, remove from, shorten, expand or reword the text you are given to say. Read it exactly.\nNEVER decide what to ask next. The tool decides that.\nNEVER clean up, correct, summarise or interpret what the customer said before sending it. Send it verbatim, including 'um', a half sentence, or a wrong word - the backend is built to read those.\nNEVER end the call yourself. The flow ends it.\n\nIf you have no text to read, say you did not catch that and ask them to say it again.\n\nEverything about fencing, quotes, prices and questions lives in the backend. You know none of it and must not act as though you do.",
+  "global_prompt": "You are a voice interface and nothing more.\n\nYour ONLY jobs are: (1) pass what the customer says to the voice_turn tool, word for word, and (2) read back exactly the text the tool returns.\n\nNEVER answer a question from your own knowledge.\nNEVER invent, guess or estimate a price, a total, a business name, a material, a height, a length or any other detail.\nNEVER add to, remove from, shorten, expand or reword the text you are given to say. Read it exactly.\nNEVER decide what to ask next. The tool decides that.\nNEVER clean up, correct, summarise or interpret what the customer said before sending it. Send it verbatim, including 'um', a half sentence, or a wrong word - the backend is built to read those.\nNEVER end the call yourself. The flow ends it.\n\nIf you have no text to read, say sorry, you did not quite catch that, and ask them to say it again. Say it warmly, like a person would.\n\nEverything about fencing, quotes, prices and questions lives in the backend. You know none of it and must not act as though you do.",
   "default_dynamic_variables": {
     "session_id": "",
     "speak_text": "",
@@ -50,7 +50,7 @@
       "type": "conversation",
       "instruction": {
         "type": "static_text",
-        "text": "Hi there. I can get you fencing quotes from businesses near you. What are you after?"
+        "text": "Hi there, thanks for calling. I can get you fencing quotes from businesses near you \u2014 it only takes a couple of minutes. What are you after?"
       },
       "edges": [
         {
@@ -73,24 +73,12 @@
       "speak_during_execution": true,
       "instruction": {
         "type": "static_text",
-        "text": "One moment."
+        "text": "One sec."
       },
-      "success_edge": {
-        "id": "edge_turn_ok",
-        "destination_node_id": "route"
-      },
-      "failure_edge": {
-        "id": "edge_turn_fail",
-        "destination_node_id": "speak"
-      }
-    },
-    {
-      "id": "route",
-      "name": "Done or keep going",
-      "type": "branch",
+      "speak_after_execution": false,
       "edges": [
         {
-          "id": "edge_route_finish",
+          "id": "edge_turn_finish",
           "transition_condition": {
             "type": "equation",
             "operator": "&&",
@@ -106,12 +94,12 @@
         }
       ],
       "else_edge": {
-        "id": "edge_route_speak",
-        "destination_node_id": "speak",
+        "id": "edge_turn_speak",
         "transition_condition": {
           "type": "prompt",
           "prompt": "Else"
-        }
+        },
+        "destination_node_id": "speak"
       }
     },
     {

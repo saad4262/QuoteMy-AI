@@ -34,6 +34,12 @@ export interface VoiceTurnResult {
   resultId?: string;
 }
 
+/**
+ * How much of a call is kept. Long enough for any real conversation about a fence, short enough
+ * that a caller who leaves the line open cannot grow one Firestore document without limit.
+ */
+const MAX_TURNS = 60;
+
 export interface VoiceDeps {
   repo?: BusinessRepository;
 }
@@ -68,6 +74,8 @@ export async function runVoiceTurn(
     { repo },
   );
 
+  const speakText = toSpeech(response);
+
   /* Stored whole, `_ui` included. Every field in it exists to stop a bug: without `place` the
      suburb question reopens, without `rejectedPlaces` an uncovered suburb loops for ever, without
      `lastValues` the no-model turn above stops working. Trimming it is how those come back. */
@@ -75,15 +83,22 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
+    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText }].slice(-MAX_TURNS),
     updatedAt: new Date().toISOString(),
   });
 
-  const isDone = response.type === 'result';
-  const resultId = isDone ? await saveChatResult(response, repo) : null;
+  /* A call ends at the recap, not at the quote.
+     Every answer is in by then, and what is left is the one question worth getting right - so it
+     is asked on a screen the customer can read rather than agreed to out loud. A misheard "yes"
+     on the recap is not a small mistake: it is the whole job, wrong, with a price attached. The
+     page picks the conversation up from `GET /voice/session` and the text chat finishes it, which
+     is also why nothing new had to be built on the results side. */
+  const isDone = response.type === 'result' || response.type === 'confirmation';
+  const resultId = response.type === 'result' ? await saveChatResult(response, repo) : null;
 
   logger.info({ sessionId, matched: matched !== null, type: response.type, isDone }, 'voice turn');
 
-  return { speakText: toSpeech(response), isDone, ...(resultId ? { resultId } : {}) };
+  return { speakText, isDone, ...(resultId ? { resultId } : {}) };
 }
 
 /**
@@ -157,4 +172,42 @@ export async function createVoiceCall(_req: Request, res: Response): Promise<voi
     logger.error({ err }, 'could not reach retell to create a web call');
     res.status(502).json({ error: { code: 'voice_unavailable', message: 'Could not start a voice call' } });
   }
+}
+
+/**
+ * The call, handed to a screen.
+ *
+ * A voice call ends and the customer is looking at a page that knows nothing about it. This is the
+ * handover: the page asks for the session, renders what was said, and carries on in the text chat
+ * from exactly where the speaking stopped - same checklist, same place, same conversation. The
+ * customer can finish by typing, confirm the recap, or call again.
+ *
+ * Deliberately not a Retell webhook. The browser sees the call end anyway (the Web SDK says so),
+ * it is the thing that has to render the result, and a webhook would add signature verification
+ * and a second write path for nothing the customer would notice. That changes the day phone calls
+ * exist, because then there is no browser.
+ */
+export async function voiceSession(req: Request, res: Response): Promise<void> {
+  const sessionId = String(req.query.sessionId ?? '').trim();
+  if (!sessionId) throw new AppError(400, 'bad_request', 'sessionId is required');
+
+  const session = await (getRepository()).readVoiceSession(sessionId);
+  if (!session) {
+    // Not an error: a call that was never spoken on, or one older than the session's half hour.
+    res.status(200).json({ sessionId, found: false, turns: [], checklist: null, place: null });
+    return;
+  }
+
+  res.status(200).json({
+    sessionId,
+    found: true,
+    turns: session.turns,
+    /* `_ui` included, exactly as stored. The page posts this straight back as the chat's
+       `knownChecklist`, and every field in `_ui` exists to stop a bug the comments there describe -
+       so handing over a trimmed copy is how those bugs come back on the second front door. */
+    checklist: session.checklist,
+    place: session.place ?? null,
+    options: session.options,
+    updatedAt: session.updatedAt,
+  });
 }
