@@ -301,6 +301,19 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      "none" only answers what was asked. */
   const isNegative = (value: unknown) => value === 'none' || (Array.isArray(value) && value.length === 0);
 
+  /* A bare number is only ever an answer to the question on screen - the same rule as `isNegative`
+     above, for the same reason.
+     Asked "what height are you after?", a customer typed "15m". It is not a height anybody builds
+     at, so it was correctly refused as one - and then quietly became the LENGTH, because 15 is a
+     perfectly good number of metres and `mentioned()` only checks that the number appears in what
+     they wrote. The length question was never asked, and the customer had answered it without
+     knowing. A number that fails the field it was typed into must not go looking for another one.
+     A sentence still fills several fields at once - "30m colorbond fence in Pakenham" names three
+     distinctive things - because a sentence is not a bare number. And a correction is exempt:
+     `mayOverwrite` is already true everywhere while they are fixing something. */
+  const BARE_NUMBER = /^\s*(?:about|around|approx\.?|roughly|maybe)?\s*\$?\d+(?:[.,]\d+)?\s*(?:m|metres?|meters?|mm|cm|ft|feet|foot|')?\s*[.!]?\s*$/i;
+  const bareNumberAnswer = !!ui.lastAsked && BARE_NUMBER.test(rawMessage);
+
   /* A turn the model judged to be about something other than a fence contributes nothing. Both
      halves matter. The document reader is regex and does not know what it is reading - "Total for
      2 pizzas: $39.50" on a takeaway menu matched the total pattern and became the customer's
@@ -333,7 +346,8 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     if (value === null || mayOverwrite(field)) {
       const accept =
         agentValue !== null &&
-        (mayOverwrite(field) || (mentioned(field as ChecklistField, agentValue) && !isNegative(agentValue)));
+        (mayOverwrite(field) ||
+          (mentioned(field as ChecklistField, agentValue) && !isNegative(agentValue) && !bareNumberAnswer));
       value = accept ? agentValue : knownValue;
     }
     if (value === null) value = docValue;

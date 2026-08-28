@@ -7,7 +7,7 @@ import { getRepository, type BusinessRepository } from '../../store.js';
 import { asObject } from '../errors.js';
 import { runFencingChat } from '../controller.js';
 import { saveChatResult } from '../saveResult.js';
-import type { ChatOption, ChatResponse, Place } from '../schemas.js';
+import type { ChatOption, ChatResponse, Checklist, Place, UiState } from '../schemas.js';
 import { matchSpokenToOption } from './matchSpoken.js';
 import { greetingFor, toSpeech } from './toSpeech.js';
 
@@ -74,6 +74,32 @@ export interface VoiceDeps {
 /** A new call. The id is generated here so nothing a caller sends becomes a document key. */
 export const newVoiceSession = () => randomUUID();
 
+/**
+ * Which of the choices they ended up giving, in the words they were read out in.
+ *
+ * Read from the answer that landed rather than from what `matchSpokenToOption` recognised, because
+ * those are not the same thing: "No, no." is not close enough to "No gates" for code to be sure of
+ * it, the model read it correctly anyway, and the transcript still has to show which option that
+ * was. Taking the stored value covers every route an answer can arrive by.
+ *
+ * A tap in the text chat leaves "Nothing tricky" in the transcript. Saying it should leave the same
+ * thing, not "Nothing tricky, nothing at all mate."
+ */
+function choseFrom(offered: ChatOption[], asked: string | null, checklist: Checklist): string | null {
+  if (!asked || !offered.length) return null;
+
+  const answer = (checklist as Record<string, unknown>)[asked];
+  if (answer === null || answer === undefined || answer === '') return null;
+
+  // An empty list is how "none of these" is stored for a multi-select - the option said `none`.
+  const values = Array.isArray(answer) ? (answer.length ? answer : ['none']) : [answer];
+  const labels = values
+    .map((value) => offered.find((option) => String(option.value) === String(value))?.label)
+    .filter((label): label is string => !!label);
+
+  return labels.length ? labels.join(', ') : null;
+}
+
 export async function runVoiceTurn(
   sessionId: string,
   input: VoiceTurnBody,
@@ -91,10 +117,8 @@ export async function runVoiceTurn(
   const matched = session ? matchSpokenToOption(spoken, offered) : null;
   const message = matched === null ? spoken : String(matched);
 
-  /* Which choice that was, in the words it was read out in. The page shows it as the selected chip,
-     so a call leaves the same transcript a tap would: "Treated pine", not "Treated pine. I need
-     treated pine." Worked out here because this is the only place that knows both halves. */
-  const chose = matched === null ? null : (offered.find((option) => String(option.value) === String(matched))?.label ?? null);
+  /* The field the last turn asked about, so what they just answered can be named. */
+  const asked = ((session?.checklist as Checklist | undefined)?._ui as UiState | undefined)?.lastAsked ?? null;
 
   const response: ChatResponse = await runFencingChat(
     {
@@ -125,7 +149,7 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
-    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText, wrote: response.message, chose }].slice(-MAX_TURNS),
+    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText, wrote: response.message, chose: choseFrom(offered, asked, response.checklist) }].slice(-MAX_TURNS),
     resultId: resultId ?? session?.resultId ?? null,
     type: response.type,
     checklistDisplay: response.checklistDisplay,

@@ -589,6 +589,30 @@ describe('the brief panel during a call', () => {
     expect(picked.chose).toBe('Treated pine');
   });
 
+  /* "No, no." is not close enough to "No gates" for `matchSpokenToOption` to be sure of it - and it
+     must not be, because a near-miss there records an answer nobody gave. The model reads it
+     correctly anyway, so the chip comes from the answer that landed, not from what code matched. */
+  it('names the choice even when only the model could resolve it', async () => {
+    await runVoiceTurn('panel-4', { spokenText: 'I need a fence' }, { repo });
+    await runVoiceTurn('panel-4', { spokenText: 'yes' }, { repo });
+
+    const started = (await repo.readVoiceSession('panel-4'))!;
+    await repo.writeVoiceSession('panel-4', {
+      ...started,
+      place: { latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick', displayLabel: 'Berwick, VIC 3806' },
+    });
+    await runVoiceTurn('panel-4', { spokenText: 'Berwick' }, { repo });
+    await runVoiceTurn('panel-4', { spokenText: 'option C' }, { repo });   // Colorbond
+    await runVoiceTurn('panel-4', { spokenText: 'option C' }, { repo });   // a height
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'panel-4' });
+    const chose = (res.body.turns as { chose: string | null }[]).map((turn) => turn.chose);
+
+    // Every turn that answered a multiple choice is named; the opener and the yes are not.
+    expect(chose.filter(Boolean).length).toBeGreaterThanOrEqual(2);
+    expect(chose).toContain('Colorbond');
+  });
+
   it('leaves `chose` empty when they said something of their own', async () => {
     await runVoiceTurn('panel-3', { spokenText: 'I need a fence quote' }, { repo });
 

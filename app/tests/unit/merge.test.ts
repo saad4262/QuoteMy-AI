@@ -295,3 +295,58 @@ describe('the search waits for a yes', () => {
     expect(state.needsMatcher).toBe(true);
   });
 });
+
+describe('a bare number only answers the question that was asked', () => {
+  /* What the customer did: asked "what height are you after?", typed "15m".
+     What happened: 15 is not a height anybody builds at, so it was correctly refused as one -
+     and then quietly became the LENGTH, because 15 is a fine number of metres and `mentioned()`
+     only checks the number appears in what they wrote. The length question was never asked, and
+     the customer had answered it without knowing. They found out at the recap. */
+  it('does not let a height that was refused become the length', () => {
+    const state = run(
+      '15m',
+      partial({ heightKey: null, lengthMeters: null, _ui: ui({ lastAsked: 'heightKey', lastValues: ['1.2m', '1.5m', '1.8m', '__other__'] }) }),
+      turn({ heightKey: '0.15m', lengthMeters: 15 }),
+    );
+
+    expect(state.checklist.heightKey).toBeNull(); // not a height they can have
+    expect(state.checklist.lengthMeters).toBeNull(); // and NOT quietly the length either
+    expect(state.nextField).toBe('heightKey'); // so the question comes back
+  });
+
+  it('still takes the number for the field it was actually asked for', () => {
+    const state = run(
+      '30',
+      partial({ lengthMeters: null, _ui: ui({ lastAsked: 'lengthMeters' }) }),
+      turn({ lengthMeters: 30 }),
+    );
+
+    expect(state.checklist.lengthMeters).toBe(30);
+  });
+
+  /* A sentence is not a bare number. Naming several things at once is the whole point of free
+     text, and this guard must not cost it. */
+  it('leaves a sentence naming several things alone', () => {
+    const state = run(
+      'about 30 metres of colorbond, 1.8 high',
+      partial({ material: null, heightKey: null, lengthMeters: null, _ui: ui({ lastAsked: 'material' }) }),
+      turn({ material: 'colorbond', heightKey: '1.8m', lengthMeters: 30 }),
+    );
+
+    expect(state.checklist.material).toBe('colorbond');
+    expect(state.checklist.heightKey).toBe('1.8m');
+    expect(state.checklist.lengthMeters).toBe(30);
+  });
+
+  /* While they are correcting something, every field is open by design - `mayOverwrite` is
+     already true everywhere - and a bare number is how a correction usually arrives. */
+  it('leaves a correction alone', () => {
+    const state = run(
+      '20',
+      partial({ lengthMeters: 15, _ui: ui({ lastAsked: 'lengthMeters', fixing: true }) }),
+      turn({ lengthMeters: 20 }),
+    );
+
+    expect(state.checklist.lengthMeters).toBe(20);
+  });
+});
