@@ -106,6 +106,12 @@ export async function runVoiceTurn(
   deps: VoiceDeps = {},
 ): Promise<VoiceTurnResult> {
   const repo = deps.repo ?? getRepository();
+
+  /* Stamped before the model runs, not after: `at` is meant to say when the customer spoke, and a
+     turn takes a few seconds to answer. Stamping it at the end dates the customer's words to the
+     moment the reply was ready - so a message typed during those seconds sorts ahead of speech
+     that happened before it, which is the one thing this field exists to prevent. */
+  const at = new Date().toISOString();
   const session = await repo.readVoiceSession(sessionId);
 
   /* Said one of the choices they were just read? Then this code already knows what it means - the
@@ -157,10 +163,7 @@ export async function runVoiceTurn(
       ...previousTurns,
       {
         n: (previousTurns.at(-1)?.n ?? 0) + 1,
-        /* Stamped here rather than on the page, because the page only learns about this turn when
-           it next polls - by which time the clock has moved and a typed message sent in between
-           would sort ahead of a call turn that happened before it. */
-        at: new Date().toISOString(),
+        at,
         said: spoken,
         spoke: speakText,
         wrote: response.message,
