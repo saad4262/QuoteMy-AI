@@ -22,11 +22,15 @@ Retell  ── speech to text ──▶  calls the `voice_turn` tool
                                         │
                           matchSpokenToOption()   ← the no-model turn
                                         ▼
+                          resolveSuburb()         ← Google, server-side
+                                        ▼
                           runFencingChat()        ← the existing pipeline, untouched
                                         ▼
-                          toSpeech()  +  saveChatResult()
+                          toSpeech()  +  voiceSessions/{sessionId}
                                         ▼
-                          quoteResults/{resultId} ──▶ the page renders the quote
+   call ends ──▶ GET /voice/session ──▶ the chat carries on where the call stopped
+                                        ▼
+                          confirm on screen ──▶ quoteResults/{resultId}
 ```
 
 | File | What it does |
@@ -34,6 +38,7 @@ Retell  ── speech to text ──▶  calls the `voice_turn` tool
 | [`src/client/voice/controller.ts`](../app/src/client/voice/controller.ts) | One turn. Thin on purpose. |
 | [`src/client/voice/matchSpoken.ts`](../app/src/client/voice/matchSpoken.ts) | What they said → one of the choices read out, or nothing |
 | [`src/client/voice/toSpeech.ts`](../app/src/client/voice/toSpeech.ts) | A turn, as words |
+| [`src/client/suburb.ts`](../app/src/client/suburb.ts) | A suburb the customer said → a real place, or a choice of them |
 | [`src/client/saveResult.ts`](../app/src/client/saveResult.ts) | The finished quote, where a page can listen |
 
 ---
@@ -73,6 +78,35 @@ the whole voice path testable from Postman with no Retell account.
 call that receives a status the agent cannot read goes silent, and silence is the one failure a
 caller will not sit through.
 
+### `GET /api/v1/voice/session?sessionId=<id>`
+
+Where a call becomes a chat.
+
+```json
+{
+  "found": true,
+  "turns": [{ "said": "I need a fence quote", "spoke": "Happy to help with that…" }],
+  "checklist": { "suburb": "Berwick, VIC 3806", "material": "colorbond", "_ui": { } },
+  "place": { "latitude": -38.0362, "longitude": 145.3478, "suburb": "Berwick" },
+  "options": [],
+  "updatedAt": "2026-08-28T01:20:00.000Z"
+}
+```
+
+The page asks for this when the Retell SDK says the call ended — whoever hung up — renders `turns`
+as the conversation, and posts `checklist` straight back into `POST /client/fencing-chat` as
+`knownChecklist`. From there it is the text chat, and the text chat already finishes a brief.
+
+`checklist` carries `_ui` and must be handed back **whole**. Every field in it exists to stop a bug
+the comments in `mergeAndDecide.ts` describe; a trimmed copy is how those bugs come back.
+
+`found: false` is not an error — a call nobody spoke on, or one older than the session's half hour.
+
+Deliberately **not** a Retell webhook. The browser sees the call end anyway, it is the thing that
+has to render the result, and a webhook would add signature verification and a second write path
+for nothing the customer would notice. That changes the day phone calls exist, because then there
+is no browser.
+
 ---
 
 ## Environment
@@ -80,9 +114,13 @@ caller will not sit through.
 ```
 RETELL_API_KEY=          # server-side only, never sent to a browser
 RETELL_AGENT_ID=
+GEOCODING_API_KEY=       # already used by the business side; voice needs it too now
 ```
 
-Both unset is a supported state: the voice endpoints work, no Retell call is minted.
+The first two unset is a supported state: the voice endpoints work, no Retell call is minted.
+`GEOCODING_API_KEY` unset is not — the suburb question can never be answered without it, on either
+front door. It must be a server key: one restricted to HTTP referrers is a browser key and Google
+answers `REQUEST_DENIED`.
 
 ---
 
@@ -97,7 +135,7 @@ say() { curl -sX POST "localhost:8787/api/v1/voice/turn?sessionId=$SESSION" \
 
 say "I need a fence quote"
 say "yes go ahead"
-# the suburb is picked on screen, not spoken - see below
+say "Berwick 3806"   # resolved server-side, needs GEOCODING_API_KEY
 say "option C"
 say "1.8 metres"
 say "30 metres"
@@ -112,16 +150,43 @@ consults **no model at all**.
 
 ---
 
-## The suburb is the one thing voice cannot take
+## The suburb, which used to be the thing voice could not take
 
 `isMissing('suburb')` tests the geocoded place object, not the words
 ([`mergeAndDecide.ts`](../app/src/client/mergeAndDecide.ts)) — ranking measures distance and needs
-coordinates. A spoken suburb can never satisfy it, so the question would come back every single turn,
-for ever.
+coordinates. For a while that made voice unfinishable: a spoken suburb could never satisfy it, the
+question came back every single turn, and no call reached a second question.
 
-`toSpeech` therefore says to pick it on screen and waits. **This means voice needs a screen.** A
-phone-only call cannot get past the suburb question, and making it work needs a different mechanism
-(reverse geocoding the caller, or a spoken postcode resolved server-side) — that is not built.
+[`suburb.ts`](../app/src/client/suburb.ts) resolves it server-side instead, and both front doors get
+it: the browser's picker still wins when it is used, and typing or saying a suburb now works
+everywhere. **The question asks for a postcode**, because a postcode is the one form of the answer
+that cannot be two places at once.
+
+Three rules, and each one is there because the alternative fails silently:
+
+- **Only a result Google itself calls a suburb or a postcode is accepted**, and `partial_match` is
+  refused outright. Ask Google for "one point eight metres" and it returns a street somewhere,
+  confidently, with coordinates.
+- **More than one match is a question, never a guess.** Australia has a Richmond in four states.
+  Picking the nearest produces a quote from businesses 900 km away and reports nothing. The
+  candidates go back as options with their coordinates attached, so the reply needs no second trip
+  to Google.
+- **A name Google cannot place comes back as nothing**, and the question asks for the postcode by
+  name rather than inventing a place.
+
+Without `GEOCODING_API_KEY` the lookup returns nothing rather than a guess — which reads exactly
+like the old bug, so check it first when a call stalls on the suburb.
+
+## A call ends at the recap, not at the quote
+
+Every answer is in by then, and what is left is the one question worth getting right — so the recap
+is read out and then **asked on a screen**. A misheard "yes" there is not a small mistake: it is the
+whole job, wrong, with a price attached, and this pipeline has already been heard accepting "1.8 m"
+as a length because a model was allowed to interpret rather than relay.
+
+So `isDone` is true for `confirmation` as well as `result`, the agent says goodbye, and the page
+picks the conversation up from `GET /voice/session`. Nothing new exists on the results side because
+of it — the text path already finishes a confirmed brief.
 
 ---
 
@@ -132,11 +197,12 @@ field names, no materials, no questions. If the word "fencing" appears anywhere 
 wrong: that content belongs in the backend, which is what makes a second trade a schema document
 rather than a second agent.
 
-> **Why this is a written spec rather than a JSON file to import.** Retell's public docs describe
-> the node types but do not publish the exact JSON field names for instructions, edges and tool
-> configuration. A generated file would be a guess that fails to import, and you would spend longer
-> debugging my guess than building four nodes. Build it in the dashboard, then **export it and commit
-> that** — the export is the reliable shape.
+> **This is now built and committed** — [`retell/`](../retell/) holds the exact payloads that
+> created the live flow and agent, and its README carries the setup. The section below is the
+> reasoning behind the shape; the files are the shape. Note that the node diagram here was right all
+> along and the first committed flow was not: it grew a `branch` node and `success_edge`/`failure_edge`
+> exits, which validate and then never route, and the call sat in one node improvising questions for
+> two minutes.
 
 ### Agent settings
 
@@ -209,7 +275,8 @@ decided; letting a model judge it means calls that hang up mid-conversation, or 
 2. The call ends on a finished quote and not before.
 3. Saying a lettered option is fast. If every turn takes the same time, `matchSpokenToOption` is not
    hitting and everything is going to the model.
-4. The suburb turn stops and waits rather than reading a list.
+4. The suburb is asked out loud, and answering it with a postcode works.
+5. The call ends on the recap, and the page picks the conversation up from `GET /voice/session`.
 
 ---
 
@@ -217,7 +284,9 @@ decided; letting a model judge it means calls that hang up mid-conversation, or 
 
 - **The frontend.** The React app is not in this repository. It needs
   `npm install retell-client-js-sdk`, a mic button wired to `create-call` → `startCall(accessToken)`,
-  a visible listening/speaking state, a clean stop on unmount, and a listener on
-  `quoteResults/{resultId}` for the results page.
-- **The Retell agent itself** — see above. Build, export, commit.
-- **Phone-only calls** — blocked on the suburb, see above.
+  a visible listening/speaking state, a clean stop on unmount, a `call_ended` handler that calls
+  `GET /voice/session` and hydrates the chat, and a listener on `quoteResults/{resultId}` for the
+  results page.
+- **Phone-only calls.** No longer blocked on the suburb — blocked on the handover instead, which
+  assumes a browser is watching. A phone call would need the Retell `call_ended` webhook and
+  somewhere other than a screen to put the recap.

@@ -23,7 +23,10 @@ export interface ResolvedLocation {
  * over. Keyed by the normalised text, so "Berwick", "berwick" and " Berwick " are one lookup.
  */
 const cache = new Map<string, ResolvedLocation | null>();
-export const clearGeocodeCache = () => cache.clear();
+export const clearGeocodeCache = () => {
+  cache.clear();
+  candidateCache.clear();
+};
 
 const normalise = (text: string) => text.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -37,11 +40,13 @@ interface GoogleComponent {
 
 interface GoogleResult {
   types: string[];
+  /** Google's own admission that it changed the query to get an answer. */
+  partial_match?: boolean;
   geometry: { location: { lat: number; lng: number } };
   address_components: GoogleComponent[];
 }
 
-async function lookup(address: string): Promise<GoogleResult | null> {
+async function lookupAll(address: string): Promise<GoogleResult[]> {
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
   url.searchParams.set('address', address);
   url.searchParams.set('components', 'country:AU'); // an Australian marketplace
@@ -55,10 +60,21 @@ async function lookup(address: string): Promise<GoogleResult | null> {
     // browser. A server needs an IP-restricted key, or none. It is not a billing problem.
     const level = body.status === 'REQUEST_DENIED' ? 'error' : 'info';
     logger[level]({ address, status: body.status }, 'could not geocode');
-    return null;
+    return [];
   }
-  return body.results[0]!;
+  return body.results;
 }
+
+const lookup = async (address: string): Promise<GoogleResult | null> => (await lookupAll(address))[0] ?? null;
+
+const toResolved = (hit: GoogleResult): ResolvedLocation => ({
+  suburb: componentOf(hit.address_components, 'locality'),
+  state: componentOf(hit.address_components, 'administrative_area_level_1'),
+  postcode: componentOf(hit.address_components, 'postal_code'),
+  lat: hit.geometry.location.lat,
+  lng: hit.geometry.location.lng,
+  source: 'google',
+});
 
 export async function geocode(baseLocation: string | null): Promise<ResolvedLocation | null> {
   if (!baseLocation?.trim()) return null;
@@ -91,14 +107,7 @@ export async function geocode(baseLocation: string | null): Promise<ResolvedLoca
       return null;
     }
 
-    const resolved: ResolvedLocation = {
-      suburb: componentOf(hit.address_components, 'locality'),
-      state: componentOf(hit.address_components, 'administrative_area_level_1'),
-      postcode: componentOf(hit.address_components, 'postal_code'),
-      lat: hit.geometry.location.lat,
-      lng: hit.geometry.location.lng,
-      source: 'google',
-    };
+    const resolved = toResolved(hit);
 
     cache.set(key, resolved);
     return resolved;
@@ -106,5 +115,59 @@ export async function geocode(baseLocation: string | null): Promise<ResolvedLoca
     // A geocoding outage must not fail a submission - the business's pricing is still worth having.
     logger.warn({ err, baseLocation }, 'geocoding failed');
     return null;
+  }
+}
+
+/**
+ * A place a customer named, resolved to the suburbs it could actually be.
+ *
+ * `geocode` above answers a business's own address, which a human typed and checked. This answers
+ * a customer's - spoken down a phone line, or typed with one thumb - and the difference is the
+ * whole of this function. Google will always find something: ask it for "one point eight metres"
+ * and it returns a street somewhere, confidently, with coordinates. So only a result Google itself
+ * calls a suburb or a postcode is accepted, `partial_match` is refused outright, and a name it
+ * cannot place comes back as an empty list rather than as the nearest thing.
+ *
+ * More than one is not a failure - Australia has a Richmond in four states. They are all returned,
+ * and the customer picks. Guessing between them is the one thing that must not happen here: the
+ * wrong Richmond does not read as an error, it reads as a quote from businesses 900 km away.
+ */
+const SUBURB_TYPES = ['locality', 'sublocality', 'postal_code'];
+
+const candidateCache = new Map<string, ResolvedLocation[]>();
+
+export async function suburbCandidates(spoken: string | null, limit = 3): Promise<ResolvedLocation[]> {
+  const text = spoken?.trim();
+  if (!text || text.length < 3) return [];
+  if (!env.GEOCODING_API_KEY) return []; // not configured: no place, rather than a guessed one
+
+  const key = normalise(text);
+  const cached = candidateCache.get(key);
+  if (cached) return cached;
+
+  try {
+    const hits = await lookupAll(text);
+    const seen = new Set<string>();
+    const found: ResolvedLocation[] = [];
+
+    for (const hit of hits) {
+      if (hit.partial_match) continue;
+      if (!hit.types.some((type) => SUBURB_TYPES.includes(type))) continue;
+      const resolved = toResolved(hit);
+      // No suburb name means nothing to read out and nothing to show on the confirmation.
+      if (!resolved.suburb) continue;
+      const identity = normalise(resolved.suburb + ' ' + (resolved.state ?? ''));
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      found.push(resolved);
+      if (found.length >= limit) break;
+    }
+
+    candidateCache.set(key, found);
+    return found;
+  } catch (err) {
+    // Same trade as `geocode`: a Google outage costs the customer the picker, not the conversation.
+    logger.warn({ err, spoken: text }, 'could not resolve a suburb');
+    return [];
   }
 }

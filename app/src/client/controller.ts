@@ -12,6 +12,7 @@ import { readAttachmentFacts } from './attachmentFacts.js';
 import { formatFencingResult } from './formatResult.js';
 import { matchBusinesses } from './matcher.js';
 import { mergeAndDecide } from './mergeAndDecide.js';
+import { resolveSuburb } from './suburb.js';
 import { priceAndRank } from './priceAndRank.js';
 import { saveChatResult } from './saveResult.js';
 import type { ChatBody, ChatResponse, Checklist, Place, UiState } from './schemas.js';
@@ -84,10 +85,22 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     await recordSpend(turnResult.usage.costUsd, repo);
   }
 
+  /* The suburb, resolved from words rather than from a picker.
+     Done here rather than inside `mergeAndDecide` because it needs Google and that function is
+     pure - the golden conversations drive it turn after turn with nothing to stub. A place the
+     browser sent still wins; this only answers when nobody has answered yet. */
+  const resolved = await resolveSuburb({
+    place,
+    ui,
+    message: input.message,
+    suggestedSuburb: turnResult.data.suggestedSuburb || docSuburbHint || ui?.suburbHint || null,
+  });
+
   const state = mergeAndDecide({
     sessionId: input.sessionId,
     message: input.message,
-    place,
+    place: place ?? resolved.place,
+    suburbChoices: resolved.choices,
     known,
     turnExtraction: turnResult.data,
     docFacts,

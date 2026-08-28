@@ -1,5 +1,7 @@
+import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setAiClient, MockAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
+import { createApp } from '../../src/server.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { matchSpokenToOption } from '../../src/client/voice/matchSpoken.js';
 import { toSpeech, spoken } from '../../src/client/voice/toSpeech.js';
@@ -75,17 +77,29 @@ describe('toSpeech', () => {
     expect(said).toContain('your own words');
   });
 
-  it('never reads a suburb list, and says it will wait', () => {
-    const said = toSpeech({ ...base, type: 'message', options: [], expects: 'suburb', message: 'Which suburb is the fence going in?' });
-    expect(said).toContain('on your screen');
-    expect(said).toContain('wait');
+  it('asks the suburb out loud now that the backend resolves it', () => {
+    const said = toSpeech({ ...base, type: 'message', options: [], expects: 'suburb', message: 'Which suburb is the fence going in? A postcode works too.' });
+    expect(said).toContain('postcode');
+    expect(said).not.toContain('on your screen');
     expect(said).not.toContain('Option A');
   });
 
-  it('asks for a yes rather than reading yes and no as lettered choices', () => {
+  it('reads a state and postcode as words and digits, never as a number', () => {
+    const said = toSpeech({
+      ...base,
+      type: 'question',
+      message: 'There is more than one Richmond — which one is yours?',
+      options: options(['Richmond, VIC, 3121', 'Richmond, VIC, 3121'], ['Richmond, NSW, 2753', 'Richmond, NSW, 2753']),
+    });
+    expect(said).toContain('Victoria 3 1 2 1');
+    expect(said).toContain('New South Wales 2 7 5 3');
+    expect(said).toContain('Option A');
+  });
+
+  it('hands the recap to the screen rather than taking a yes out loud', () => {
     const said = toSpeech({ ...base, type: 'confirmation', message: 'Got it — Berwick, Colorbond, 1.8m. All correct?', options: options(["Yes, that's all correct", 'yes'], ["No, something's wrong", 'no']) });
     expect(said).toContain('1 point 8 metres');
-    expect(said).toContain('say yes');
+    expect(said).toContain('on your screen');
     expect(said).not.toContain('Option A');
   });
 
@@ -165,10 +179,13 @@ describe('a voice turn', () => {
 
     // Nothing was echoed back by the caller - the session is what remembers.
     const second = await runVoiceTurn('call-1', { spokenText: 'yes go ahead' }, { repo });
-    expect(second.speakText).toContain('screen');
+    expect(second.speakText).toContain('suburb');
 
     const stored = await repo.readVoiceSession('call-1');
     expect(stored?.checklist._ui).toBeDefined(); // stored whole, never trimmed
+    // Both turns kept, in order, so a page can render the call after it ends.
+    expect(stored?.turns.map((turn) => turn.said)).toEqual(['I need a fence quote', 'yes go ahead']);
+    expect(stored?.turns[1]?.spoke).toBe(second.speakText);
   });
 
   it('consults no model at all when they say one of the choices', async () => {
@@ -212,5 +229,91 @@ describe('a voice turn', () => {
     // The route turns that into speech with isDone false - see voiceTurn. What matters here is that
     // it is an ordinary error and not something that leaves the session unreadable.
     expect(await repo.readVoiceSession('call-4')).toBeNull();
+  });
+});
+
+/**
+ * Where a call becomes a chat.
+ *
+ * The customer hangs up and is looking at a page that knows nothing about the call. This route is
+ * the whole handover: the page reads the session, renders what was said, and posts the checklist
+ * straight back into the text chat as `knownChecklist`. Nothing new exists on the results side
+ * because of it - the text path already finishes a confirmed brief.
+ */
+describe('the call, handed to a screen', () => {
+  const app = createApp();
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+  });
+
+  it('hands back the conversation and the checklist, `_ui` included', async () => {
+    await runVoiceTurn('call-5', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('call-5', { spokenText: 'yes go ahead' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'call-5' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.found).toBe(true);
+    expect(res.body.turns).toHaveLength(2);
+    expect(res.body.turns[0].said).toBe('I need a fence quote');
+    // The page posts this back as `knownChecklist`, so a trimmed copy is how the loops come back.
+    expect(res.body.checklist._ui).toBeDefined();
+  });
+
+  /* A call nobody spoke on, or one older than the session's half hour. Not an error: the page
+     still has to render something, and "start again" is the honest thing to show. */
+  it('says so plainly when there is no session to hand over', async () => {
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'never-happened' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ found: false, turns: [], checklist: null });
+  });
+});
+
+/**
+ * A call ends at the recap, not at the quote.
+ *
+ * Every answer is in by then, and what is left is the one question worth getting right - so it is
+ * read out, and then asked on a screen the customer can actually check. A misheard "yes" there is
+ * not a small mistake: it is the whole job, wrong, with a price attached.
+ */
+describe('the end of a call', () => {
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+  });
+
+  it('hangs up on the recap, having said where to check it', async () => {
+    await runVoiceTurn('call-6', { spokenText: 'I need a fence' }, { repo });
+    await runVoiceTurn('call-6', { spokenText: 'yes' }, { repo });
+
+    // The picker's job, done here directly: with no Google key a test resolves no suburb at all.
+    const started = (await repo.readVoiceSession('call-6'))!;
+    await repo.writeVoiceSession('call-6', {
+      ...started,
+      place: { latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick', displayLabel: 'Berwick, VIC 3806' },
+    });
+
+    let turn = await runVoiceTurn('call-6', { spokenText: 'Berwick' }, { repo });
+    for (let i = 0; i < 12 && !turn.isDone; i += 1) {
+      turn = await runVoiceTurn('call-6', { spokenText: 'option A' }, { repo });
+    }
+
+    expect(turn.isDone).toBe(true);
+    expect(turn.speakText).toContain('on your screen');
+    expect(turn.speakText).toContain('bye for now');
+    // No quote was written: the customer has not confirmed anything yet, and will do it on screen.
+    expect(turn.resultId).toBeUndefined();
   });
 });

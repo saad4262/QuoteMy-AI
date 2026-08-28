@@ -207,10 +207,23 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
   } else if (nextField) {
     const question = questionFor(state.schema, nextField);
 
-    if (nextField === 'suburb') {
-      // The only field collected with something other than a tap: a mistyped suburb does not
-      // fail loudly, it silently matches zero businesses, so the client swaps its reply box for
-      // a Google-backed picker and sends back a real place.
+    if (nextField === 'suburb' && state.suburbChoices.length > 1) {
+      /* The name is real and answers to more than one place - there is a Richmond in four states.
+         Offering them by name, coordinates included, is the only safe move: picking the nearest
+         one silently produces a quote from businesses 900 km away, and nothing reports it. The
+         hints go back into `nearbyPlaces` so the reply resolves without a second trip to Google. */
+      nearbyOffered = {};
+      for (const choice of state.suburbChoices) {
+        nearbyOffered[slug(choice.displayLabel)] = choice;
+        options.push({ label: choice.displayLabel, value: choice.displayLabel });
+      }
+      options.push({ label: 'None of these', value: '__other__' });
+      message = 'There is more than one ' + state.suburbChoices[0]!.suburb + " — which one is yours?";
+      type = 'question';
+    } else if (nextField === 'suburb') {
+      /* A suburb is the one field with no list to tap: the trade's vocabulary does not contain
+         Australia. It is resolved from what the customer says (`suburb.ts`), and a postcode is
+         asked for because it is the one form of the answer that cannot be two places at once. */
       const hint = carriedHint;
       const covered = Object.keys(nearbyOffered)
         .map((key) => nearbyOffered[key]?.suburb)
@@ -218,7 +231,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
         .slice(0, 3);
 
       message = hint
-        ? 'I found ' + hint + ' — confirm that suburb from the list?'
+        ? "I couldn't pin down " + hint + ". What's the postcode?"
         : covered.length
           ? question + ' ' + covered.join(', ') + (covered.length > 1 ? ' are covered.' : ' is covered.')
           : question;

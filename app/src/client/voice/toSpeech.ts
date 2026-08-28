@@ -10,6 +10,12 @@ import type { ChatOption, ChatResponse } from '../schemas.js';
 
 const LETTERS = 'ABCDEFGH';
 
+/** "VIC 3806" is read as "vick three thousand eight hundred and six" if it is left alone. */
+const STATES: Record<string, string> = {
+  VIC: 'Victoria', NSW: 'New South Wales', QLD: 'Queensland', SA: 'South Australia',
+  WA: 'Western Australia', TAS: 'Tasmania', NT: 'Northern Territory', ACT: 'A C T',
+};
+
 /** `__other__` is a text box on screen. There is no text box in a phone call. */
 const speakable = (options: ChatOption[]): ChatOption[] => options.filter((o) => String(o.value) !== '__other__');
 
@@ -20,6 +26,8 @@ const speakable = (options: ChatOption[]): ChatOption[] => options.filter((o) =>
  */
 export function spoken(text: string): string {
   return text
+    .replace(/\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\b,?\s*(\d{4})\b/g, (_, state: string, postcode: string) => `${STATES[state]} ${postcode.split('').join(' ')}`)
+    .replace(/\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\b/g, (_, state: string) => STATES[state]!)
     .replace(/(\d+)\.(\d+)\s*m\b/g, (_, whole: string, part: string) => `${whole} point ${part.split('').join(' ')} metres`)
     .replace(/(\d+)\s*m\b/g, '$1 metres')
     .replace(/\$([\d,]+)/g, (_, amount: string) => `${amount.replace(/,/g, '')} dollars`)
@@ -60,22 +68,23 @@ function readResult(response: ChatResponse): string {
 }
 
 export function toSpeech(response: ChatResponse): string {
-  /* The suburb is the one answer that cannot be taken by voice. `isMissing('suburb')` tests the
-     geocoded place object, not the words (`mergeAndDecide.ts`), because ranking measures distance
-     and needs coordinates. A spoken suburb would never satisfy it, and the question would come back
-     every single turn - so the customer is asked to pick it on screen and told we will wait. */
-  if (response.expects === 'suburb') {
-    const hint = response.suggestedSuburb ? ` I think you said ${response.suggestedSuburb}.` : '';
-    return `${spoken(response.message)}${hint} Pick your suburb from the list on your screen and I will wait.`;
-  }
-
+  /* The suburb used to be the one answer voice could not take: `isMissing('suburb')` tests the
+     geocoded place object, not the words, so a spoken suburb never satisfied it and the question
+     came back for ever. `suburb.ts` now resolves it server-side, so it is asked out loud like any
+     other question - and a postcode, which the question asks for, is the one answer that cannot
+     be two places at once. */
   if (response.type === 'result') return readResult(response);
+
+  /* The end of a call. Every answer is in, and what is left is the one question worth getting
+     right - so it goes to the screen rather than being agreed to out loud. A misheard "yes" on a
+     recap is not a small mistake; it is the whole job, wrong, with a price on it. The recap is
+     still read, because a customer should hear what they are about to be shown. */
+  if (response.type === 'confirmation') {
+    return `${spoken(response.message)} I have put all of that on your screen. Have a look, and tap confirm if it is right — I will get your quotes ready. Thanks for calling, bye for now.`;
+  }
 
   const options = speakable(response.options);
   if (!options.length) return spoken(response.message);
-
-  // A confirmation is a yes or no question. Reading it as "Option A, yes" is absurd out loud.
-  if (response.type === 'confirmation') return `${spoken(response.message)} Just say yes, or tell me what to change.`;
 
   return `${spoken(response.message)} ${readOptions(options)}`;
 }

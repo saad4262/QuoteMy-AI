@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { business } from './controller.js';
 import { fencingChat } from './client/controller.js';
-import { createVoiceCall, voiceTurn, voiceTurnBody } from './client/voice/controller.js';
+import { createVoiceCall, voiceSession, voiceTurn, voiceTurnBody } from './client/voice/controller.js';
 import { chatBody } from './client/schemas.js';
 import { chatIpLimiter, chatLimiter } from './client/limits.js';
 import { chatSpendToday } from './client/spend.js';
@@ -79,3 +79,7 @@ routes.post('/voice/turn', chatIpLimiter, validateBody(voiceTurnBody), voiceTurn
 
 /** A browser about to start a call asks for a session here, so it never invents one itself. */
 routes.post('/voice/create-call', submitLimiter, createVoiceCall);
+
+/* Where a call becomes a chat. The page asks for this when the Retell SDK says the call ended,
+   whoever hung up, and carries the conversation on by typing. */
+routes.get('/voice/session', chatIpLimiter, voiceSession);

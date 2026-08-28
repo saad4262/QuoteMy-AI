@@ -207,7 +207,20 @@ export interface VoiceSession {
   checklist: Record<string, unknown>;
   place: unknown;
   options: { label: string; value: string | number }[];
+  /**
+   * The call, as it was said. Kept because a call has to end somewhere a screen can pick it up:
+   * the customer hangs up, the page asks for the session, and the conversation carries on in the
+   * chat exactly where the speaking stopped. Without this the page can show the answers but not
+   * the conversation, and the customer is left wondering what the call actually heard.
+   */
+  turns: VoiceTurnRecord[];
   updatedAt: string;
+}
+
+/** One exchange: what the customer said, and what was said back. */
+export interface VoiceTurnRecord {
+  said: string;
+  spoke: string;
 }
 
 /**

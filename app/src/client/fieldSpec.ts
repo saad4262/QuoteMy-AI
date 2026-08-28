@@ -84,7 +84,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
     key: 'suburb',
     type: 'place',
     title: 'Suburb',
-    question: 'Which suburb is the fence going in?',
+    question: 'Which suburb is the fence going in? A postcode works too.',
   },
   {
     key: 'material',
