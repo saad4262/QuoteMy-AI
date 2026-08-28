@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { env, logger } from '../../config.js';
 import { AppError } from '../../http.js';
 import { getRepository, type BusinessRepository } from '../../store.js';
+import { asObject } from '../errors.js';
 import { runFencingChat } from '../controller.js';
 import { saveChatResult } from '../saveResult.js';
 import type { ChatOption, ChatResponse, Place } from '../schemas.js';
@@ -22,10 +23,36 @@ import { toSpeech } from './toSpeech.js';
  * text chat gets it too.
  */
 
-export const voiceTurnBody = z.object({
-  spokenText: z.string().default(''),
-});
-export type VoiceTurnBody = z.infer<typeof voiceTurnBody>;
+/**
+ * What the customer said - read from either shape Retell sends it in.
+ *
+ * A custom tool posts `{ name, call, args: { spokenText } }` by default, and the flat
+ * `{ spokenText }` only when its "args only" switch is on. Reading one of those two was the most
+ * expensive line in this file: every turn arrived empty, the pipeline was handed nothing, the
+ * suburb question repeated for ever - and Retell's own call log showed the words being sent
+ * correctly the whole time. Nothing errored anywhere. Accepting both is how that stays fixed no
+ * matter which way the tool is configured.
+ */
+export const voiceTurnBody = z
+  .object({
+    spokenText: z.string().optional(),
+    args: z.looseObject({ spokenText: z.string().optional() }).optional(),
+    /** The nested shape carries the call, and with it the dynamic variables. */
+    call: z
+      .looseObject({ retell_llm_dynamic_variables: z.looseObject({ session_id: z.string().optional() }).optional() })
+      .optional(),
+  })
+  .loose()
+  .transform((body) => ({
+    spokenText: body.args?.spokenText ?? body.spokenText ?? '',
+    sessionId: body.call?.retell_llm_dynamic_variables?.session_id ?? null,
+  }));
+
+export interface VoiceTurnBody {
+  spokenText: string;
+  /** Only from the nested payload. A fallback for the query string, never the primary. */
+  sessionId?: string | null;
+}
 
 export interface VoiceTurnResult {
   speakText: string;
@@ -107,14 +134,21 @@ export async function runVoiceTurn(
  * failure a customer will not wait through.
  */
 export async function voiceTurn(req: Request, res: Response): Promise<void> {
-  const sessionId = String(req.query.sessionId ?? '').trim();
+  const body = req.body as VoiceTurnBody;
+
+  /* `{{session_id}}` arriving verbatim means the dynamic variable was never substituted. Treating
+     it as an id would be worse than having none: every call in the world would share one session
+     document, and each caller would inherit the last one's answers. */
+  const fromQuery = String(req.query.sessionId ?? '').trim();
+  const sessionId = (fromQuery.includes('{{') ? '' : fromQuery) || body.sessionId || '';
+
   if (!sessionId) {
     res.status(200).json({ speakText: 'Sorry, I lost track of this call. Could you start again?', isDone: false });
     return;
   }
 
   try {
-    res.status(200).json(await runVoiceTurn(sessionId, req.body as VoiceTurnBody));
+    res.status(200).json(await runVoiceTurn(sessionId, body));
   } catch (err) {
     const known = err instanceof AppError;
     if (!known || err.status >= 500) logger.error({ err, sessionId }, 'voice turn failed');
@@ -139,8 +173,30 @@ export async function voiceTurn(req: Request, res: Response): Promise<void> {
  * With no key configured this still answers with a session id, which is what makes the whole voice
  * path testable from Postman with no Retell account at all.
  */
-export async function createVoiceCall(_req: Request, res: Response): Promise<void> {
+export async function createVoiceCall(req: Request, res: Response): Promise<void> {
   const sessionId = newVoiceSession();
+
+  /* A second call in the same conversation continues it rather than starting it again.
+     The page holds the checklist by then - from an earlier call's handover, or from typing - and
+     hands it back here, so the caller is not asked their suburb twice in one sitting. Sent the
+     same way the chat sends it, as JSON text, and stored under the new session before the call is
+     minted so the very first spoken turn already knows everything. */
+  const body = (req.body ?? {}) as { checklist?: string; place?: string; options?: string };
+  const carried = {
+    checklist: asObject<Record<string, unknown>>(body.checklist),
+    place: asObject<Place>(body.place),
+    options: asObject<ChatOption[]>(body.options),
+  };
+  if (carried.checklist || carried.place) {
+    await getRepository().writeVoiceSession(sessionId, {
+      checklist: carried.checklist ?? {},
+      place: carried.place ?? null,
+      options: Array.isArray(carried.options) ? carried.options : [],
+      // The page already has everything said before this call. Only this call's turns belong here.
+      turns: [],
+      updatedAt: new Date().toISOString(),
+    });
+  }
 
   if (!env.RETELL_API_KEY || !env.RETELL_AGENT_ID) {
     res.status(200).json({ sessionId, accessToken: null, configured: false });

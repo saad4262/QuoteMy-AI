@@ -317,3 +317,97 @@ describe('the end of a call', () => {
     expect(turn.resultId).toBeUndefined();
   });
 });
+
+/**
+ * The shape Retell actually posts.
+ *
+ * A custom tool nests its arguments under `args` unless its "args only" switch is on. Reading only
+ * the flat shape meant every turn reached the pipeline empty: no error, no warning, just the same
+ * question asked for ever while Retell's call log showed the words being sent correctly.
+ */
+describe('the turn body', () => {
+  const app = createApp();
+
+  beforeEach(() => {
+    setRepository(new MemoryRepository());
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+  });
+
+  const said = async (body: object, sessionId = 'shape-1') => {
+    await request(app).post('/api/v1/voice/turn').query({ sessionId }).send(body);
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId });
+    return res.body.turns.at(-1)?.said;
+  };
+
+  it('reads what was said whether it is nested or flat', async () => {
+    expect(await said({ name: 'voice_turn', args: { spokenText: 'In Pakenham 3810' } }, 'shape-nested')).toBe('In Pakenham 3810');
+    expect(await said({ spokenText: 'In Pakenham 3810' }, 'shape-flat')).toBe('In Pakenham 3810');
+  });
+
+  /* Every call sharing one session document is worse than having no id at all: each caller
+     inherits the last one's answers, and nothing anywhere reports it. */
+  it('refuses a session id that is really an unsubstituted variable', async () => {
+    const res = await request(app)
+      .post('/api/v1/voice/turn')
+      .query({ sessionId: '{{session_id}}' })
+      .send({ args: { spokenText: 'hello' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.speakText).toContain('start again');
+    expect(res.body.isDone).toBe(false);
+  });
+
+  it('falls back to the session id inside the call payload', async () => {
+    await request(app)
+      .post('/api/v1/voice/turn')
+      .send({ args: { spokenText: 'hello there' }, call: { retell_llm_dynamic_variables: { session_id: 'from-body' } } });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'from-body' });
+    expect(res.body.found).toBe(true);
+    expect(res.body.turns[0].said).toBe('hello there');
+  });
+});
+
+/**
+ * Voice, then typing, then voice again - one conversation.
+ *
+ * Pressing the mic a second time used to start from nothing: a new session, an empty checklist,
+ * and a caller asked their suburb twice in one sitting. The page holds the checklist by then, so
+ * it hands it back and the new call begins where the last one stopped.
+ */
+describe('a second call in the same conversation', () => {
+  const app = createApp();
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+  });
+
+  it('carries the checklist the page already holds', async () => {
+    const checklist = { suburb: 'Berwick, VIC, 3806', material: 'colorbond', _ui: { turn: 4, lastAsked: 'material' } };
+    const place = { latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick', displayLabel: 'Berwick, VIC, 3806' };
+
+    const res = await request(app)
+      .post('/api/v1/voice/create-call')
+      .send({ checklist: JSON.stringify(checklist), place: JSON.stringify(place) });
+
+    expect(res.status).toBe(200);
+    const stored = await repo.readVoiceSession(res.body.sessionId as string);
+    expect(stored?.checklist).toMatchObject({ suburb: 'Berwick, VIC, 3806', material: 'colorbond' });
+    expect(stored?.place).toMatchObject({ suburb: 'Berwick' });
+    // Only this call's turns belong to this call; the page already has the earlier ones.
+    expect(stored?.turns).toEqual([]);
+  });
+
+  it('starts clean when the page has nothing to carry', async () => {
+    const res = await request(app).post('/api/v1/voice/create-call').send({});
+    expect(res.status).toBe(200);
+    expect(await repo.readVoiceSession(res.body.sessionId as string)).toBeNull();
+  });
+});
