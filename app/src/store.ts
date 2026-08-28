@@ -220,13 +220,27 @@ export interface VoiceSession {
    * screen that has to show the rest.
    */
   resultId?: string | null;
+  /**
+   * What kind of turn the call ended on - `question`, `confirmation`, `result`. The page needs it
+   * to know whether `options` are still worth offering: a caller who hung up on the recap should
+   * find its yes and no waiting on screen, not a dead transcript.
+   */
+  type?: string | null;
   updatedAt: string;
 }
 
-/** One exchange: what the customer said, and what was said back. */
+/**
+ * One exchange: what the customer said, and what was said back - twice.
+ *
+ * `spoke` is the audio record: "Pakenham, Victoria 3 8 1 0, one point five metres". `wrote` is the
+ * same turn as the text chat would have written it: "Pakenham, VIC, 3810, 1.5m". They are not
+ * interchangeable, and putting the spoken one in a chat bubble is how a recap ends up reading like
+ * a phone number. The page renders `wrote`; `spoke` is what was actually heard.
+ */
 export interface VoiceTurnRecord {
   said: string;
   spoke: string;
+  wrote: string;
 }
 
 /**

@@ -119,8 +119,9 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
-    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText }].slice(-MAX_TURNS),
+    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText, wrote: response.message }].slice(-MAX_TURNS),
     resultId: resultId ?? session?.resultId ?? null,
+    type: response.type,
     updatedAt: new Date().toISOString(),
   });
 
@@ -259,9 +260,13 @@ export async function voiceSession(req: Request, res: Response): Promise<void> {
     sessionId,
     found: true,
     turns: session.turns,
-    /* Present once the call reached a quote. The caller heard the cheapest price out loud and is
-       now looking at a screen that has to show the rest, so this is where the page navigates. */
+    /* Present once the call reached a quote. The caller agreed to the brief out loud and is now
+       looking at a screen that has to show what came back, so this is where the page navigates. */
     resultId: session.resultId ?? null,
+    /* The last turn as the text chat would have rendered it, so a caller who hung up mid-question
+       finds it on screen with its options still tappable rather than a transcript that stops. */
+    type: session.type ?? null,
+    message: session.turns.at(-1)?.wrote ?? null,
     /* `_ui` included, exactly as stored. The page posts this straight back as the chat's
        `knownChecklist`, and every field in `_ui` exists to stop a bug the comments there describe -
        so handing over a trimmed copy is how those bugs come back on the second front door. */

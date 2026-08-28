@@ -108,14 +108,28 @@ Where a call becomes a chat.
 ```json
 {
   "found": true,
-  "turns": [{ "said": "I need a fence quote", "spoke": "Happy to help with that…" }],
-  "resultId": "9c2f…",
+  "turns": [
+    { "said": "yeah Pakenham 3810",
+      "spoke": "Nice one — what type of fence are you after? Option A, Treated pine. …",
+      "wrote": "Nice one — what type of fence are you after?" }
+  ],
+  "type": "question",
+  "message": "Nice one — what type of fence are you after?",
+  "options": [{ "label": "Treated pine", "value": "timber_pine" }],
+  "resultId": null,
   "checklist": { "suburb": "Berwick, VIC 3806", "material": "colorbond", "_ui": { } },
   "place": { "latitude": -38.0362, "longitude": 145.3478, "suburb": "Berwick" },
-  "options": [],
   "updatedAt": "2026-08-28T01:20:00.000Z"
 }
 ```
+
+**Render `wrote`, never `spoke`.** They are the same turn in two registers: `spoke` is the audio
+record — "Pakenham, Victoria 3 8 1 0, one point five metres", with the choices read out as Option A,
+Option B — and `wrote` is what the text chat would have put in the bubble. Putting the spoken one on
+screen makes a fence quote read like a phone number.
+
+`type` and `options` describe the turn the call ended on, so a caller who hung up on a question
+finds it waiting with its choices still tappable rather than a transcript that simply stops.
 
 The page asks for this when the Retell SDK says the call ended — whoever hung up — and renders
 `turns` as the conversation.

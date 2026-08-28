@@ -584,6 +584,7 @@ export class FirestoreRepository implements BusinessRepository {
       options: Array.isArray(d.options) ? d.options : [],
       turns: Array.isArray(d.turns) ? d.turns : [],
       resultId: (d.resultId as string | undefined) ?? null,
+      type: (d.type as string | undefined) ?? null,
       updatedAt: toIso(d.updatedAt) ?? '',
     };
   }
@@ -595,6 +596,7 @@ export class FirestoreRepository implements BusinessRepository {
       options: session.options,
       turns: session.turns,
       resultId: session.resultId ?? null,
+      type: session.type ?? null,
       updatedAt: FieldValue.serverTimestamp(),
     });
   }

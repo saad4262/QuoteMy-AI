@@ -301,6 +301,32 @@ describe('the call, handed to a screen', () => {
     expect(res.body.turns[0].said).toBe('I need a fence quote');
     // The page posts this back as `knownChecklist`, so a trimmed copy is how the loops come back.
     expect(res.body.checklist._ui).toBeDefined();
+    // The last turn as the chat would render it, so the page can carry on drawing bubbles.
+    expect(res.body.type).toBe('message');
+    expect(res.body.message).toBe(res.body.turns.at(-1).wrote);
+  });
+
+  /* "Victoria 3 8 1 0" and "1 point 5 metres" are how a recap is said, not how it is written.
+     Putting the spoken form in a chat bubble makes a fence quote read like a phone number. */
+  it('keeps the spoken and the written form of every turn apart', async () => {
+    await runVoiceTurn('call-7', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('call-7', { spokenText: 'yes' }, { repo });
+
+    const started = (await repo.readVoiceSession('call-7'))!;
+    await repo.writeVoiceSession('call-7', {
+      ...started,
+      place: { latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick', displayLabel: 'Berwick, VIC 3806' },
+    });
+    await runVoiceTurn('call-7', { spokenText: 'Berwick' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'call-7' });
+    const last = res.body.turns.at(-1);
+
+    // Said aloud, the choices are read out. Written, they are chips beside the message.
+    expect(last.spoke).toContain('Option A');
+    expect(last.wrote).not.toContain('Option A');
+    expect(res.body.type).toBe('question');
+    expect(res.body.options.map((o: { value: string }) => o.value)).toContain('colorbond');
   });
 
   /* A call nobody spoke on, or one older than the session's half hour. Not an error: the page
