@@ -167,6 +167,8 @@ export async function runVoiceTurn(
         said: spoken,
         spoke: speakText,
         wrote: response.message,
+        // What this turn put on the table. `chose` below answers the turn before it, not this one.
+        offered: response.options,
         chose: choseFrom(offered, asked, response.checklist),
       },
     ].slice(-MAX_TURNS),

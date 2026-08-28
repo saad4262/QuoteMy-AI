@@ -140,6 +140,7 @@ Where a call becomes a chat.
       "said": "yeah Pakenham 3810",
       "spoke": "Nice one — what type of fence are you after? Option A, Treated pine. …",
       "wrote": "Nice one — what type of fence are you after?",
+      "offered": [{ "label": "Treated pine", "value": "timber_pine" }],
       "chose": null }
   ],
   "type": "question",
@@ -174,6 +175,17 @@ more, and a page holding those in two places has no way to interleave them — s
 stack at the bottom and the transcript reads in an order the conversation never happened in. A
 clock is the only thing both halves share. **Merge typed messages and call turns into one list
 sorted on time, then render top to bottom.**
+
+`offered` is what that turn put on the table - the same thing top-level `options` holds for the last
+turn, kept for every turn instead of only the newest. **Draw it under the agent's bubble as pills,
+filled for the one that was picked and outlined for the rest.** Without it a transcript can only
+show the answer and never what it was chosen from, and the only way to say the rest is to print
+`spoke` - "Option A, Treated pine. Option B…" - directly underneath the choices it is describing.
+
+The answer is not on the same turn, because when that turn was written it did not exist yet: this
+turn asks, the next one answers. **Fill the pill on turn `n` from `turns[n + 1].chose`.** In history
+the pills are a record, not a control - only the last turn's are worth making tappable, and only
+once the call has ended.
 
 `chose` is the **label** of the option they picked, when what they said was one of the ones just
 read out — `matchSpokenToOption` already works this out and the answer used to be thrown away.

@@ -269,6 +269,19 @@ export interface VoiceTurnRecord {
   spoke: string;
   wrote: string;
   /**
+   * The choices offered alongside this turn's `wrote` - the same thing `options` holds for the last
+   * turn, kept for every turn instead of only the newest.
+   *
+   * Without it a transcript can only show the answer, never what it was chosen from: the caller
+   * heard three materials read out and the screen keeps one. The screen then has to say the rest in
+   * words, which means printing `spoke` - "Option A, Treated pine. Option B…" - directly underneath
+   * the choices it is describing.
+   *
+   * The answer is not here, because it does not exist yet: this turn asks the question and the next
+   * one answers it. A screen fills the pill on turn `n` from `turns[n + 1].chose`.
+   */
+  offered: { label: string; value: string | number }[];
+  /**
    * The label of the choice they picked, when what they said was one of the options just read out.
    *
    * `matchSpokenToOption` already works this out - it is what makes the no-model turn possible -

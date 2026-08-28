@@ -592,6 +592,9 @@ export class FirestoreRepository implements BusinessRepository {
             ...turn,
             n: turn.n ?? index + 1,
             at: turn.at ?? toIso(d.updatedAt) ?? '',
+            // Nothing to recover for a turn written before this existed - it offered no choices as
+            // far as anything can now tell, and an empty list draws as no pills.
+            offered: Array.isArray(turn.offered) ? turn.offered : [],
           }))
         : [],
       resultId: (d.resultId as string | undefined) ?? null,

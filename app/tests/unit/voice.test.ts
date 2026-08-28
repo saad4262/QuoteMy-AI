@@ -568,6 +568,32 @@ describe('the brief panel during a call', () => {
     expect(pending.map((entry) => entry.key)).toContain('material');
   });
 
+  /* A transcript that keeps only the answer cannot show what it was chosen from - and a screen
+     that has to say the rest in words ends up printing the spoken option read-out underneath the
+     very choices it describes. */
+  it('keeps the choices each turn offered, so every question can draw its own', async () => {
+    await runVoiceTurn('offer-1', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('offer-1', { spokenText: 'yes' }, { repo });
+    await runVoiceTurn('offer-1', { spokenText: 'Berwick 3806' }, { repo });
+    await runVoiceTurn('offer-1', { spokenText: 'colorbond' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'offer-1' });
+    const turns = res.body.turns as { n: number; wrote: string; offered: { label: string }[]; chose: string | null }[];
+
+    // The material question offered real choices, and they are still on that turn.
+    const asked = turns.find((turn) => /type of fence/i.test(turn.wrote));
+    expect(asked).toBeDefined();
+    expect(asked!.offered.map((option) => option.label)).toContain('Colorbond');
+
+    /* The answer lives on the NEXT turn, because when this one was written it did not exist yet.
+       That off-by-one is the whole rule a screen needs: fill the pill on turn n from n + 1. */
+    const answer = turns[turns.indexOf(asked!) + 1];
+    expect(answer!.chose).toBe('Colorbond');
+
+    // The newest turn's offer is what the top-level `options` has always been.
+    expect(turns.at(-1)!.offered).toEqual(res.body.options);
+  });
+
   /* The object survives one hop and then goes through Firestore, a merge and a `JSON.parse`, and
      comes out reordered - so the panel reshuffles between the call and the results page. The
      ordered list is what a screen should draw from. */
@@ -725,6 +751,7 @@ describe('turn numbering', () => {
       said: `said ${index + 1}`,
       spoke: '',
       wrote: '',
+      offered: [],
       chose: null,
     }));
     await repo.writeVoiceSession('n-2', { checklist: {}, place: null, options: [], turns: filler, updatedAt: new Date().toISOString() });
