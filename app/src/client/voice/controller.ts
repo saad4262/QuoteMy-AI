@@ -9,7 +9,7 @@ import { runFencingChat } from '../controller.js';
 import { saveChatResult } from '../saveResult.js';
 import type { ChatOption, ChatResponse, Place } from '../schemas.js';
 import { matchSpokenToOption } from './matchSpoken.js';
-import { toSpeech } from './toSpeech.js';
+import { greetingFor, toSpeech } from './toSpeech.js';
 
 /**
  * One turn of a spoken quote conversation.
@@ -87,8 +87,14 @@ export async function runVoiceTurn(
      the three-second turn rather than the six-second one, and it is most of them. Anything else
      goes through as spoken, because reading a sentence is exactly what the model is for. */
   const spoken = input.spokenText.trim();
-  const matched = session ? matchSpokenToOption(spoken, session.options as ChatOption[]) : null;
+  const offered = (session?.options ?? []) as ChatOption[];
+  const matched = session ? matchSpokenToOption(spoken, offered) : null;
   const message = matched === null ? spoken : String(matched);
+
+  /* Which choice that was, in the words it was read out in. The page shows it as the selected chip,
+     so a call leaves the same transcript a tap would: "Treated pine", not "Treated pine. I need
+     treated pine." Worked out here because this is the only place that knows both halves. */
+  const chose = matched === null ? null : (offered.find((option) => String(option.value) === String(matched))?.label ?? null);
 
   const response: ChatResponse = await runFencingChat(
     {
@@ -119,9 +125,11 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
-    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText, wrote: response.message }].slice(-MAX_TURNS),
+    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText, wrote: response.message, chose }].slice(-MAX_TURNS),
     resultId: resultId ?? session?.resultId ?? null,
     type: response.type,
+    checklistDisplay: response.checklistDisplay,
+    checklistPending: response.checklistPending,
     updatedAt: new Date().toISOString(),
   });
 
@@ -183,22 +191,39 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
      hands it back here, so the caller is not asked their suburb twice in one sitting. Sent the
      same way the chat sends it, as JSON text, and stored under the new session before the call is
      minted so the very first spoken turn already knows everything. */
-  const body = (req.body ?? {}) as { checklist?: string; place?: string; options?: string };
+  const body = (req.body ?? {}) as {
+    checklist?: string;
+    place?: string;
+    options?: string;
+    message?: string;
+    checklistDisplay?: string;
+  };
   const carried = {
     checklist: asObject<Record<string, unknown>>(body.checklist),
     place: asObject<Place>(body.place),
     options: asObject<ChatOption[]>(body.options),
+    display: asObject<Record<string, { title: string; value: string }>>(body.checklistDisplay),
   };
+  const options = Array.isArray(carried.options) ? carried.options : [];
+
   if (carried.checklist || carried.place) {
     await getRepository().writeVoiceSession(sessionId, {
       checklist: carried.checklist ?? {},
       place: carried.place ?? null,
-      options: Array.isArray(carried.options) ? carried.options : [],
+      options,
       // The page already has everything said before this call. Only this call's turns belong here.
       turns: [],
+      checklistDisplay: carried.display ?? {},
+      checklistPending: [],
       updatedAt: new Date().toISOString(),
     });
   }
+
+  /* The opening line, written here and read by the agent - never composed by the speech model,
+     same rule as every other sentence in this product. With nothing carried it is the ordinary
+     greeting; with a conversation behind it, it says so and picks up the question already on
+     screen, so pressing the microphone at the seventh question does not start again at hello. */
+  const greeting = greetingFor({ display: carried.display ?? {}, message: body.message, options });
 
   if (!env.RETELL_API_KEY || !env.RETELL_AGENT_ID) {
     res.status(200).json({ sessionId, accessToken: null, configured: false });
@@ -211,7 +236,7 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
       headers: { authorization: `Bearer ${env.RETELL_API_KEY}`, 'content-type': 'application/json' },
       body: JSON.stringify({
         agent_id: env.RETELL_AGENT_ID,
-        retell_llm_dynamic_variables: { session_id: sessionId },
+        retell_llm_dynamic_variables: { session_id: sessionId, greeting },
         metadata: { sessionId },
       }),
       signal: AbortSignal.timeout(10_000),
@@ -267,6 +292,10 @@ export async function voiceSession(req: Request, res: Response): Promise<void> {
        finds it on screen with its options still tappable rather than a transcript that stops. */
     type: session.type ?? null,
     message: session.turns.at(-1)?.wrote ?? null,
+    /* The brief panel, so it fills in while the call is still running rather than all at once when
+       it ends. Answered on one side, still-to-come on the other. */
+    checklistDisplay: session.checklistDisplay ?? {},
+    checklistPending: session.checklistPending ?? [],
     /* `_ui` included, exactly as stored. The page posts this straight back as the chat's
        `knownChecklist`, and every field in `_ui` exists to stop a bug the comments there describe -
        so handing over a trimmed copy is how those bugs come back on the second front door. */

@@ -41,6 +41,40 @@ customer: "I need a fence quote"
     }
   },
   "checklistDisplay": {},
+  "checklistPending": [
+    {
+      "key": "suburb",
+      "title": "Suburb"
+    },
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -86,6 +120,40 @@ customer: "yes go ahead"
     }
   },
   "checklistDisplay": {},
+  "checklistPending": [
+    {
+      "key": "suburb",
+      "title": "Suburb"
+    },
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -174,6 +242,36 @@ picked place: Berwick, VIC 3806
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistPending": [
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -261,6 +359,36 @@ customer: "something else"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistPending": [
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -343,6 +471,36 @@ customer: "something else"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistPending": [
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -430,6 +588,36 @@ customer: "something else"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistPending": [
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }

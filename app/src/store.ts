@@ -226,6 +226,13 @@ export interface VoiceSession {
    * find its yes and no waiting on screen, not a dead transcript.
    */
   type?: string | null;
+  /**
+   * The brief panel's two halves, stored so a page can draw them while the call is still running.
+   * Answered fields and the ones still to come; without both, a panel cannot tell "not asked yet"
+   * from "does not exist" and so can show neither.
+   */
+  checklistDisplay?: Record<string, { title: string; value: string }>;
+  checklistPending?: { key: string; title: string }[];
   updatedAt: string;
 }
 
@@ -241,6 +248,15 @@ export interface VoiceTurnRecord {
   said: string;
   spoke: string;
   wrote: string;
+  /**
+   * The label of the choice they picked, when what they said was one of the options just read out.
+   *
+   * `matchSpokenToOption` already works this out - it is what makes the no-model turn possible -
+   * and until now the answer was thrown away. A screen wants it: tapping "Treated pine" in the text
+   * chat leaves "Treated pine" in the transcript, and a call should leave the same thing rather
+   * than "Treated pine. I need treated pine."
+   */
+  chose?: string | null;
 }
 
 /**

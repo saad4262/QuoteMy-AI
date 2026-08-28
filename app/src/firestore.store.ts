@@ -585,6 +585,8 @@ export class FirestoreRepository implements BusinessRepository {
       turns: Array.isArray(d.turns) ? d.turns : [],
       resultId: (d.resultId as string | undefined) ?? null,
       type: (d.type as string | undefined) ?? null,
+      checklistDisplay: (d.checklistDisplay as VoiceSession['checklistDisplay']) ?? {},
+      checklistPending: Array.isArray(d.checklistPending) ? d.checklistPending : [],
       updatedAt: toIso(d.updatedAt) ?? '',
     };
   }
@@ -597,6 +599,8 @@ export class FirestoreRepository implements BusinessRepository {
       turns: session.turns,
       resultId: session.resultId ?? null,
       type: session.type ?? null,
+      checklistDisplay: session.checklistDisplay ?? {},
+      checklistPending: session.checklistPending ?? [],
       updatedAt: FieldValue.serverTimestamp(),
     });
   }

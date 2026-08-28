@@ -4,7 +4,7 @@ import { setAiClient, MockAiClient, type AiClient, type ModelCall, type ModelRes
 import { createApp } from '../../src/server.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { matchSpokenToOption } from '../../src/client/voice/matchSpoken.js';
-import { toSpeech, spoken } from '../../src/client/voice/toSpeech.js';
+import { toSpeech, spoken, greetingFor, OPENING_LINE } from '../../src/client/voice/toSpeech.js';
 import { runVoiceTurn } from '../../src/client/voice/controller.js';
 import { resetChatSpend } from '../../src/client/spend.js';
 import { MemoryRepository, setRepository, type CapabilitiesDoc, type PricingDoc } from '../../src/store.js';
@@ -494,5 +494,137 @@ describe('a second call in the same conversation', () => {
     const res = await request(app).post('/api/v1/voice/create-call').send({});
     expect(res.status).toBe(200);
     expect(await repo.readVoiceSession(res.body.sessionId as string)).toBeNull();
+  });
+});
+
+/**
+ * The first thing said on a call, given what the conversation already knows.
+ *
+ * A caller who typed half a brief and then pressed the microphone was being greeted like a
+ * stranger, because the greeting was static text inside the Retell flow. It is written here now
+ * and handed over as a dynamic variable, exactly the way `{{speak_text}}` is - so it is still our
+ * sentence and not the speech model's.
+ */
+describe('the opening line', () => {
+  it('is the ordinary greeting when nothing came before', () => {
+    expect(greetingFor({})).toBe(OPENING_LINE);
+    expect(greetingFor({ display: {}, message: '', options: [] })).toBe(OPENING_LINE);
+  });
+
+  it('picks the conversation up instead of starting again', () => {
+    const said = greetingFor({
+      display: { suburb: { title: 'Suburb', value: 'Pakenham, VIC, 3810' }, material: { title: 'Material', value: 'Treated pine' } },
+      message: 'How long is the fence?',
+      options: options(['10 metres', 10], ['15 metres', 15], ['Other', '__other__']),
+    });
+
+    expect(said).toContain('Welcome back');
+    expect(said).toContain('Treated pine');
+    expect(said).toContain('How long is the fence?');
+    expect(said).toContain('Option A, 10 metres');
+    expect(said).not.toContain('Option C');   // `__other__` is a text box, not something to say
+    expect(said).not.toContain('thanks for calling');
+  });
+
+  it('says a suburb and a height the way they are spoken', () => {
+    const said = greetingFor({
+      display: { suburb: { title: 'Suburb', value: 'Berwick, VIC, 3806' }, heightKey: { title: 'Height', value: '1.8m' } },
+      message: 'How long is the fence?',
+    });
+
+    expect(said).toContain('Victoria 3 8 0 6');
+    expect(said).toContain('1 point 8 metres');
+  });
+});
+
+/**
+ * What the page gets back mid-call, and after it.
+ *
+ * The brief panel beside a live call could only ever fill in all at once when the call ended,
+ * because the handover carried the checklist but not the two lists a panel actually draws.
+ */
+describe('the brief panel during a call', () => {
+  const app = createApp();
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+  });
+
+  it('hands back what is answered and what is still to come', async () => {
+    await runVoiceTurn('panel-1', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('panel-1', { spokenText: 'yes' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'panel-1' });
+
+    expect(res.body.checklistDisplay).toBeDefined();
+    const pending = res.body.checklistPending as { key: string; title: string }[];
+    // In the order they will be asked, so a panel can draw them greyed underneath the answers.
+    expect(pending[0]).toEqual({ key: 'suburb', title: 'Suburb' });
+    expect(pending.map((entry) => entry.key)).toContain('material');
+  });
+
+  /* Tapping "Treated pine" in the text chat leaves "Treated pine" in the transcript. Saying it
+     should leave the same thing, not "Treated pine. I need treated pine." */
+  it('records which choice was picked, in the words it was offered in', async () => {
+    await runVoiceTurn('panel-2', { spokenText: 'I need a fence' }, { repo });
+    await runVoiceTurn('panel-2', { spokenText: 'yes' }, { repo });
+
+    const started = (await repo.readVoiceSession('panel-2'))!;
+    await repo.writeVoiceSession('panel-2', {
+      ...started,
+      place: { latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick', displayLabel: 'Berwick, VIC 3806' },
+    });
+    await runVoiceTurn('panel-2', { spokenText: 'Berwick' }, { repo });
+    await runVoiceTurn('panel-2', { spokenText: 'Treated pine. I need treated pine.' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'panel-2' });
+    const picked = res.body.turns.at(-1);
+
+    expect(picked.said).toBe('Treated pine. I need treated pine.');
+    expect(picked.chose).toBe('Treated pine');
+  });
+
+  it('leaves `chose` empty when they said something of their own', async () => {
+    await runVoiceTurn('panel-3', { spokenText: 'I need a fence quote' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'panel-3' });
+    expect(res.body.turns[0].chose).toBeNull();
+  });
+});
+
+/**
+ * A second call carries the conversation, and the greeting says so.
+ */
+describe('create-call, carrying a conversation', () => {
+  const app = createApp();
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+  });
+
+  it('stores the brief the page already holds', async () => {
+    const res = await request(app)
+      .post('/api/v1/voice/create-call')
+      .send({
+        checklist: JSON.stringify({ suburb: 'Berwick, VIC, 3806', material: 'colorbond', _ui: { turn: 4 } }),
+        place: JSON.stringify({ latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick' }),
+        options: JSON.stringify([{ label: '10 metres', value: 10 }]),
+        checklistDisplay: JSON.stringify({ material: { title: 'Material', value: 'Colorbond' } }),
+        message: 'How long is the fence?',
+      });
+
+    expect(res.status).toBe(200);
+    const stored = await repo.readVoiceSession(res.body.sessionId as string);
+    expect(stored?.checklist).toMatchObject({ material: 'colorbond' });
+    expect(stored?.checklistDisplay).toMatchObject({ material: { title: 'Material', value: 'Colorbond' } });
+    expect(stored?.turns).toEqual([]);
   });
 });

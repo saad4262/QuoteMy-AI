@@ -59,9 +59,22 @@ Returns:
 { "sessionId": "8f1c…", "accessToken": "…", "configured": true }
 ```
 
-Sending the checklist makes a **second** call continue the conversation rather than start it again
-— the page holds it by then, from an earlier call's handover or from typing, and without it the
-caller is asked their suburb twice in one sitting. Same JSON-text encoding the chat uses.
+Sending these makes a **second** call continue the conversation rather than start it again — the
+page holds them by then, from an earlier call's handover or from typing, and without them the caller
+is asked their suburb twice in one sitting. Same JSON-text encoding the chat uses.
+
+They also decide **what the call opens with**. A caller who typed half a brief and then pressed the
+microphone should not be greeted like a stranger, and should not be walked straight into a question
+either:
+
+> *"Welcome back. I still have your details — Pakenham, Victoria 3 8 1 0, Treated pine. How long is
+> the fence? Option A, 10 metres. Option B, 15 metres. …"*
+
+That line is built by [`greetingFor`](../app/src/client/voice/toSpeech.ts) and handed to Retell as
+the dynamic variable `{{greeting}}`, exactly the way `{{speak_text}}` is. The flow's greeting node
+reads it and nothing else. **The speech model never writes it** — same rule as every other sentence
+here. With nothing carried it is the ordinary opening line, which is also the flow's stored default,
+so a call made from the Retell dashboard still greets properly.
 
 The Retell API key never leaves the server — a browser holding it could create calls against the
 account at will. Only the token, which is scoped to one call, is handed out.
@@ -101,6 +114,19 @@ one session document is worse than having no id at all.
 call that receives a status the agent cannot read goes silent, and silence is the one failure a
 caller will not sit through.
 
+Every chat response also carries **`checklistPending`** — the fields still to come, in the order
+they will be asked, dependencies already applied:
+
+```json
+"checklistDisplay": { "material": { "title": "Material", "value": "Colorbond" } },
+"checklistPending": [{ "key": "heightKey", "title": "Height" }, { "key": "lengthMeters", "title": "Length" }]
+```
+
+`checklistDisplay` holds answers and nothing else, which is right for a results page and wrong for a
+panel beside a live conversation: with only the answered fields a screen cannot tell "not asked yet"
+from "does not exist", so it can show neither. Somebody who said they have no gates never sees
+"Gate count" waiting, because it will never be asked.
+
 ### `GET /api/v1/voice/session?sessionId=<id>`
 
 Where a call becomes a chat.
@@ -111,11 +137,14 @@ Where a call becomes a chat.
   "turns": [
     { "said": "yeah Pakenham 3810",
       "spoke": "Nice one — what type of fence are you after? Option A, Treated pine. …",
-      "wrote": "Nice one — what type of fence are you after?" }
+      "wrote": "Nice one — what type of fence are you after?",
+      "chose": null }
   ],
   "type": "question",
   "message": "Nice one — what type of fence are you after?",
   "options": [{ "label": "Treated pine", "value": "timber_pine" }],
+  "checklistDisplay": { "suburb": { "title": "Suburb", "value": "Berwick, VIC 3806" } },
+  "checklistPending": [{ "key": "material", "title": "Material" }],
   "resultId": null,
   "checklist": { "suburb": "Berwick, VIC 3806", "material": "colorbond", "_ui": { } },
   "place": { "latitude": -38.0362, "longitude": 145.3478, "suburb": "Berwick" },
@@ -130,6 +159,18 @@ screen makes a fence quote read like a phone number.
 
 `type` and `options` describe the turn the call ended on, so a caller who hung up on a question
 finds it waiting with its choices still tappable rather than a transcript that simply stops.
+
+`chose` is the **label** of the option they picked, when what they said was one of the ones just
+read out — `matchSpokenToOption` already works this out and the answer used to be thrown away.
+Tapping "Treated pine" in the text chat leaves "Treated pine" in the transcript; saying it should
+leave the same thing, not "Treated pine. I need treated pine." It is `null` when they said something
+of their own.
+
+`checklistDisplay` and `checklistPending` are the brief panel's two halves, so it fills in **while
+the call runs** rather than all at once when it ends. Fetch this on the SDK's `agent_stop_talking`
+rather than on a timer: the agent stops talking exactly once per turn, so that is one request per
+turn, where polling every two seconds would spend 90 of an IP's 600 hourly requests on a single
+three-minute call.
 
 The page asks for this when the Retell SDK says the call ended — whoever hung up — and renders
 `turns` as the conversation.

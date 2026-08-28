@@ -3,7 +3,7 @@ import { questionFor } from './schema.js';
 import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
 import { slug } from './fuzzyMatch.js';
-import type { ChatOption, ChatResponse, ChecklistDisplay, ChecklistDisplayEntry, PlaceHint, UiState } from './schemas.js';
+import type { ChatOption, ChatResponse, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -319,6 +319,13 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     checklistDisplay[field] = entry;
   }
 
+  /* What is still to come, for the panel beside the conversation. `missing` is already in the
+     order fields are asked and already has dependencies applied, so this is only a rename.
+     A suburb handed back because nobody covered it is asked again but was never missing, so it is
+     put at the front by hand - otherwise it would show as neither answered nor pending. */
+  const pendingKeys = askingSuburbAgain ? ['suburb' as ChecklistField, ...missing.filter((f) => f !== 'suburb')] : missing;
+  const checklistPending: ChecklistPendingEntry[] = pendingKeys.map((field) => ({ key: field, title: titleOf(field) }));
+
   return {
     sessionId,
     trade: 'fencing',
@@ -335,6 +342,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     checklistComplete,
     checklist: { ...checklist, _ui: uiOut },
     checklistDisplay,
+    checklistPending,
     results: [],
     avgRatePerMeter: null,
   };

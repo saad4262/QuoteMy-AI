@@ -41,6 +41,40 @@ customer: "I need a fence quote"
     }
   },
   "checklistDisplay": {},
+  "checklistPending": [
+    {
+      "key": "suburb",
+      "title": "Suburb"
+    },
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -86,6 +120,40 @@ customer: "yes go ahead"
     }
   },
   "checklistDisplay": {},
+  "checklistPending": [
+    {
+      "key": "suburb",
+      "title": "Suburb"
+    },
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -174,6 +242,36 @@ picked place: Berwick, VIC 3806
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistPending": [
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -239,6 +337,36 @@ customer: "I want GTA 6"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistPending": [
+    {
+      "key": "material",
+      "title": "Material"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -331,6 +459,32 @@ customer: "colorbond"
       "value": "Colorbond"
     }
   },
+  "checklistPending": [
+    {
+      "key": "heightKey",
+      "title": "Height"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -428,6 +582,28 @@ customer: "1.8m"
       "value": "1.8m"
     }
   },
+  "checklistPending": [
+    {
+      "key": "lengthMeters",
+      "title": "Length"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -530,6 +706,24 @@ customer: "20"
       "value": "20m"
     }
   },
+  "checklistPending": [
+    {
+      "key": "removal",
+      "title": "Old fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -637,6 +831,20 @@ customer: "none"
       "value": "Nothing to remove"
     }
   },
+  "checklistPending": [
+    {
+      "key": "conditions",
+      "title": "Site conditions"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -749,6 +957,16 @@ customer: "none"
       "value": "Nothing tricky"
     }
   },
+  "checklistPending": [
+    {
+      "key": "gateType",
+      "title": "Gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Gates"
+    }
+  ],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -855,6 +1073,7 @@ customer: "none"
       "value": "No gates"
     }
   },
+  "checklistPending": [],
   "results": [],
   "avgRatePerMeter": null
 }
@@ -985,6 +1204,7 @@ customer: "yes"
       "title": "Gate",
       "value": "No gates"
     }
-  }
+  },
+  "checklistPending": []
 }
 ```

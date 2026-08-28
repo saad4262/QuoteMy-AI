@@ -129,6 +129,21 @@ export interface ChecklistDisplayEntry {
 }
 export type ChecklistDisplay = Record<string, ChecklistDisplayEntry>;
 
+/**
+ * A field still to be asked - so a brief panel can show what is coming, not only what is done.
+ *
+ * `checklistDisplay` holds answers and nothing else, which is right for a results page and wrong
+ * for a panel beside a live conversation: with only the answered fields, a screen cannot tell the
+ * difference between "not asked yet" and "does not exist", so it can show neither.
+ *
+ * In the order they will be asked, and dependencies are already applied - somebody who said they
+ * have no gates never sees "Gate count" waiting for them, because it will never be asked.
+ */
+export interface ChecklistPendingEntry {
+  key: string;
+  title: string;
+}
+
 export interface QuoteResult {
   businessId: string;
   autoAcceptsAi: boolean;
@@ -186,6 +201,8 @@ export interface ChatResponse {
   checklistComplete: boolean;
   checklist: Checklist;
   checklistDisplay: ChecklistDisplay;
+  /** What is still to come, in order. See `ChecklistPendingEntry`. */
+  checklistPending: ChecklistPendingEntry[];
   results: QuoteResult[];
   avgRatePerMeter: number | null;
   comparison?: Comparison | null;

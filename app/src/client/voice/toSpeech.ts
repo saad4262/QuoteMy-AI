@@ -75,6 +75,40 @@ function readRecap(response: ChatResponse): string {
   return `${opener}That is everything I need. Shall I go and find you some quotes? Or tell me what you would like to change.`;
 }
 
+/** The opening line of a call that has nothing behind it. */
+export const OPENING_LINE =
+  'Hi there, thanks for calling. I can get you fencing quotes from businesses near you — it only takes a couple of minutes. What are you after?';
+
+/**
+ * The first thing said on a call, given whatever the conversation already knows.
+ *
+ * A caller who typed half a brief and then pressed the microphone should not be greeted like a
+ * stranger. Neither should they be walked straight into a question with no acknowledgement that
+ * anything came before - so this re-orients first, then asks what was already on screen.
+ *
+ * Written here rather than by the speech model, and handed to Retell as a dynamic variable exactly
+ * the way `{{speak_text}}` is. Nothing about this call's content is ever a model's to invent.
+ */
+export function greetingFor(carried: {
+  display?: Record<string, { title: string; value: string }>;
+  message?: string | null;
+  options?: ChatOption[];
+}): string {
+  const known = Object.values(carried.display ?? {})
+    .map((entry) => spoken(entry.value))
+    .filter(Boolean);
+  const question = carried.message?.trim() ? spoken(carried.message) : '';
+
+  // Nothing carried at all: an ordinary first call.
+  if (!known.length && !question) return OPENING_LINE;
+
+  const recap = known.length ? ` I still have your details — ${known.join(', ')}.` : '';
+  const options = speakable(carried.options ?? []);
+  const choices = question && options.length ? ` ${readOptions(options)}` : '';
+
+  return `Welcome back.${recap}${question ? ` ${question}` : ''}${choices}`;
+}
+
 export function toSpeech(response: ChatResponse): string {
   /* The suburb used to be the one answer voice could not take: `isMissing('suburb')` tests the
      geocoded place object, not the words, so a spoken suburb never satisfied it and the question

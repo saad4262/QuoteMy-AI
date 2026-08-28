@@ -168,6 +168,7 @@ Say *"I need a fence quote"*. Four things to watch, in this order:
 | It speaks **only** what our backend sent — no extra sentences, no invented prices | The `speak` node instruction is wrong. See [When it complains](#when-it-complains) |
 | Saying a lettered option ("option B") is noticeably faster than a full sentence | The tool is not being called with verbatim text, or `sessionId` is not reaching it |
 | The wait is filled with "Righto." or "Timber it is.", never the same twice running | The `turn` node's instruction is static text again, or the global prompt lost its carve-out |
+| A call started mid-conversation opens with "Welcome back", not "Hi there" | `create-call` is not being sent the checklist, or `{{greeting}}` is not reaching the greeting node |
 | The suburb is asked out loud, and "Berwick 3806" is accepted | `GEOCODING_API_KEY` is missing on the server — the lookup returns nothing rather than a guess, which looks exactly like the old bug |
 | It reads the recap back, takes a spoken yes, then reads the cheapest price and hangs up | The `is_done` edge is wrong — it must be the **equation**, never a prompt |
 
@@ -294,6 +295,17 @@ carve-out in its own paragraph**.
 Both places, deliberately. A rule that lives only in the node contradicts a global prompt that says
 the agent may say nothing of its own — and when those two conflict, the prompt wins and the node is
 ignored. That has already cost this project a working agent once.
+
+### The greeting is a dynamic variable, not static text
+
+The `greeting` node reads `{{greeting}}`, which the backend fills in on `create-call` from whatever
+the conversation already knows. It was static text, which meant pressing the microphone at the
+seventh question started again at "Hi there".
+
+The flow's `default_dynamic_variables.greeting` holds the ordinary opening line, so a call made from
+the dashboard's **Test call** — which sends no variables — still greets properly. If a real call
+ever reads the words `{{greeting}}` out loud, the variable is not being passed: check that
+`create-call` is sending it, not the flow.
 
 ### Two or three words, and a typing sound
 
