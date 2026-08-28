@@ -583,6 +583,7 @@ export class FirestoreRepository implements BusinessRepository {
       place: d.place ?? null,
       options: Array.isArray(d.options) ? d.options : [],
       turns: Array.isArray(d.turns) ? d.turns : [],
+      resultId: (d.resultId as string | undefined) ?? null,
       updatedAt: toIso(d.updatedAt) ?? '',
     };
   }
@@ -593,6 +594,7 @@ export class FirestoreRepository implements BusinessRepository {
       place: session.place ?? null,
       options: session.options,
       turns: session.turns,
+      resultId: session.resultId ?? null,
       updatedAt: FieldValue.serverTimestamp(),
     });
   }

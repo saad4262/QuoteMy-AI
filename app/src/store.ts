@@ -214,6 +214,12 @@ export interface VoiceSession {
    * the conversation, and the customer is left wondering what the call actually heard.
    */
   turns: VoiceTurnRecord[];
+  /**
+   * Where the finished quote was written, once the call produced one. The page needs it the moment
+   * the call ends - the caller said yes out loud, heard the cheapest price, and is now looking at a
+   * screen that has to show the rest.
+   */
+  resultId?: string | null;
   updatedAt: string;
 }
 

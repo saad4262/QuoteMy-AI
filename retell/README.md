@@ -117,10 +117,10 @@ these files.
 | `stt_mode: "accurate"` | The default is `fast`, which trades transcription accuracy for latency. Wrong on this side of the product: a misheard height becomes a wrong quote, silently. |
 | `boosted_keywords` | Biases the transcriber toward words it otherwise mangles — `Colorbond`, `merbau`, `Pakenham`. Without it, suburb and material names come through as something else entirely. |
 | `denoising_mode` | Background speech cancelled as well as noise; these calls are made in kitchens and utes. |
-| `enable_backchannel: false` | "Uh-huh" while the customer is mid-sentence is words we did not write. |
+| `enable_backchannel: true` | "Mhmm", "right", "gotcha" while the customer talks. These carry no fact and no number, so they are the one place a generated word is harmless — and without them a caller talking to silence assumes the line has dropped. |
+| `interruption_sensitivity: 0.9` | The agent stops when the caller starts. Was `0.7`, which had it reading a list of options over somebody already answering. Denoising is what makes 0.9 safe: a cough no longer counts as speech. |
 | `voice_speed: 0.95` | Slightly under a native pace. The customer is being read suburb names, heights and prices, and every one of them is a number they have to hold. |
-| `interruption_sensitivity: 0.7` | Was `0.9`, which cut the agent off mid-list. A customer who genuinely wants to interrupt still can; a cough no longer does. |
-| `responsiveness: 0.9` | Slightly less eager, so a pause while somebody thinks is not read as their turn ending. |
+| `responsiveness: 1` | A caller who has just answered should not wait to be asked the next thing. |
 | `begin_message_delay_ms: 500` | Half a second before the greeting, so the first three words are not lost while the browser finishes opening the microphone. |
 
 `normalize_for_speech` is deliberately absent: Retell stores it as `null` on this engine, and the
@@ -167,8 +167,9 @@ Say *"I need a fence quote"*. Four things to watch, in this order:
 |---|---|
 | It speaks **only** what our backend sent — no extra sentences, no invented prices | The `speak` node instruction is wrong. See [When it complains](#when-it-complains) |
 | Saying a lettered option ("option B") is noticeably faster than a full sentence | The tool is not being called with verbatim text, or `sessionId` is not reaching it |
+| The wait is filled with "Righto." or "Timber it is.", never the same twice running | The `turn` node's instruction is static text again, or the global prompt lost its carve-out |
 | The suburb is asked out loud, and "Berwick 3806" is accepted | `GEOCODING_API_KEY` is missing on the server — the lookup returns nothing rather than a guess, which looks exactly like the old bug |
-| The call ends **on the recap**, saying to check the screen | The `is_done` edge is wrong — it must be the **equation**, never a prompt |
+| It reads the recap back, takes a spoken yes, then reads the cheapest price and hangs up | The `is_done` edge is wrong — it must be the **equation**, never a prompt |
 
 ---
 
@@ -281,6 +282,18 @@ like:
 curl -s "https://api.retellai.com/v2/get-call/CALL_ID" -H "authorization: Bearer $RETELL_KEY" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["public_log_url"])'
 ```
+
+### The filler is the only sentence the model writes
+
+The `turn` node's instruction is a **prompt**, not static text, so the wait is filled with "Righto."
+or "Timber it is." rather than "One sec." on every single turn, which is what made the call sound
+like a machine. It is the one generated sentence in the product, and it is fenced in twice: the node
+prompt forbids any fact, number, price or name, and the flow's **global prompt carries the same
+carve-out in its own paragraph**.
+
+Both places, deliberately. A rule that lives only in the node contradicts a global prompt that says
+the agent may say nothing of its own — and when those two conflict, the prompt wins and the node is
+ignored. That has already cost this project a working agent once.
 
 ### The `is_done` edge is an equation, not a prompt
 

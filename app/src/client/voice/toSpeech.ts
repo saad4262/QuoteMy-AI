@@ -64,7 +64,25 @@ function readResult(response: ChatResponse): string {
   const saved = response.comparison?.potentialSavings;
   const savings = saved && saved > 0 ? ` That is about ${Math.round(saved)} dollars less than what you have.` : '';
 
-  return `${spoken(best.businessName)} can do it for ${Math.round(best.estimatedTotal)} dollars.${rest}${savings} I have put the details on your screen.`;
+  return `${spoken(best.businessName)} can do it for ${Math.round(best.estimatedTotal)} dollars.${rest}${savings} I have put all the details on your screen.`;
+}
+
+/**
+ * The recap, as a person would say it.
+ *
+ * The written form ends "All correct?", which out loud invites a one-word answer to a list nobody
+ * has finished hearing. Spoken, the same recap ends with a real question and an explicit way out,
+ * because saying "no" to a machine is harder than tapping it.
+ */
+function readRecap(response: ChatResponse): string {
+  const recap = spoken(response.message)
+    .replace(/sorry\s*[—–-]\s*is that all correct\?/gi, '')
+    .replace(/all correct\?/gi, '')
+    .replace(/[\s.,—–-]+$/, '')
+    .trim();
+
+  const opener = recap ? `${recap}. ` : '';
+  return `${opener}That is everything I need. Shall I go and find you some quotes? Or tell me what you would like to change.`;
 }
 
 export function toSpeech(response: ChatResponse): string {
@@ -73,15 +91,15 @@ export function toSpeech(response: ChatResponse): string {
      came back for ever. `suburb.ts` now resolves it server-side, so it is asked out loud like any
      other question - and a postcode, which the question asks for, is the one answer that cannot
      be two places at once. */
-  if (response.type === 'result') return readResult(response);
+  /* The last thing said on the call. The quote is read, and then the call is ended by the flow -
+     so the goodbye belongs here, not to a model deciding the conversation is over. */
+  if (response.type === 'result') return `${readResult(response)} Thanks for calling — bye for now.`;
 
-  /* The end of a call. Every answer is in, and what is left is the one question worth getting
-     right - so it goes to the screen rather than being agreed to out loud. A misheard "yes" on a
-     recap is not a small mistake; it is the whole job, wrong, with a price on it. The recap is
-     still read, because a customer should hear what they are about to be shown. */
-  if (response.type === 'confirmation') {
-    return `${spoken(response.message)} I have put all of that on your screen. Have a look, and tap confirm if it is right — I will get your quotes ready. Thanks for calling, bye for now.`;
-  }
+  /* The recap, and the question the whole call has been building to. It is taken out loud rather
+     than on screen, because a caller who has just answered eight questions by voice should not be
+     handed a ninth to tap. Every value is read back first, which is what makes a spoken "yes"
+     mean something: they have heard the whole brief before they agree to it. */
+  if (response.type === 'confirmation') return readRecap(response);
 
   const options = speakable(response.options);
   if (!options.length) return spoken(response.message);

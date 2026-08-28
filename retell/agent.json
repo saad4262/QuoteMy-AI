@@ -7,9 +7,9 @@
   "voice_id": "11labs-Amy",
   "language": "en-AU",
   "allow_user_dtmf": false,
-  "enable_backchannel": false,
-  "interruption_sensitivity": 0.7,
-  "responsiveness": 0.9,
+  "enable_backchannel": true,
+  "interruption_sensitivity": 0.9,
+  "responsiveness": 1,
   "max_call_duration_ms": 900000,
   "stt_mode": "accurate",
   "denoising_mode": "noise-and-background-speech-cancellation",
@@ -51,5 +51,14 @@
   "voice_temperature": 0.9,
   "volume": 1,
   "begin_message_delay_ms": 500,
-  "ambient_sound": null
+  "ambient_sound": null,
+  "backchannel_frequency": 0.8,
+  "backchannel_words": [
+    "mhmm",
+    "yeah",
+    "right",
+    "gotcha",
+    "okay",
+    "got it"
+  ]
 }

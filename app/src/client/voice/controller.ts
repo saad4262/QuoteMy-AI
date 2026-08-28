@@ -103,25 +103,26 @@ export async function runVoiceTurn(
 
   const speakText = toSpeech(response);
 
+  /* A call runs to the quote. The recap is read back in full and agreed to out loud, because a
+     caller who has answered eight questions by voice should not be handed a ninth to tap - and
+     because they have heard every value before they say yes, which is what stops that yes from
+     meaning nothing. The page still gets everything: `resultId` is what it opens. */
+  const isDone = response.type === 'result';
+  const resultId = isDone ? await saveChatResult(response, repo) : null;
+
   /* Stored whole, `_ui` included. Every field in it exists to stop a bug: without `place` the
      suburb question reopens, without `rejectedPlaces` an uncovered suburb loops for ever, without
-     `lastValues` the no-model turn above stops working. Trimming it is how those come back. */
+     `lastValues` the no-model turn above stops working. Trimming it is how those come back.
+     Written after the quote is saved, so the page finds the result id in the same read that tells
+     it the call is over. */
   await repo.writeVoiceSession(sessionId, {
     checklist: response.checklist,
     place: response.place,
     options: response.options,
     turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText }].slice(-MAX_TURNS),
+    resultId: resultId ?? session?.resultId ?? null,
     updatedAt: new Date().toISOString(),
   });
-
-  /* A call ends at the recap, not at the quote.
-     Every answer is in by then, and what is left is the one question worth getting right - so it
-     is asked on a screen the customer can read rather than agreed to out loud. A misheard "yes"
-     on the recap is not a small mistake: it is the whole job, wrong, with a price attached. The
-     page picks the conversation up from `GET /voice/session` and the text chat finishes it, which
-     is also why nothing new had to be built on the results side. */
-  const isDone = response.type === 'result' || response.type === 'confirmation';
-  const resultId = response.type === 'result' ? await saveChatResult(response, repo) : null;
 
   logger.info({ sessionId, matched: matched !== null, type: response.type, isDone }, 'voice turn');
 
@@ -258,6 +259,9 @@ export async function voiceSession(req: Request, res: Response): Promise<void> {
     sessionId,
     found: true,
     turns: session.turns,
+    /* Present once the call reached a quote. The caller heard the cheapest price out loud and is
+       now looking at a screen that has to show the rest, so this is where the page navigates. */
+    resultId: session.resultId ?? null,
     /* `_ui` included, exactly as stored. The page posts this straight back as the chat's
        `knownChecklist`, and every field in `_ui` exists to stop a bug the comments there describe -
        so handing over a trimmed copy is how those bugs come back on the second front door. */

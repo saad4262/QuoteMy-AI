@@ -109,6 +109,7 @@ Where a call becomes a chat.
 {
   "found": true,
   "turns": [{ "said": "I need a fence quote", "spoke": "Happy to help with that…" }],
+  "resultId": "9c2f…",
   "checklist": { "suburb": "Berwick, VIC 3806", "material": "colorbond", "_ui": { } },
   "place": { "latitude": -38.0362, "longitude": 145.3478, "suburb": "Berwick" },
   "options": [],
@@ -116,9 +117,14 @@ Where a call becomes a chat.
 }
 ```
 
-The page asks for this when the Retell SDK says the call ended — whoever hung up — renders `turns`
-as the conversation, and posts `checklist` straight back into `POST /client/fencing-chat` as
-`knownChecklist`. From there it is the text chat, and the text chat already finishes a brief.
+The page asks for this when the Retell SDK says the call ended — whoever hung up — and renders
+`turns` as the conversation.
+
+**`resultId` present** means the call reached a quote: open the results page. **Absent** means the
+caller hung up part-way, so post `checklist` straight back into `POST /client/fencing-chat` as
+`knownChecklist` and let them finish by typing. Either way the conversation continues rather than
+restarts — and `POST /voice/create-call` takes the same `checklist` back if they press the mic
+again.
 
 `checklist` carries `_ui` and must be handed back **whole**. Every field in it exists to stop a bug
 the comments in `mergeAndDecide.ts` describe; a trimmed copy is how those bugs come back.
@@ -200,16 +206,21 @@ Three rules, and each one is there because the alternative fails silently:
 Without `GEOCODING_API_KEY` the lookup returns nothing rather than a guess — which reads exactly
 like the old bug, so check it first when a call stalls on the suburb.
 
-## A call ends at the recap, not at the quote
+## A call runs all the way to the quote
 
-Every answer is in by then, and what is left is the one question worth getting right — so the recap
-is read out and then **asked on a screen**. A misheard "yes" there is not a small mistake: it is the
-whole job, wrong, with a price attached, and this pipeline has already been heard accepting "1.8 m"
-as a length because a model was allowed to interpret rather than relay.
+The recap is read back in full — every value, spoken — and then answered out loud: *"That is
+everything I need. Shall I go and find you some quotes? Or tell me what you would like to change."*
+Yes gets the search, the cheapest price read out, and goodbye. Anything else reopens whatever they
+name, exactly as it does in the text chat.
 
-So `isDone` is true for `confirmation` as well as `result`, the agent says goodbye, and the page
-picks the conversation up from `GET /voice/session`. Nothing new exists on the results side because
-of it — the text path already finishes a confirmed brief.
+Reading the whole brief first is what makes a spoken "yes" mean something. The written recap ends
+"All correct?", which out loud invites a one-word answer to a list nobody has finished hearing; the
+spoken one ends with a real question and an explicit way out, because saying "no" to a machine is
+harder than tapping it.
+
+`isDone` is therefore `type === 'result'` and nothing else. `resultId` is written into the voice
+session on that turn, so `GET /voice/session` hands the page somewhere to go the moment the call
+ends.
 
 ---
 

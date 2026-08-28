@@ -96,11 +96,22 @@ describe('toSpeech', () => {
     expect(said).toContain('Option A');
   });
 
-  it('hands the recap to the screen rather than taking a yes out loud', () => {
+  /* Every value read back before the question, because that is the whole of what makes a spoken
+     "yes" mean anything - and a way out that does not need the word "no". */
+  it('reads the whole recap back, then asks for the go-ahead', () => {
     const said = toSpeech({ ...base, type: 'confirmation', message: 'Got it — Berwick, Colorbond, 1.8m. All correct?', options: options(["Yes, that's all correct", 'yes'], ["No, something's wrong", 'no']) });
+    expect(said).toContain('Berwick');
     expect(said).toContain('1 point 8 metres');
-    expect(said).toContain('on your screen');
+    expect(said).toContain('find you some quotes');
+    expect(said).toContain('change');
+    expect(said).not.toContain('All correct?');
     expect(said).not.toContain('Option A');
+  });
+
+  it('still asks when the recap could not be built', () => {
+    const said = toSpeech({ ...base, type: 'confirmation', message: 'Sorry — is that all correct?', options: options(['Yes', 'yes'], ['No', 'no']) });
+    expect(said).toContain('find you some quotes');
+    expect(said).not.toContain('Sorry');
   });
 
   it('narrates a result instead of reading a table out', () => {
@@ -292,9 +303,26 @@ describe('the end of a call', () => {
     clearSchemaCache();
     resetChatSpend();
     setAiClient(new MockAiClient());
+
+    // A business that can actually quote the brief, so the call reaches a price rather than a
+    // "nobody covers you" - which is a different ending with its own test.
+    const now = '2026-01-01T00:00:00.000Z';
+    repo.addCandidate({ uid: 'v1', businessName: 'Southeast Fencing', servicesProvided: ['fencing'], rating: 4.8, reviewCount: 10, isAutoAcceptEnabled: false, isAiAutoAcceptEnabled: true });
+    repo.savePricing('v1', {
+      trade: 'fencing', status: 'confirmed', schemaVersion: 2, updatedAt: now, confirmedAt: now, ratesSaved: 1,
+      gstIncluded: true, enabledMaterials: ['colorbond'], rates: { colorbond: { '1.8m': 110 } },
+      removals: [], gates: [], siteConditions: [],
+      serviceArea: { baseLocation: 'Berwick', resolved: { suburb: 'Berwick', state: 'VIC', postcode: '3806', lat: -38.0362, lng: 145.3478, source: 'google' }, radiusKm: 30, excludedAreas: [] },
+      minimumCharge: 500,
+    } as PricingDoc);
+    repo.saveCapabilities('v1', {
+      trade: 'fencing', schemaVersion: 2, updatedAt: now, businessName: 'Southeast Fencing',
+      specs: [], permits: { included: null, fee: null }, warranty: { years: null, text: null },
+      tags: [], extras: [], inclusions: [], exclusions: [], otherOfferings: [], couldNotUse: [],
+    } as CapabilitiesDoc);
   });
 
-  it('hangs up on the recap, having said where to check it', async () => {
+  it('carries on past the recap, and hangs up on the quote', async () => {
     await runVoiceTurn('call-6', { spokenText: 'I need a fence' }, { repo });
     await runVoiceTurn('call-6', { spokenText: 'yes' }, { repo });
 
@@ -306,15 +334,20 @@ describe('the end of a call', () => {
     });
 
     let turn = await runVoiceTurn('call-6', { spokenText: 'Berwick' }, { repo });
-    for (let i = 0; i < 12 && !turn.isDone; i += 1) {
-      turn = await runVoiceTurn('call-6', { spokenText: 'option A' }, { repo });
+    let recap = '';
+    for (let i = 0; i < 14 && !turn.isDone; i += 1) {
+      if (turn.speakText.includes('find you some quotes')) recap = turn.speakText;
+      turn = await runVoiceTurn('call-6', { spokenText: recap ? 'yes' : 'option C' }, { repo });
     }
 
+    // The recap was spoken and answered out loud, and the call did not end there.
+    expect(recap).toContain('find you some quotes');
     expect(turn.isDone).toBe(true);
-    expect(turn.speakText).toContain('on your screen');
     expect(turn.speakText).toContain('bye for now');
-    // No quote was written: the customer has not confirmed anything yet, and will do it on screen.
-    expect(turn.resultId).toBeUndefined();
+    expect(turn.resultId).toBeTruthy();
+
+    // The page opens this the moment the call ends.
+    expect((await repo.readVoiceSession('call-6'))?.resultId).toBe(turn.resultId);
   });
 });
 
