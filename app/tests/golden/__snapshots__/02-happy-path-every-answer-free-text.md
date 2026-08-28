@@ -41,6 +41,7 @@ customer: "I need a fence quote"
     }
   },
   "checklistDisplay": {},
+  "checklistAnswered": [],
   "checklistPending": [
     {
       "key": "suburb",
@@ -120,6 +121,7 @@ customer: "yes go ahead"
     }
   },
   "checklistDisplay": {},
+  "checklistAnswered": [],
   "checklistPending": [
     {
       "key": "suburb",
@@ -242,6 +244,13 @@ picked place: Berwick, VIC 3806
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    }
+  ],
   "checklistPending": [
     {
       "key": "material",
@@ -364,6 +373,18 @@ customer: "aluminium"
       "value": "Aluminium"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    }
+  ],
   "checklistPending": [
     {
       "key": "heightKey",
@@ -487,6 +508,23 @@ customer: "1800mm"
       "value": "1.8m"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    }
+  ],
   "checklistPending": [
     {
       "key": "lengthMeters",
@@ -611,6 +649,28 @@ customer: "30 metres"
       "value": "30m"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    }
+  ],
   "checklistPending": [
     {
       "key": "removal",
@@ -736,6 +796,33 @@ customer: "old timber fence"
       "value": "Timber fence"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Timber fence"
+    }
+  ],
   "checklistPending": [
     {
       "key": "conditions",
@@ -862,6 +949,38 @@ customer: "nothing tricky"
       "value": "Nothing tricky"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Timber fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    }
+  ],
   "checklistPending": [
     {
       "key": "gateType",
@@ -989,6 +1108,43 @@ customer: "a single pedestrian gate"
       "value": "Single pedestrian gate"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Timber fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate",
+      "value": "Single pedestrian gate"
+    }
+  ],
   "checklistPending": [
     {
       "key": "gateQty",
@@ -1106,6 +1262,48 @@ customer: "2 gates"
       "value": "2 gates"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Timber fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate",
+      "value": "Single pedestrian gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Number of gates",
+      "value": "2 gates"
+    }
+  ],
   "checklistPending": [],
   "results": [],
   "avgRatePerMeter": null
@@ -1245,6 +1443,48 @@ customer: "yes please"
       "value": "2 gates"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Aluminium"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Timber fence"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate",
+      "value": "Single pedestrian gate"
+    },
+    {
+      "key": "gateQty",
+      "title": "Number of gates",
+      "value": "2 gates"
+    }
+  ],
   "checklistPending": []
 }
 ```

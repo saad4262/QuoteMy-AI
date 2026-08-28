@@ -3,7 +3,7 @@ import { questionFor } from './schema.js';
 import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
 import { slug } from './fuzzyMatch.js';
-import type { ChatOption, ChatResponse, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
+import type { ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -304,6 +304,9 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
   };
 
   const checklistDisplay: ChecklistDisplay = {};
+  /* The same entries as an ordered list. `askedFields` is the order the questions are put, so
+     building both here is the only place that order is known - see `ChecklistAnsweredEntry`. */
+  const checklistAnswered: ChecklistAnsweredEntry[] = [];
   for (const spec of askedFields(fields)) {
     const field = spec.key as ChecklistField;
     const value = checklist[field];
@@ -317,6 +320,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     else text = labelFor(field, value);
     const entry: ChecklistDisplayEntry = { title: titleOf(field), value: text };
     checklistDisplay[field] = entry;
+    checklistAnswered.push({ key: field, ...entry });
   }
 
   /* What is still to come, for the panel beside the conversation. `missing` is already in the
@@ -342,6 +346,7 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     checklistComplete,
     checklist: { ...checklist, _ui: uiOut },
     checklistDisplay,
+    checklistAnswered,
     checklistPending,
     results: [],
     avgRatePerMeter: null,

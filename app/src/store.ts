@@ -232,6 +232,8 @@ export interface VoiceSession {
    * from "does not exist" and so can show neither.
    */
   checklistDisplay?: Record<string, { title: string; value: string }>;
+  /** The answered half as an ordered list - see `ChecklistAnsweredEntry` in `client/schemas.ts`. */
+  checklistAnswered?: { key: string; title: string; value: string }[];
   checklistPending?: { key: string; title: string }[];
   updatedAt: string;
 }
@@ -254,6 +256,15 @@ export interface VoiceTurnRecord {
    * and a visible flicker on every reply. A number that only ever counts up cannot do that.
    */
   n: number;
+  /**
+   * When this turn was recorded, ISO 8601.
+   *
+   * `n` orders a call against itself, which is not the same as ordering a conversation. A customer
+   * types three messages, calls, hangs up, types two more - and the page holds those in two places
+   * with no way to interleave them, so the typed ones stack at the bottom and the transcript reads
+   * in an order the conversation never happened in. A clock is the only thing both halves share.
+   */
+  at: string;
   said: string;
   spoke: string;
   wrote: string;

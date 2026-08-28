@@ -41,6 +41,7 @@ customer: "I need a fence quote"
     }
   },
   "checklistDisplay": {},
+  "checklistAnswered": [],
   "checklistPending": [
     {
       "key": "suburb",
@@ -120,6 +121,7 @@ customer: "yes go ahead"
     }
   },
   "checklistDisplay": {},
+  "checklistAnswered": [],
   "checklistPending": [
     {
       "key": "suburb",
@@ -242,6 +244,13 @@ picked place: Berwick, VIC 3806
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    }
+  ],
   "checklistPending": [
     {
       "key": "material",
@@ -368,6 +377,23 @@ customer: "30m colorbond fence, none to remove"
       "value": "30m"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Colorbond"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    }
+  ],
   "checklistPending": [
     {
       "key": "heightKey",
@@ -491,6 +517,28 @@ customer: "1.8m"
       "value": "30m"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Colorbond"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    }
+  ],
   "checklistPending": [
     {
       "key": "removal",
@@ -615,6 +663,33 @@ customer: "none"
       "value": "Nothing to remove"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Colorbond"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Nothing to remove"
+    }
+  ],
   "checklistPending": [
     {
       "key": "conditions",
@@ -740,6 +815,38 @@ customer: "none"
       "value": "Nothing tricky"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Colorbond"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Nothing to remove"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    }
+  ],
   "checklistPending": [
     {
       "key": "gateType",
@@ -855,6 +962,43 @@ customer: "none"
       "value": "No gates"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Colorbond"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Nothing to remove"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate",
+      "value": "No gates"
+    }
+  ],
   "checklistPending": [],
   "results": [],
   "avgRatePerMeter": null
@@ -986,6 +1130,43 @@ customer: "yes"
       "value": "No gates"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "material",
+      "title": "Material",
+      "value": "Colorbond"
+    },
+    {
+      "key": "heightKey",
+      "title": "Height",
+      "value": "1.8m"
+    },
+    {
+      "key": "lengthMeters",
+      "title": "Length",
+      "value": "30m"
+    },
+    {
+      "key": "removal",
+      "title": "Old fence",
+      "value": "Nothing to remove"
+    },
+    {
+      "key": "conditions",
+      "title": "Site conditions",
+      "value": "Nothing tricky"
+    },
+    {
+      "key": "gateType",
+      "title": "Gate",
+      "value": "No gates"
+    }
+  ],
   "checklistPending": []
 }
 ```

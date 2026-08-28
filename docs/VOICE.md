@@ -136,6 +136,7 @@ Where a call becomes a chat.
   "found": true,
   "turns": [
     { "n": 3,
+      "at": "2026-08-28T01:19:52.000Z",
       "said": "yeah Pakenham 3810",
       "spoke": "Nice one — what type of fence are you after? Option A, Treated pine. …",
       "wrote": "Nice one — what type of fence are you after?",
@@ -145,6 +146,7 @@ Where a call becomes a chat.
   "message": "Nice one — what type of fence are you after?",
   "options": [{ "label": "Treated pine", "value": "timber_pine" }],
   "checklistDisplay": { "suburb": { "title": "Suburb", "value": "Berwick, VIC 3806" } },
+  "checklistAnswered": [{ "key": "suburb", "title": "Suburb", "value": "Berwick, VIC 3806" }],
   "checklistPending": [{ "key": "material", "title": "Material" }],
   "resultId": null,
   "checklist": { "suburb": "Berwick, VIC 3806", "material": "colorbond", "_ui": { } },
@@ -166,14 +168,25 @@ the array position.** Past `MAX_TURNS` the oldest turns are dropped and every in
 shifts, so a page tracking "I have rendered the first N" re-renders turns it already had: new React
 keys, a remounted list, and a visible flicker on every reply.
 
+`at` is when the turn was recorded, ISO 8601. `n` orders a call against itself, which is not the
+same as ordering a conversation: somebody types three messages, calls, hangs up, then types two
+more, and a page holding those in two places has no way to interleave them — so the typed ones
+stack at the bottom and the transcript reads in an order the conversation never happened in. A
+clock is the only thing both halves share. **Merge typed messages and call turns into one list
+sorted on time, then render top to bottom.**
+
 `chose` is the **label** of the option they picked, when what they said was one of the ones just
 read out — `matchSpokenToOption` already works this out and the answer used to be thrown away.
 Tapping "Treated pine" in the text chat leaves "Treated pine" in the transcript; saying it should
 leave the same thing, not "Treated pine. I need treated pine." It is `null` when they said something
 of their own.
 
-`checklistDisplay` and `checklistPending` are the brief panel's two halves, so it fills in **while
-the call runs** rather than all at once when it ends. Fetch this on the SDK's `agent_stop_talking`
+`checklistAnswered` and `checklistPending` are the brief panel's two halves, so it fills in **while
+the call runs** rather than all at once when it ends. **Draw the panel from these two arrays.**
+`checklistDisplay` holds the same answers keyed by field, which is right for looking one up and
+wrong for drawing a list: an object carries no order across a wire, so after Firestore and a
+`JSON.parse` the panel reshuffles itself between the call and the results page for no reason the
+customer can see. Both are on `POST /client/fencing-chat` as well, so one panel serves both doors. Fetch this on the SDK's `agent_stop_talking`
 rather than on a timer: the agent stops talking exactly once per turn, so that is one request per
 turn, where polling every two seconds would spend 90 of an IP's 600 hourly requests on a single
 three-minute call.

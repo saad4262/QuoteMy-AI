@@ -41,6 +41,7 @@ customer: "I need a fence quote"
     }
   },
   "checklistDisplay": {},
+  "checklistAnswered": [],
   "checklistPending": [
     {
       "key": "suburb",
@@ -120,6 +121,7 @@ customer: "yes go ahead"
     }
   },
   "checklistDisplay": {},
+  "checklistAnswered": [],
   "checklistPending": [
     {
       "key": "suburb",
@@ -242,6 +244,13 @@ picked place: Berwick, VIC 3806
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    }
+  ],
   "checklistPending": [
     {
       "key": "material",
@@ -359,6 +368,13 @@ customer: "something else"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    }
+  ],
   "checklistPending": [
     {
       "key": "material",
@@ -471,6 +487,13 @@ customer: "something else"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    }
+  ],
   "checklistPending": [
     {
       "key": "material",
@@ -588,6 +611,13 @@ customer: "something else"
       "value": "Berwick, VIC 3806"
     }
   },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    }
+  ],
   "checklistPending": [
     {
       "key": "material",

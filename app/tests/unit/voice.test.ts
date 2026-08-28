@@ -568,6 +568,28 @@ describe('the brief panel during a call', () => {
     expect(pending.map((entry) => entry.key)).toContain('material');
   });
 
+  /* The object survives one hop and then goes through Firestore, a merge and a `JSON.parse`, and
+     comes out reordered - so the panel reshuffles between the call and the results page. The
+     ordered list is what a screen should draw from. */
+  it('hands the answered half back as an ordered list, not only as an object', async () => {
+    await runVoiceTurn('panel-3', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('panel-3', { spokenText: 'yes' }, { repo });
+    await runVoiceTurn('panel-3', { spokenText: 'Berwick 3806' }, { repo });
+    await runVoiceTurn('panel-3', { spokenText: 'colorbond' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'panel-3' });
+    const answered = res.body.checklistAnswered as { key: string; title: string; value: string }[];
+
+    // Same entries as the object, and every one of them carries the key it was stored under.
+    expect(answered.length).toBe(Object.keys(res.body.checklistDisplay).length);
+    for (const entry of answered) {
+      expect(res.body.checklistDisplay[entry.key]).toEqual({ title: entry.title, value: entry.value });
+    }
+    // Asked in this order, so drawn in this order.
+    const order = answered.map((entry) => entry.key);
+    expect(order.indexOf('suburb')).toBeLessThan(order.indexOf('material'));
+  });
+
   /* Tapping "Treated pine" in the text chat leaves "Treated pine" in the transcript. Saying it
      should leave the same thing, not "Treated pine. I need treated pine." */
   it('records which choice was picked, in the words it was offered in', async () => {
@@ -699,6 +721,7 @@ describe('turn numbering', () => {
   it('keeps counting up when the oldest turns are dropped', async () => {
     const filler = Array.from({ length: 59 }, (_, index) => ({
       n: index + 1,
+      at: new Date(Date.now() - (60 - index) * 1000).toISOString(),
       said: `said ${index + 1}`,
       spoke: '',
       wrote: '',
@@ -713,5 +736,18 @@ describe('turn numbering', () => {
     expect(stored.turns).toHaveLength(60);          // the oldest was dropped
     expect(stored.turns[0]!.n).toBe(2);             // so position 0 is no longer turn 1
     expect(stored.turns.at(-1)!.n).toBe(61);        // and numbering never restarted
+  });
+
+  /* `n` orders a call against itself. It cannot order a call against the messages typed either
+     side of it, and a page holding both has to put them in one list. */
+  it('stamps every turn with a time, so typed and spoken messages can be interleaved', async () => {
+    await runVoiceTurn('n-3', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('n-3', { spokenText: 'yes' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'n-3' });
+    const times = (res.body.turns as { at: string }[]).map((turn) => Date.parse(turn.at));
+
+    expect(times.every((time) => Number.isFinite(time))).toBe(true);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
   });
 });

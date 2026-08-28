@@ -182,7 +182,7 @@ function quoteFor(
   };
 }
 
-function fail(base: Pick<ChatResponse, 'sessionId' | 'place' | 'checklist' | 'checklistDisplay' | 'checklistPending'>, message: string, reason: string): ChatResponse {
+function fail(base: Pick<ChatResponse, 'sessionId' | 'place' | 'checklist' | 'checklistDisplay' | 'checklistAnswered' | 'checklistPending'>, message: string, reason: string): ChatResponse {
   return {
     sessionId: base.sessionId,
     trade: 'fencing',
@@ -198,6 +198,7 @@ function fail(base: Pick<ChatResponse, 'sessionId' | 'place' | 'checklist' | 'ch
     checklistComplete: true,
     checklist: base.checklist,
     checklistDisplay: base.checklistDisplay,
+    checklistAnswered: base.checklistAnswered,
     checklistPending: base.checklistPending,
   };
 }
@@ -205,7 +206,7 @@ function fail(base: Pick<ChatResponse, 'sessionId' | 'place' | 'checklist' | 'ch
 export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: TradeSchema): ChatResponse {
   const { canonicalMaterial, materialLabel } = makeMaterialNaming(schema);
   const checklist = gate.checklist as Checklist;
-  const base = { sessionId: gate.sessionId, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistPending: gate.checklistPending };
+  const base = { sessionId: gate.sessionId, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending };
 
   if (!matcher.matched) {
     return fail(base, 'No fencing business covers that suburb yet. Try a nearby suburb?', matcher.noMatchReason || 'area');
@@ -353,6 +354,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         checklistComplete: false,
         checklist: { ...checklist, _ui: uiOut },
         checklistDisplay: gate.checklistDisplay,
+        checklistAnswered: gate.checklistAnswered,
         checklistPending: gate.checklistPending,
         results: [],
         avgRatePerMeter: null,
@@ -421,6 +423,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     checklist,
     checklistComplete: true,
     checklistDisplay: gate.checklistDisplay,
+    checklistAnswered: gate.checklistAnswered,
     checklistPending: gate.checklistPending,
   };
 }

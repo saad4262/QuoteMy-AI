@@ -583,11 +583,21 @@ export class FirestoreRepository implements BusinessRepository {
       checklist: (d.checklist ?? {}) as Record<string, unknown>,
       place: d.place ?? null,
       options: Array.isArray(d.options) ? d.options : [],
-      // `n` arrived after the first calls did; a document written before it gets one by position.
-      turns: Array.isArray(d.turns) ? d.turns.map((turn: VoiceTurnRecord, index: number) => ({ ...turn, n: turn.n ?? index + 1 })) : [],
+      /* `n` and `at` arrived after the first calls did. A document written before them gets a
+         number by position, and the session's own time - every turn in it then shares one
+         timestamp, which orders it against typed messages correctly at the session's granularity
+         and is the most any of those documents actually knows. */
+      turns: Array.isArray(d.turns)
+        ? d.turns.map((turn: VoiceTurnRecord, index: number) => ({
+            ...turn,
+            n: turn.n ?? index + 1,
+            at: turn.at ?? toIso(d.updatedAt) ?? '',
+          }))
+        : [],
       resultId: (d.resultId as string | undefined) ?? null,
       type: (d.type as string | undefined) ?? null,
       checklistDisplay: (d.checklistDisplay as VoiceSession['checklistDisplay']) ?? {},
+      checklistAnswered: Array.isArray(d.checklistAnswered) ? d.checklistAnswered : [],
       checklistPending: Array.isArray(d.checklistPending) ? d.checklistPending : [],
       updatedAt: toIso(d.updatedAt) ?? '',
     };
@@ -602,6 +612,7 @@ export class FirestoreRepository implements BusinessRepository {
       resultId: session.resultId ?? null,
       type: session.type ?? null,
       checklistDisplay: session.checklistDisplay ?? {},
+      checklistAnswered: session.checklistAnswered ?? [],
       checklistPending: session.checklistPending ?? [],
       updatedAt: FieldValue.serverTimestamp(),
     });

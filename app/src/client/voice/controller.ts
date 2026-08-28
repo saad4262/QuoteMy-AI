@@ -155,11 +155,22 @@ export async function runVoiceTurn(
        re-renders turns it already had, remounting the list on every reply. */
     turns: [
       ...previousTurns,
-      { n: (previousTurns.at(-1)?.n ?? 0) + 1, said: spoken, spoke: speakText, wrote: response.message, chose: choseFrom(offered, asked, response.checklist) },
+      {
+        n: (previousTurns.at(-1)?.n ?? 0) + 1,
+        /* Stamped here rather than on the page, because the page only learns about this turn when
+           it next polls - by which time the clock has moved and a typed message sent in between
+           would sort ahead of a call turn that happened before it. */
+        at: new Date().toISOString(),
+        said: spoken,
+        spoke: speakText,
+        wrote: response.message,
+        chose: choseFrom(offered, asked, response.checklist),
+      },
     ].slice(-MAX_TURNS),
     resultId: resultId ?? session?.resultId ?? null,
     type: response.type,
     checklistDisplay: response.checklistDisplay,
+    checklistAnswered: response.checklistAnswered,
     checklistPending: response.checklistPending,
     updatedAt: new Date().toISOString(),
   });
@@ -326,6 +337,9 @@ export async function voiceSession(req: Request, res: Response): Promise<void> {
     /* The brief panel, so it fills in while the call is still running rather than all at once when
        it ends. Answered on one side, still-to-come on the other. */
     checklistDisplay: session.checklistDisplay ?? {},
+    /* Ordered, so the panel does not reshuffle between the call and the results page. The object
+       above is kept for lookup by field - see `ChecklistAnsweredEntry`. */
+    checklistAnswered: session.checklistAnswered ?? [],
     checklistPending: session.checklistPending ?? [],
     /* `_ui` included, exactly as stored. The page posts this straight back as the chat's
        `knownChecklist`, and every field in `_ui` exists to stop a bug the comments there describe -

@@ -130,6 +130,24 @@ export interface ChecklistDisplayEntry {
 export type ChecklistDisplay = Record<string, ChecklistDisplayEntry>;
 
 /**
+ * The same answers as `checklistDisplay`, in the order they were asked.
+ *
+ * An object cannot carry an order across a wire. `checklistDisplay` survives one hop intact and
+ * then goes through Firestore, a merge, a `JSON.parse` - and comes out reordered, so the brief
+ * panel reshuffles itself between the call and the results page for no reason the customer can
+ * see. Nothing was wrong with the data; the order was never in it to begin with.
+ *
+ * So the answered half is an array, exactly as `checklistPending` already is. Between them the
+ * panel is two ordered lists and no screen has to depend on key order again. `checklistDisplay`
+ * stays for lookup by field, which is what it is actually good at.
+ */
+export interface ChecklistAnsweredEntry {
+  key: string;
+  title: string;
+  value: string;
+}
+
+/**
  * A field still to be asked - so a brief panel can show what is coming, not only what is done.
  *
  * `checklistDisplay` holds answers and nothing else, which is right for a results page and wrong
@@ -201,6 +219,8 @@ export interface ChatResponse {
   checklistComplete: boolean;
   checklist: Checklist;
   checklistDisplay: ChecklistDisplay;
+  /** What has been answered, in the order it was asked. See `ChecklistAnsweredEntry`. */
+  checklistAnswered: ChecklistAnsweredEntry[];
   /** What is still to come, in order. See `ChecklistPendingEntry`. */
   checklistPending: ChecklistPendingEntry[];
   results: QuoteResult[];
