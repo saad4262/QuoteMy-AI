@@ -116,6 +116,25 @@ describe('resolveSuburb', () => {
     expect(onSuburb.place).toMatchObject({ suburb: 'Melbourne', postcode: '3000' });
   });
 
+  /* The customer said Berwick. Google, handed "Berwick 3806", answers with the postcode's centroid -
+     Harkaway, a different suburb that shares 3806. Telling them they live somewhere they did not
+     name is the exact silent wrongness this whole lookup exists to avoid. */
+  it('keeps the suburb the customer named when they give a postcode with it', async () => {
+    const byPostcode = { ...suburbResult('Harkaway', 'VIC', '3806', -38.0264, 145.3475), types: ['postal_code'] };
+    const bySuburb = suburbResult('Berwick', 'VIC', '3806', -38.0362, 145.3478);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'OK', results: [byPostcode] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'OK', results: [bySuburb] })));
+    vi.stubGlobal('fetch', fetcher);
+
+    const resolved = await resolveSuburb({ place: null, ui: ui(), message: 'Berwick 3806', suggestedSuburb: 'Berwick' });
+
+    expect(resolved.place).toMatchObject({ suburb: 'Berwick', postcode: '3806' });
+    // The second lookup asked for the suburb alone - the digits were dropped, not the name.
+    expect(String(fetcher.mock.calls[1]?.[0])).toContain('address=Berwick');
+  });
+
   it('does not offer a suburb the customer has already been told nobody covers', async () => {
     vi.stubGlobal('fetch', google([suburbResult('Berwick', 'VIC', '3806', -38.0362, 145.3478)]));
 

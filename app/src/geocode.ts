@@ -146,7 +146,22 @@ export async function suburbCandidates(spoken: string | null, limit = 3): Promis
   if (cached) return cached;
 
   try {
-    const hits = await lookupAll(text);
+    let hits = await lookupAll(text);
+
+    /* A postcode outranks a suburb name in the same query, and what comes back is the postcode's
+       centroid - which is regularly a different suburb that happens to share it. "Berwick 3806"
+       resolves to Harkaway. The customer said Berwick, so ask for Berwick: drop the digits and
+       look again, and only keep that answer if it is a suburb. Same trap `geocode` handles for a
+       business's own address, and it matters more here - a customer says the postcode BECAUSE the
+       question asked for one. */
+    if (hits[0]?.types.includes('postal_code')) {
+      const withoutPostcode = text.replace(/\b\d{4}\b/g, '').replace(/\s+/g, ' ').trim();
+      if (withoutPostcode && /[a-z]/i.test(withoutPostcode)) {
+        const bySuburb = await lookupAll(withoutPostcode);
+        if (bySuburb.some((hit) => hit.types.includes('locality'))) hits = bySuburb;
+      }
+    }
+
     const seen = new Set<string>();
     const found: ResolvedLocation[] = [];
 
