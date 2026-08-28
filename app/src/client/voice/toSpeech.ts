@@ -43,29 +43,19 @@ function readOptions(options: ChatOption[]): string {
 }
 
 /**
- * A results turn read like a person, not like a table.
+ * The last thing said on the call.
  *
- * Three businesses with five figures each is unlistenable. The cheapest is named with its price and
- * the rest are counted, because what a customer wants from a phone call is the answer, and the
- * detail is on their screen when they want it.
+ * The quote itself is never read out. Three businesses with five figures each is unlistenable, a
+ * price heard once cannot be compared with anything, and a caller cannot scroll back through a
+ * phone call - so the numbers go to the page, which can show all of them at once and keep showing
+ * them. The call's job was to collect the brief, and it is finished.
+ *
+ * Deliberately says nothing about how many quotes came back, or whether any did. This same line
+ * has to be true when nobody covers the suburb, and a cheerful count would be a lie exactly when
+ * the customer is about to read bad news.
  */
-function readResult(response: ChatResponse): string {
-  if (!response.results.length) return spoken(response.message);
-
-  const best = response.results[0]!;
-  const others = response.results.length - 1;
-  const rest =
-    others === 0
-      ? ''
-      : others === 1
-        ? ' There is one more quote as well, a little higher.'
-        : ` There are ${others} more quotes as well.`;
-
-  const saved = response.comparison?.potentialSavings;
-  const savings = saved && saved > 0 ? ` That is about ${Math.round(saved)} dollars less than what you have.` : '';
-
-  return `${spoken(best.businessName)} can do it for ${Math.round(best.estimatedTotal)} dollars.${rest}${savings} I have put all the details on your screen.`;
-}
+const signOff = (): string =>
+  'Beauty — leaving it with me. I am pulling your quotes together now, and they will be on your screen in a moment. Thanks for calling, bye for now.';
 
 /**
  * The recap, as a person would say it.
@@ -91,9 +81,9 @@ export function toSpeech(response: ChatResponse): string {
      came back for ever. `suburb.ts` now resolves it server-side, so it is asked out loud like any
      other question - and a postcode, which the question asks for, is the one answer that cannot
      be two places at once. */
-  /* The last thing said on the call. The quote is read, and then the call is ended by the flow -
-     so the goodbye belongs here, not to a model deciding the conversation is over. */
-  if (response.type === 'result') return `${readResult(response)} Thanks for calling — bye for now.`;
+  /* The call is over the moment the brief is agreed. The searching, the prices and the comparison
+     all belong to the page, which the caller is already looking at. */
+  if (response.type === 'result') return signOff();
 
   /* The recap, and the question the whole call has been building to. It is taken out loud rather
      than on screen, because a caller who has just answered eight questions by voice should not be

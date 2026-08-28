@@ -114,26 +114,26 @@ describe('toSpeech', () => {
     expect(said).not.toContain('Sorry');
   });
 
-  it('narrates a result instead of reading a table out', () => {
-    const said = toSpeech({
+  /* The quote is never read out. A price heard once cannot be compared with anything, a caller
+     cannot scroll back through a phone call, and the same sign-off has to be true when nobody
+     covers the suburb - so it says nothing about what was found. */
+  it('signs off without reading the quote, whatever the quote was', () => {
+    const withQuotes = toSpeech({
       ...base,
       type: 'result',
-      message: 'Here are the local businesses that cover your job.',
       options: [],
+      message: 'Here is what came back.',
       results: [
         { businessId: 'a', autoAcceptsAi: true, businessName: 'Southeast Fencing', suburb: 'Berwick', ratePerMeter: 110, estimatedTotal: 2200, notes: 'incl. GST' },
-        { businessId: 'b', autoAcceptsAi: false, businessName: 'Other Mob', suburb: 'Berwick', ratePerMeter: 120, estimatedTotal: 2400, notes: '' },
       ],
-    });
-    expect(said).toContain('Southeast Fencing can do it for 2200 dollars');
-    expect(said).toContain('one more quote');
-    expect(said).toContain('on your screen');
-    expect(said).not.toContain('110');
-  });
+    } as ChatResponse);
+    const withNone = toSpeech({ ...base, type: 'result', options: [], message: 'Nobody covering your suburb came in under $2,000.' });
 
-  it('reads a result with nothing in it as the answer it is', () => {
-    const said = toSpeech({ ...base, type: 'result', options: [], message: 'Nobody covering your suburb came in under $2,000.' });
-    expect(said).toContain('2000 dollars');
+    expect(withQuotes).toBe(withNone);
+    expect(withQuotes).toContain('on your screen');
+    expect(withQuotes).toContain('bye for now');
+    expect(withQuotes).not.toContain('2200');
+    expect(withQuotes).not.toContain('Southeast Fencing');
   });
 });
 
@@ -154,6 +154,32 @@ function countingAi(): { ai: AiClient; calls: () => number } {
     },
   };
 }
+
+describe('matchSpokenToOption, said inside a sentence', () => {
+  /* Nobody answers a spoken question with a bare noun. Every one of these was reaching the model -
+     three seconds of a phone call spent being told what this code worked out last turn. */
+  it('finds the one option named in a sentence', () => {
+    expect(matchSpokenToOption('Treated pine. I need treated pine.', MATERIALS)).toBe('timber_pine');
+    expect(matchSpokenToOption('yeah go with the colorbond one', MATERIALS)).toBe('colorbond');
+    expect(matchSpokenToOption('um hardwood timber please mate', MATERIALS)).toBe('timber_hardwood');
+  });
+
+  it('refuses when a sentence names two of them', () => {
+    const site = options(['Sloped block', 'sloped'], ['Rocky ground', 'rocky'], ['Nothing tricky', 'none']);
+    expect(matchSpokenToOption('it is a sloped block with rocky ground', site)).toBeNull();
+  });
+
+  it('never finds a label inside another word', () => {
+    expect(matchSpokenToOption('what about pineapple', MATERIALS)).toBeNull();
+  });
+
+  /* "no worries" means yes. Recording it as a no is the silent wrong answer, found at the price. */
+  it('leaves short labels to an exact answer', () => {
+    const yesNo = options(["Yes, that's all correct", 'yes'], ["No, something's wrong", 'no']);
+    expect(matchSpokenToOption('no worries go ahead', yesNo)).toBeNull();
+    expect(matchSpokenToOption('yes', yesNo)).toBe('yes');
+  });
+});
 
 describe('a voice turn', () => {
   let repo: MemoryRepository;

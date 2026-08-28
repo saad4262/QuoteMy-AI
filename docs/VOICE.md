@@ -218,9 +218,34 @@ Reading the whole brief first is what makes a spoken "yes" mean something. The w
 spoken one ends with a real question and an explicit way out, because saying "no" to a machine is
 harder than tapping it.
 
-`isDone` is therefore `type === 'result'` and nothing else. `resultId` is written into the voice
-session on that turn, so `GET /voice/session` hands the page somewhere to go the moment the call
-ends.
+**The quote itself is never read out.** Yes gets a sign-off and a hang-up, and the page takes over:
+
+> *"Beauty — leaving it with me. I am pulling your quotes together now, and they will be on your
+> screen in a moment. Thanks for calling, bye for now."*
+
+Three businesses with five figures each is unlistenable, a price heard once cannot be compared with
+anything, and a caller cannot scroll back through a phone call. The sign-off also says nothing about
+what was found, deliberately — the same line has to be true when nobody covers the suburb, and a
+cheerful count would be a lie at exactly the moment the customer is about to read bad news.
+
+`isDone` is therefore `type === 'result'` and nothing else. The matcher has already run by the time
+the sign-off is spoken, so `resultId` is written into the voice session on that same turn and
+`GET /voice/session` hands the page somewhere to go the moment the call ends.
+
+## Silence is the thing to design against
+
+A caller cannot see a spinner. Two seconds of nothing reads as a dropped line, and the fixes are all
+small:
+
+- **`matchSpokenToOption` finds an option named inside a sentence** — "Treated pine. I need treated
+  pine.", "yeah go with the Colorbond one". Nobody answers a spoken question with a bare noun, and
+  every one of those turns was going to the model for an answer this code had already written. Ties
+  and short labels still resolve to nothing: "no" appears in "no worries", which means yes.
+- **The `turn` node speaks two or three words while the tool runs**, not a sentence — anything
+  longer gets spoken over by the real answer arriving, which is what made the agent sound like it
+  was interrupting itself.
+- **`enable_typing_sound` on the same node** covers the rest. It cannot be cut off mid-sentence the
+  way a spoken filler can, and it says "working" without saying anything.
 
 ---
 

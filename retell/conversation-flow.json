@@ -73,7 +73,7 @@
       "speak_during_execution": true,
       "instruction": {
         "type": "prompt",
-        "text": "Say one short, natural acknowledgement of what the customer just said. Three or four words, no more, in a warm Australian voice.\n\nMirror their own word back when they gave you one: \"Timber it is.\" \"Righto, thirty metres.\" \"Yep, no worries.\" \"Gotcha.\" \"Mmm, right.\" When they said nothing useful, a plain \"One sec.\" or \"Bear with me.\" is right.\n\nVary it. Never use the same one twice in a row.\n\nNEVER answer their question. NEVER ask anything. NEVER state a fact, a number, a price, a height, a length or a business name - not even one they just said back to you as a quantity. This is only filler while the system works; the real answer comes immediately after it."
+        "text": "Say ONE very short acknowledgement of what the customer just said. Two or three words. Never a whole sentence.\n\nMirror their own word back when they gave you one: \"Timber it is.\" \"Righto, fifty metres.\" \"Yep, gotcha.\" \"Mmm, right.\" When they said nothing useful: \"One sec.\" or \"Bear with me.\"\n\nKeep it short because the real answer follows immediately and will speak over anything longer. Vary it - never the same one twice running.\n\nNEVER answer their question. NEVER ask anything. NEVER state a fact, a number, a price, a height, a length or a business name. This is only filler while the system works."
       },
       "speak_after_execution": false,
       "edges": [
@@ -100,7 +100,8 @@
           "prompt": "Else"
         },
         "destination_node_id": "speak"
-      }
+      },
+      "enable_typing_sound": true
     },
     {
       "id": "speak",

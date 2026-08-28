@@ -69,5 +69,21 @@ export function matchSpokenToOption(spoken: string, options: ChatOption[]): stri
      tried the labels, but only against the value list; this catches a label whose own words do not
      appear in its slug at all. Ties still resolve to nothing, same discipline. */
   const exact = offerable.filter((option) => slug(option.label) === slug(said));
-  return exact.length === 1 ? exact[0]!.value : null;
+  if (exact.length === 1) return exact[0]!.value;
+
+  /* Said the label inside a sentence: "Treated pine. I need treated pine.", "yeah, go with the
+     Colorbond one". People do not answer a spoken question with a bare noun, and every one of
+     those turns was going to the model - three seconds of a phone call spent being told something
+     this code already knew, because it wrote the options last turn.
+     Matched on slug word boundaries, never as a raw substring, so "pine" cannot be found inside
+     another word. Short labels are excluded outright: "no" appears in "no worries", which means
+     yes, and recording that as a no is exactly the silent wrong answer this file exists to refuse.
+     Two labels in one sentence resolves to nothing, same as everywhere else here. */
+  const heard = slug(said);
+  const inside = offerable.filter((option) => {
+    const label = slug(option.label);
+    if (label.length < 4) return false;
+    return heard === label || heard.startsWith(`${label}-`) || heard.endsWith(`-${label}`) || heard.includes(`-${label}-`);
+  });
+  return inside.length === 1 ? inside[0]!.value : null;
 }

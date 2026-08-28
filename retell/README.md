@@ -295,6 +295,14 @@ Both places, deliberately. A rule that lives only in the node contradicts a glob
 the agent may say nothing of its own — and when those two conflict, the prompt wins and the node is
 ignored. That has already cost this project a working agent once.
 
+### Two or three words, and a typing sound
+
+The filler is deliberately tiny. `speak_during_execution` starts it the moment the tool is called,
+and the real answer speaks over whatever is still in the buffer — so a full sentence there makes the
+agent sound like it is interrupting itself, which is exactly how it sounded before. Three words
+finish first. `enable_typing_sound` on the same node covers a genuinely slow turn, because a sound
+cannot be cut off mid-sentence the way a sentence can.
+
 ### The `is_done` edge is an equation, not a prompt
 
 Whether a call ends is a fact our backend already decided; letting a model judge it gives you calls
