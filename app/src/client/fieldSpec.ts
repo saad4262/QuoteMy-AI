@@ -139,7 +139,9 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'gateQty',
     type: 'count',
-    title: 'Gates',
+    /* Not "Gates". It sits directly under "Gate" in the brief panel, and two labels one letter
+       apart is not a distinction anybody reads - especially greyed out, before either has a value. */
+    title: 'Number of gates',
     question: QUESTIONS.gateQty,
     options: [...QUANTITIES],
     dependsOn: { field: 'gateType', notEquals: 'none' },

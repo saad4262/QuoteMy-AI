@@ -245,6 +245,15 @@ export interface VoiceSession {
  * a phone number. The page renders `wrote`; `spoke` is what was actually heard.
  */
 export interface VoiceTurnRecord {
+  /**
+   * This turn's number in the call, from 1, and never reused.
+   *
+   * A position in the array is not an identity. Once a call passes `MAX_TURNS` the oldest are
+   * dropped, every remaining index shifts by one, and a page tracking "I have rendered the first
+   * N" silently re-renders turns it already had - which in React means new keys, a remounted list
+   * and a visible flicker on every reply. A number that only ever counts up cannot do that.
+   */
+  n: number;
   said: string;
   spoke: string;
   wrote: string;

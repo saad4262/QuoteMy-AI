@@ -16,6 +16,7 @@ import type {
   SubmissionRecord,
   SubmissionStatus,
   VoiceSession,
+  VoiceTurnRecord,
 } from './store.js';
 import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
@@ -582,7 +583,8 @@ export class FirestoreRepository implements BusinessRepository {
       checklist: (d.checklist ?? {}) as Record<string, unknown>,
       place: d.place ?? null,
       options: Array.isArray(d.options) ? d.options : [],
-      turns: Array.isArray(d.turns) ? d.turns : [],
+      // `n` arrived after the first calls did; a document written before it gets one by position.
+      turns: Array.isArray(d.turns) ? d.turns.map((turn: VoiceTurnRecord, index: number) => ({ ...turn, n: turn.n ?? index + 1 })) : [],
       resultId: (d.resultId as string | undefined) ?? null,
       type: (d.type as string | undefined) ?? null,
       checklistDisplay: (d.checklistDisplay as VoiceSession['checklistDisplay']) ?? {},

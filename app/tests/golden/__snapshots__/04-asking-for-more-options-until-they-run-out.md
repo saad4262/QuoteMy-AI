@@ -72,7 +72,7 @@ customer: "I need a fence quote"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -151,7 +151,7 @@ customer: "yes go ahead"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -269,7 +269,7 @@ picked place: Berwick, VIC 3806
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -386,7 +386,7 @@ customer: "something else"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -498,7 +498,7 @@ customer: "something else"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -615,7 +615,7 @@ customer: "something else"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],

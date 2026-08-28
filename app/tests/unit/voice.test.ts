@@ -652,3 +652,66 @@ describe('create-call, carrying a conversation', () => {
     expect(stored?.turns).toEqual([]);
   });
 });
+
+/**
+ * Starting a call has its own ceiling.
+ *
+ * It was sharing the business submission route's limiter, which is documented as "two model calls
+ * per submission" - a rationale that has nothing to do with minting a Retell token. The two
+ * ceilings are for different costs and now move independently.
+ */
+describe('the ceiling on starting a call', () => {
+  it('is not the business submission limiter', async () => {
+    const { submitLimiter } = await import('../../src/http.js');
+    const { voiceCallLimiter } = await import('../../src/client/limits.js');
+    expect(voiceCallLimiter).not.toBe(submitLimiter);
+  });
+});
+
+/**
+ * A turn's identity is its number, not its position.
+ *
+ * Once a call passes `MAX_TURNS` the oldest turns are dropped and every index behind them shifts.
+ * A page tracking "I have rendered the first N" then re-renders turns it already had, which in
+ * React means new keys, a remounted list, and a visible flicker on every single reply.
+ */
+describe('turn numbering', () => {
+  const app = createApp();
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+  });
+
+  it('numbers every turn from one, in order', async () => {
+    await runVoiceTurn('n-1', { spokenText: 'I need a fence quote' }, { repo });
+    await runVoiceTurn('n-1', { spokenText: 'yes' }, { repo });
+    await runVoiceTurn('n-1', { spokenText: 'Berwick' }, { repo });
+
+    const res = await request(app).get('/api/v1/voice/session').query({ sessionId: 'n-1' });
+    expect((res.body.turns as { n: number }[]).map((turn) => turn.n)).toEqual([1, 2, 3]);
+  });
+
+  it('keeps counting up when the oldest turns are dropped', async () => {
+    const filler = Array.from({ length: 59 }, (_, index) => ({
+      n: index + 1,
+      said: `said ${index + 1}`,
+      spoke: '',
+      wrote: '',
+      chose: null,
+    }));
+    await repo.writeVoiceSession('n-2', { checklist: {}, place: null, options: [], turns: filler, updatedAt: new Date().toISOString() });
+
+    await runVoiceTurn('n-2', { spokenText: 'one more' }, { repo });
+    await runVoiceTurn('n-2', { spokenText: 'and another' }, { repo });
+
+    const stored = (await repo.readVoiceSession('n-2'))!;
+    expect(stored.turns).toHaveLength(60);          // the oldest was dropped
+    expect(stored.turns[0]!.n).toBe(2);             // so position 0 is no longer turn 1
+    expect(stored.turns.at(-1)!.n).toBe(61);        // and numbering never restarted
+  });
+});

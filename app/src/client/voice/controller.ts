@@ -132,6 +132,7 @@ export async function runVoiceTurn(
   );
 
   const speakText = toSpeech(response);
+  const previousTurns = session?.turns ?? [];
 
   /* A call runs to the quote. The recap is read back in full and agreed to out loud, because a
      caller who has answered eight questions by voice should not be handed a ninth to tap - and
@@ -149,7 +150,13 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
-    turns: [...(session?.turns ?? []), { said: spoken, spoke: speakText, wrote: response.message, chose: choseFrom(offered, asked, response.checklist) }].slice(-MAX_TURNS),
+    /* Numbered, not positioned. `slice` below drops the oldest turns of a very long call, which
+       shifts every index behind them - and a page that tracks "I have rendered the first N" then
+       re-renders turns it already had, remounting the list on every reply. */
+    turns: [
+      ...previousTurns,
+      { n: (previousTurns.at(-1)?.n ?? 0) + 1, said: spoken, spoke: speakText, wrote: response.message, chose: choseFrom(offered, asked, response.checklist) },
+    ].slice(-MAX_TURNS),
     resultId: resultId ?? session?.resultId ?? null,
     type: response.type,
     checklistDisplay: response.checklistDisplay,

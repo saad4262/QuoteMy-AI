@@ -72,7 +72,7 @@ customer: "I need a fence quote"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -151,7 +151,7 @@ customer: "yes go ahead"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -269,7 +269,7 @@ picked place: Berwick, VIC 3806
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -387,7 +387,7 @@ customer: "aluminium"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -506,7 +506,7 @@ customer: "1.8m"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -626,7 +626,7 @@ customer: "20"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -747,7 +747,7 @@ customer: "none"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],
@@ -869,7 +869,7 @@ customer: "none"
     },
     {
       "key": "gateQty",
-      "title": "Gates"
+      "title": "Number of gates"
     }
   ],
   "results": [],

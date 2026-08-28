@@ -40,3 +40,27 @@ export const chatIpLimiter = rateLimit({
   keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ''),
   handler: chatLimitHandler('rate_limited'),
 });
+
+/**
+ * Starting a voice call, per address.
+ *
+ * This was borrowing `submitLimiter`, which is sized and documented for something else entirely -
+ * "two model calls per submission", the business review pipeline. Minting a Retell token costs no
+ * model call at all. What it costs is a voice call billed by the minute, which is a real ceiling
+ * worth having, but it is a different ceiling and belongs here with its own reasoning rather than
+ * inherited from a route that does different work.
+ *
+ * The number matters more than most, because of how this fails: the browser gets a 429, the
+ * microphone does nothing, and a customer is told nothing at all. A real one starts a call, maybe
+ * two if they hang up and come back - so this is sized for a household or a small office sharing
+ * one address, while a script still runs out of room. A joined call needs a browser, which is the
+ * other half of why abuse here is hard.
+ */
+export const voiceCallLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? ''),
+  message: { ok: false, error: { code: 'rate_limited', message: 'Too many calls started, try again shortly' } },
+});

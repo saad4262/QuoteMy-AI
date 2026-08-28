@@ -69,7 +69,7 @@ describe('FENCING_FIELDS', () => {
       removal: 'Old fence',
       conditions: 'Site conditions',
       gateType: 'Gate',
-      gateQty: 'Gates',
+      gateQty: 'Number of gates',
     });
 
     const pinned = Object.fromEntries(FENCING_FIELDS.filter((f) => f.pinned).map((f) => [f.key, f.pinned]));

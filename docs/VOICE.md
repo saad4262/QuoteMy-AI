@@ -135,7 +135,8 @@ Where a call becomes a chat.
 {
   "found": true,
   "turns": [
-    { "said": "yeah Pakenham 3810",
+    { "n": 3,
+      "said": "yeah Pakenham 3810",
       "spoke": "Nice one — what type of fence are you after? Option A, Treated pine. …",
       "wrote": "Nice one — what type of fence are you after?",
       "chose": null }
@@ -159,6 +160,11 @@ screen makes a fence quote read like a phone number.
 
 `type` and `options` describe the turn the call ended on, so a caller who hung up on a question
 finds it waiting with its choices still tappable rather than a transcript that simply stops.
+
+`n` is the turn's number in the call, from 1, never reused — **key the rendered list on it, not on
+the array position.** Past `MAX_TURNS` the oldest turns are dropped and every index behind them
+shifts, so a page tracking "I have rendered the first N" re-renders turns it already had: new React
+keys, a remounted list, and a visible flicker on every reply.
 
 `chose` is the **label** of the option they picked, when what they said was one of the ones just
 read out — `matchSpokenToOption` already works this out and the answer used to be thrown away.

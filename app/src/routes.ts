@@ -4,7 +4,7 @@ import { business } from './controller.js';
 import { fencingChat } from './client/controller.js';
 import { createVoiceCall, voiceSession, voiceTurn, voiceTurnBody } from './client/voice/controller.js';
 import { chatBody } from './client/schemas.js';
-import { chatIpLimiter, chatLimiter } from './client/limits.js';
+import { chatIpLimiter, chatLimiter, voiceCallLimiter } from './client/limits.js';
 import { chatSpendToday } from './client/spend.js';
 import { env } from './config.js';
 import { send, submitLimiter, validateBody } from './http.js';
@@ -78,7 +78,7 @@ routes.post(
 routes.post('/voice/turn', chatIpLimiter, validateBody(voiceTurnBody), voiceTurn);
 
 /** A browser about to start a call asks for a session here, so it never invents one itself. */
-routes.post('/voice/create-call', submitLimiter, createVoiceCall);
+routes.post('/voice/create-call', voiceCallLimiter, createVoiceCall);
 
 /* Where a call becomes a chat. The page asks for this when the Retell SDK says the call ended,
    whoever hung up, and carries the conversation on by typing. */
