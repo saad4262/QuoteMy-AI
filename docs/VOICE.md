@@ -47,11 +47,21 @@ Retell  ── speech to text ──▶  calls the `voice_turn` tool
 
 ### `POST /api/v1/voice/create-call`
 
-Starts a call. Returns:
+Starts a call. Body is optional:
+
+```json
+{ "checklist": "{…}", "place": "{…}", "options": "[…]" }
+```
+
+Returns:
 
 ```json
 { "sessionId": "8f1c…", "accessToken": "…", "configured": true }
 ```
+
+Sending the checklist makes a **second** call continue the conversation rather than start it again
+— the page holds it by then, from an earlier call's handover or from typing, and without it the
+caller is asked their suburb twice in one sitting. Same JSON-text encoding the chat uses.
 
 The Retell API key never leaves the server — a browser holding it could create calls against the
 account at will. Only the token, which is scoped to one call, is handed out.
@@ -61,9 +71,22 @@ the whole voice path testable from Postman with no Retell account.
 
 ### `POST /api/v1/voice/turn?sessionId=<id>`
 
+Retell posts one of two shapes, and **both are accepted**:
+
 ```json
+{ "name": "voice_turn", "call": { … }, "args": { "spokenText": "colorbond" } }
 { "spokenText": "colorbond" }
 ```
+
+The nested one is the default; the flat one appears only when the tool's "args only" switch is on.
+Reading just the flat shape cost days: every turn reached the pipeline as an empty string, the
+model was handed nothing, the suburb question repeated for ever — and Retell's own call log showed
+`{"spokenText":"In Pakenham 3810."}` being sent correctly the whole time. Nothing errored anywhere.
+`turns[].said` coming back empty is the symptom to look for; it names the fault immediately.
+
+`sessionId` comes from the query string. If it arrives as the literal `{{session_id}}` the dynamic
+variable was never substituted, and it is refused rather than used — every call in the world sharing
+one session document is worse than having no id at all.
 
 ```json
 { "speakText": "Good choice. What height are you after? Option A, 1 point 2 metres. …", "isDone": false }

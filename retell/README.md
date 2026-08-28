@@ -191,6 +191,14 @@ of noise. Three rules the published docs do not state, all learned from that wal
 
 Both are already correct in `conversation-flow.json`.
 
+### Every turn reaches the backend empty
+
+`turns[].said` is `""` in `GET /voice/session`, the same question repeats for ever, and the call log
+shows the right words being sent. A custom tool posts `{ name, call, args: { spokenText } }` unless
+its **"args only"** switch is on, which flattens it to `{ spokenText }`. The backend now reads both
+([`voice/controller.ts`](../app/src/client/voice/controller.ts)), so this cannot come back — but it
+is the first thing to check on any new tool, because it fails in complete silence.
+
 ### `POST /v2/create-conversation-flow` returns "Cannot POST"
 
 Those two endpoints are **unversioned** — `/create-conversation-flow` and `/create-agent`, no `/v2`.
