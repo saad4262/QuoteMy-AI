@@ -1,6 +1,6 @@
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
-import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
+import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, numbersIn, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
 import { askedFields, specOf } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, PlaceHint, TurnExtraction, UiState } from './schemas.js';
@@ -272,15 +272,15 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const mayOverwrite = (field: string) => field === ui.lastAsked || fixing;
 
   const haystackSlug = slug(input.haystackText);
-  const numbersIn = (input.haystackText.match(/\d+(?:[.,]\d+)?/g) || [])
-    .map((token) => Number(token.replace(/,/g, '')))
-    .filter((value) => Number.isFinite(value));
+  /* Words as well as digits. A caller who says "fifty metres" out loud gets it transcribed either
+     way, and a length written as a word used to fail the check below and be dropped in silence. */
+  const numbers = numbersIn(input.haystackText);
 
   const mentioned = (field: ChecklistField | 'existingPrice', value: unknown): boolean => {
     if (field === 'suburb') return true; // never taken from the model anyway
-    if (field === 'heightKey') return numbersIn.some((n) => heightKeyFrom(String(n)) === value);
+    if (field === 'heightKey') return numbers.some((n) => heightKeyFrom(String(n)) === value);
     if (field === 'lengthMeters' || field === 'gateQty' || field === 'existingPrice') {
-      return numbersIn.some((n) => Math.abs(n - Number(value)) < 0.01);
+      return numbers.some((n) => Math.abs(n - Number(value)) < 0.01);
     }
     const values = Array.isArray(value) ? value : [value];
     if (!values.length) return true; // "nothing tricky" is an empty array - no word to look for

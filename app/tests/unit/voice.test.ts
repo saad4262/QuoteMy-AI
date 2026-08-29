@@ -43,6 +43,26 @@ describe('matchSpokenToOption', () => {
     expect(matchSpokenToOption('2', options(['1 gate', 1], ['2 gates', 2], ['3 gates', 3]))).toBe(2);
   });
 
+  it('hands a whole briefing to the model instead of keeping one word of it', () => {
+    /* A recognised option makes `runFencingChat` skip the model entirely, so anything else in the
+       sentence is never read by anything. Said in one breath, four answers became one and the
+       caller was asked the other three again one at a time. */
+    expect(matchSpokenToOption('I want a fence in Pakenham, colorbond, 1.5 metres, 50 metres long', MATERIALS)).toBe(null);
+    expect(matchSpokenToOption('treated pine in Berwick, about 30 metres', MATERIALS)).toBe(null);
+    // No numbers in it at all, and still two answers.
+    expect(matchSpokenToOption('colorbond in Pakenham', MATERIALS)).toBe(null);
+  });
+
+  it('still takes the shortcut when the answer is the whole of what they said', () => {
+    // The guard above must not cost a model call on the turns it was built to avoid one on.
+    expect(matchSpokenToOption('yeah, go with the Colorbond one', MATERIALS)).toBe('colorbond');
+    expect(matchSpokenToOption("I'll take treated pine", MATERIALS)).toBe('timber_pine');
+    expect(matchSpokenToOption('hardwood timber thanks', MATERIALS)).toBe('timber_hardwood');
+    // The number IS the answer here, so it is not something else they said.
+    expect(matchSpokenToOption('1.2 m please', options(['1.2m', '1.2m'], ['1.5m', '1.5m']))).toBe('1.2m');
+    expect(matchSpokenToOption('no gates mate', options(['No gates', 'none'], ['Single gate', 'single']))).toBe('none');
+  });
+
   it('returns nothing rather than guessing', () => {
     // A wrong match silently records an answer they never gave, and they find out at the price.
     expect(matchSpokenToOption('umm, hang on', MATERIALS)).toBe(null);
@@ -154,6 +174,92 @@ function countingAi(): { ai: AiClient; calls: () => number } {
     },
   };
 }
+
+/**
+ * A model that reads a whole sentence, so what happens to a briefing can be tested. `MockAiClient`
+ * deliberately answers only the field that was asked, which is the one thing this case is not.
+ */
+function readingAi(extraction: Record<string, unknown>): { ai: AiClient; calls: () => number } {
+  const inner = new MockAiClient();
+  let calls = 0;
+  return {
+    calls: () => calls,
+    ai: {
+      model: 'reading',
+      async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
+        calls += 1;
+        if (call.name !== 'turn') return inner.callStructured(call);
+        const data = {
+          ack: 'Got it', clearFields: [], suggestedSuburb: null,
+          wantsMoreOptions: false, confirmed: false, offTopic: false,
+          checklist: {
+            material: null, heightKey: null, lengthMeters: null, removal: null,
+            conditions: null, gateType: null, gateQty: null, existingPrice: null, ...extraction,
+          },
+        };
+        return { data: call.schema.parse(data), usage: { name: call.name, ms: 1, tokensIn: 0, tokensOut: 0, retries: 0, costUsd: 0 } };
+      },
+    },
+  };
+}
+
+/**
+ * Everything in one breath.
+ *
+ * A caller does not answer seven questions one at a time if they can say the lot at once, and the
+ * call used to lose all but one of them: the material was recognised as a choice that had been read
+ * out, which made the pipeline skip the model - and the model was the only thing that would have
+ * read the height and the length. They heard "got it" and were asked both again.
+ */
+describe('a caller who says everything at once', () => {
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+  });
+
+  it('keeps every answer in a sentence that also names an option', async () => {
+    const model = readingAi({ material: 'colorbond', heightKey: '1.5m', lengthMeters: 50 });
+    setAiClient(model.ai);
+
+    // The material choices are on the table, so the sentence below contains one of them verbatim.
+    await repo.writeVoiceSession('all-at-once', {
+      checklist: {}, place: null, options: MATERIALS, turns: [], updatedAt: new Date().toISOString(),
+    });
+
+    await runVoiceTurn(
+      'all-at-once',
+      { spokenText: 'I want a colorbond fence, 1.5 metres high and 50 metres long' },
+      { repo },
+    );
+
+    // Read by the model rather than resolved as a tapped choice - that is what saves the other two.
+    expect(model.calls()).toBeGreaterThan(0);
+    const checklist = (await repo.readVoiceSession('all-at-once'))!.checklist as Record<string, unknown>;
+    expect(checklist.material).toBe('colorbond');
+    expect(checklist.heightKey).toBe('1.5m');
+    expect(checklist.lengthMeters).toBe(50);
+  });
+
+  /* Said in words rather than digits. The transcriber picks either, and the guard that checks a
+     value really was spoken used to look for digits only - so this dropped the length in silence. */
+  it('keeps a length that was spoken as a word', async () => {
+    const model = readingAi({ material: 'colorbond', lengthMeters: 50 });
+    setAiClient(model.ai);
+
+    await repo.writeVoiceSession('in-words', {
+      checklist: {}, place: null, options: MATERIALS, turns: [], updatedAt: new Date().toISOString(),
+    });
+
+    await runVoiceTurn('in-words', { spokenText: 'colorbond, about fifty metres of it' }, { repo });
+
+    const checklist = (await repo.readVoiceSession('in-words'))!.checklist as Record<string, unknown>;
+    expect(checklist.lengthMeters).toBe(50);
+  });
+});
 
 describe('matchSpokenToOption, said inside a sentence', () => {
   /* Nobody answers a spoken question with a bare noun. Every one of these was reaching the model -

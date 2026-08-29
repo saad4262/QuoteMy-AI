@@ -99,6 +99,102 @@ export function oneOf(value: unknown, list: readonly string[], labelFor: (entry:
   return null;
 }
 
+/**
+ * Every number in a piece of text, written either way - "50 metres" and "fifty metres" both give
+ * `[50]`, "1.8m" and "one point eight metres" both give `[1.8]`.
+ *
+ * Words matter because of the spoken front door. A caller says their length out loud and the
+ * transcriber is free to write it either way, and the guard that checks a model-read value really
+ * does appear in what the customer said (`mentioned()` in `mergeAndDecide`) looks for digits. A
+ * length written as a word failed that check, so a value the model had read correctly was dropped
+ * with nothing logged and the question asked again - the one failure shape this codebase treats as
+ * worse than an error, because it is silent.
+ *
+ * Deliberately loose about what it does with prose: "one two three" is three numbers, not a
+ * hundred and twenty three. Nothing here decides anything on its own - every caller is checking
+ * whether a number it already holds was spoken, so an extra number costs nothing and a missed one
+ * costs a dropped answer.
+ */
+const UNITS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16,
+  seventeen: 17, eighteen: 18, nineteen: 19,
+};
+const TENS: Record<string, number> = {
+  twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90,
+};
+
+export function numbersIn(text: string): number[] {
+  const found: number[] = [];
+  let whole: number | null = null;
+  /** Digits said after the word "point", collected as text so "one point zero five" stays 1.05. */
+  let decimals: string | null = null;
+
+  const flush = () => {
+    if (whole !== null) found.push(decimals ? Number(`${whole}.${decimals}`) : whole);
+    whole = null;
+    decimals = null;
+  };
+
+  for (const token of String(text).toLowerCase().replace(/,(?=\d{3}\b)/g, '').split(/[^a-z0-9.]+/)) {
+    if (!token) continue;
+
+    const digits = token.match(/^\d+(?:\.\d+)?/);
+    if (digits) {
+      flush();
+      found.push(Number(digits[0]));
+      continue;
+    }
+
+    if (token === 'point' && whole !== null && decimals === null) {
+      decimals = '';
+      continue;
+    }
+
+    const unit = UNITS[token];
+    const ten = TENS[token];
+
+    if (decimals !== null) {
+      // Only single digits belong after the point; anything else ends the number.
+      if (unit !== undefined && unit < 10) {
+        decimals += String(unit);
+        continue;
+      }
+      flush();
+    }
+
+    if (unit !== undefined) {
+      // "twenty five" is one number; "one two" is two. A tens word is the only thing a unit joins.
+      if (whole !== null && whole % 10 !== 0) flush();
+      whole = (whole ?? 0) + unit;
+      continue;
+    }
+    if (ten !== undefined) {
+      if (whole !== null && whole % 100 === 0) whole += ten; // "a hundred and twenty"
+      else {
+        flush();
+        whole = ten;
+      }
+      continue;
+    }
+    if (token === 'hundred') {
+      whole = (whole || 1) * 100;
+      continue;
+    }
+    if (token === 'thousand') {
+      whole = (whole || 1) * 1000;
+      continue;
+    }
+    // "a hundred and twenty" - carriers that sit inside a number rather than ending it.
+    if ((token === 'and' || token === 'a') && whole !== null) continue;
+
+    flush();
+  }
+
+  flush();
+  return found.filter((value) => Number.isFinite(value));
+}
+
 /** A positive number out of whatever the customer wrote - "30", "30m", "about 30", "1,200". */
 export function positiveNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;

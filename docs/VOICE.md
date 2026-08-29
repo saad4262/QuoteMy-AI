@@ -410,6 +410,12 @@ small:
   pine.", "yeah go with the Colorbond one". Nobody answers a spoken question with a bare noun, and
   every one of those turns was going to the model for an answer this code had already written. Ties
   and short labels still resolve to nothing: "no" appears in "no worries", which means yes.
+  **It stops at a sentence that says more than the answer.** "I want a colorbond fence in Pakenham,
+  1.5 metres, 50 metres long" names an option and four other answers, and recognising the option is
+  exactly what made the pipeline skip the model - so the other four were never read by anything and
+  were asked again one at a time. Anything with a word or a number left over once the answer is
+  taken out goes to the model, which is what reads sentences. Getting that wrong in the strict
+  direction costs three seconds; in the loose direction it costs four answers.
 - **The `turn` node speaks two or three words while the tool runs**, not a sentence — anything
   longer gets spoken over by the real answer arriving, which is what made the agent sound like it
   was interrupting itself.
