@@ -244,27 +244,19 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
     options?: string;
     message?: string;
     checklistDisplay?: string;
+    checklistAnswered?: string;
   };
   const carried = {
     checklist: asObject<Record<string, unknown>>(body.checklist),
     place: asObject<Place>(body.place),
     options: asObject<ChatOption[]>(body.options),
     display: asObject<Record<string, { title: string; value: string }>>(body.checklistDisplay),
+    /* The same answers the display object holds, in the order they were asked. Carried as well as
+       the object because only this one keeps its order across the wire - without it the brief
+       panel reshuffles itself the moment a call starts, which looks like the call lost something. */
+    answered: asObject<{ key: string; title: string; value: string }[]>(body.checklistAnswered),
   };
   const options = Array.isArray(carried.options) ? carried.options : [];
-
-  if (carried.checklist || carried.place) {
-    await getRepository().writeVoiceSession(sessionId, {
-      checklist: carried.checklist ?? {},
-      place: carried.place ?? null,
-      options,
-      // The page already has everything said before this call. Only this call's turns belong here.
-      turns: [],
-      checklistDisplay: carried.display ?? {},
-      checklistPending: [],
-      updatedAt: new Date().toISOString(),
-    });
-  }
 
   /* The opening line, written here and read by the agent - never composed by the speech model,
      same rule as every other sentence in this product. With nothing carried it is the ordinary
@@ -272,8 +264,33 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
      screen, so pressing the microphone at the seventh question does not start again at hello. */
   const greeting = greetingFor({ display: carried.display ?? {}, message: body.message, options });
 
+  /* Written for every call now, not only one that carries a conversation, because the greeting has
+     to be kept somewhere.
+
+     Retell speaks it from a dynamic variable before it ever calls `/voice/turn`, so nothing else in
+     this file ever sees it: it played, and then it was gone the next time the page was loaded - the
+     one line of the call that a customer coming back through "view chat" could not find. Turn zero
+     is where it lives. Zero and not one, so the numbering of what was actually said back and forth
+     is unchanged, and so a screen can tell the line nobody answered from the ones they did.
+
+     `offered` carries the standing choices rather than an empty list: the greeting reads them out,
+     and the first spoken turn resolves its answer against exactly these - so the same "turn n
+     offers, turn n + 1 chose" rule that holds through the rest of the call holds across the
+     handover into it too. */
+  await getRepository().writeVoiceSession(sessionId, {
+    checklist: carried.checklist ?? {},
+    place: carried.place ?? null,
+    options,
+    // The page already has everything said before this call. Only this call's turns belong here.
+    turns: [{ n: 0, at: new Date().toISOString(), said: '', spoke: greeting, wrote: '', offered: options, chose: null }],
+    checklistDisplay: carried.display ?? {},
+    checklistAnswered: Array.isArray(carried.answered) ? carried.answered : [],
+    checklistPending: [],
+    updatedAt: new Date().toISOString(),
+  });
+
   if (!env.RETELL_API_KEY || !env.RETELL_AGENT_ID) {
-    res.status(200).json({ sessionId, accessToken: null, configured: false });
+    res.status(200).json({ sessionId, accessToken: null, configured: false, greeting });
     return;
   }
 
@@ -297,7 +314,10 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
 
     const { access_token: accessToken, call_id: callId } = (await created.json()) as { access_token?: string; call_id?: string };
     logger.info({ sessionId, callId }, 'voice call created');
-    res.status(200).json({ sessionId, accessToken: accessToken ?? null, configured: true });
+    /* The greeting goes back as well as into the session, so the page can put it on screen the
+       moment the call connects instead of waiting for the first `/voice/session` read. It is the
+       same string either way. */
+    res.status(200).json({ sessionId, accessToken: accessToken ?? null, configured: true, greeting });
   } catch (err) {
     logger.error({ err }, 'could not reach retell to create a web call');
     res.status(502).json({ error: { code: 'voice_unavailable', message: 'Could not start a voice call' } });
@@ -336,9 +356,14 @@ export async function voiceSession(req: Request, res: Response): Promise<void> {
        looking at a screen that has to show what came back, so this is where the page navigates. */
     resultId: session.resultId ?? null,
     /* The last turn as the text chat would have rendered it, so a caller who hung up mid-question
-       finds it on screen with its options still tappable rather than a transcript that stops. */
+       finds it on screen with its options still tappable rather than a transcript that stops.
+       Searched backwards for one that has any, rather than simply taken from the end, because the
+       greeting is a turn now and has no written form - reading the last turn blindly answers a
+       call that has only just connected with an empty string, and an empty string is not null:
+       every `?? ` guard on the page waves it through and the question already on screen is
+       replaced by nothing. */
     type: session.type ?? null,
-    message: session.turns.at(-1)?.wrote ?? null,
+    message: [...session.turns].reverse().find((turn) => turn.wrote)?.wrote ?? null,
     /* The brief panel, so it fills in while the call is still running rather than all at once when
        it ends. Answered on one side, still-to-come on the other. */
     checklistDisplay: session.checklistDisplay ?? {},

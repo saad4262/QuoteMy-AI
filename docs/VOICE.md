@@ -50,13 +50,14 @@ Retell  ── speech to text ──▶  calls the `voice_turn` tool
 Starts a call. Body is optional:
 
 ```json
-{ "checklist": "{…}", "place": "{…}", "options": "[…]" }
+{ "checklist": "{…}", "place": "{…}", "options": "[…]",
+  "checklistDisplay": "{…}", "checklistAnswered": "[…]", "message": "How long is the fence?" }
 ```
 
 Returns:
 
 ```json
-{ "sessionId": "8f1c…", "accessToken": "…", "configured": true }
+{ "sessionId": "8f1c…", "accessToken": "…", "configured": true, "greeting": "Welcome back. …" }
 ```
 
 Sending these makes a **second** call continue the conversation rather than start it again — the
@@ -75,6 +76,23 @@ the dynamic variable `{{greeting}}`, exactly the way `{{speak_text}}` is. The fl
 reads it and nothing else. **The speech model never writes it** — same rule as every other sentence
 here. With nothing carried it is the ordinary opening line, which is also the flow's stored default,
 so a call made from the Retell dashboard still greets properly.
+
+`checklistAnswered` is carried as well as `checklistDisplay` because only the array keeps its
+order across the wire. Without it the brief panel reshuffles itself the moment a call starts, which
+reads as the call having lost something.
+
+**The greeting is stored as turn `0`** of the new session, and returned here as well. Retell speaks
+it from a dynamic variable before it ever calls `/voice/turn`, so nothing else in this service sees
+it: it played, and then it was gone the next time the page was loaded — the one line of the call
+that a customer coming back through "view chat" could not find. Zero and not one, so the numbering
+of what was actually said back and forth is unchanged, and so a screen can tell the line nobody
+answered from the ones they did. It carries `said: ""`, `wrote: ""`, and the standing `options` as
+its `offered`, so the "turn `n` offers, turn `n + 1` chose" rule holds across the handover into a
+call the same way it holds inside one.
+
+A session document is therefore written for **every** call, not only one that carries a
+conversation. A fresh call's is empty apart from that greeting — an empty `checklist` from this
+endpoint means *nothing known yet*, never *clear what you have*.
 
 The Retell API key never leaves the server — a browser holding it could create calls against the
 account at will. Only the token, which is scoped to one call, is handed out.
@@ -156,17 +174,23 @@ Where a call becomes a chat.
 }
 ```
 
-**Render `wrote`, never `spoke`.** They are the same turn in two registers: `spoke` is the audio
-record — "Pakenham, Victoria 3 8 1 0, one point five metres", with the choices read out as Option A,
-Option B — and `wrote` is what the text chat would have put in the bubble. Putting the spoken one on
-screen makes a fence quote read like a phone number.
+**In a voice bubble, render `spoke`.** They are the same turn in two registers: `spoke` is what
+was actually said aloud — "Pakenham, Victoria 3 8 1 0, one point five metres", with the choices read
+out as Option A, Option B — and `wrote` is what the text chat would have put in the bubble. A
+transcript of a call is a record of what was said, so it gets the spoken one; rendering `wrote`
+there shows a heading in place of the sentence the customer actually heard.
+
+`wrote` still has its own job: it is what the top-level `message` is taken from, so a caller who
+hung up mid-question finds that question on screen in written form with its choices tappable.
 
 `type` and `options` describe the turn the call ended on, so a caller who hung up on a question
 finds it waiting with its choices still tappable rather than a transcript that simply stops.
 
-`n` is the turn's number in the call, from 1, never reused — **key the rendered list on it, not on
-the array position.** Past `MAX_TURNS` the oldest turns are dropped and every index behind them
-shifts, so a page tracking "I have rendered the first N" re-renders turns it already had: new React
+`n` is the turn's number in the call, never reused — **key the rendered list on it, not on the
+array position.** Spoken turns run from 1; `0` is the greeting, which has no `said` and no `wrote`
+because nobody answered it and the text chat never had it.
+
+Past `MAX_TURNS` the oldest turns are dropped and every index behind them shifts, so a page tracking "I have rendered the first N" re-renders turns it already had: new React
 keys, a remounted list, and a visible flicker on every reply.
 
 `at` is when the turn was recorded, ISO 8601. `n` orders a call against itself, which is not the
@@ -176,16 +200,16 @@ stack at the bottom and the transcript reads in an order the conversation never 
 clock is the only thing both halves share. **Merge typed messages and call turns into one list
 sorted on time, then render top to bottom.**
 
-`offered` is what that turn put on the table - the same thing top-level `options` holds for the last
-turn, kept for every turn instead of only the newest. **Draw it under the agent's bubble as pills,
-filled for the one that was picked and outlined for the rest.** Without it a transcript can only
-show the answer and never what it was chosen from, and the only way to say the rest is to print
-`spoke` - "Option A, Treated pine. Option B…" - directly underneath the choices it is describing.
+`offered` is what that turn put on the table — the same thing top-level `options` holds for the
+last turn, kept for every turn instead of only the newest. It is recorded for every turn, spoken
+ones included, but **pills are drawn only where the conversation is in text mode**: a spoken turn
+already read its choices out inside `spoke`, so drawing them again underneath is the same sentence
+twice. See *Two modes, one transcript* below.
 
 The answer is not on the same turn, because when that turn was written it did not exist yet: this
 turn asks, the next one answers. **Fill the pill on turn `n` from `turns[n + 1].chose`.** In history
-the pills are a record, not a control - only the last turn's are worth making tappable, and only
-once the call has ended.
+the pills are a record, not a control — only the last turn's are worth making tappable, and only
+once the call has ended. `__other__` is a text box, not a choice: filter it out before drawing.
 
 `chose` is the **label** of the option they picked, when what they said was one of the ones just
 read out — `matchSpokenToOption` already works this out and the answer used to be thrown away.
@@ -215,7 +239,10 @@ again.
 `checklist` carries `_ui` and must be handed back **whole**. Every field in it exists to stop a bug
 the comments in `mergeAndDecide.ts` describe; a trimmed copy is how those bugs come back.
 
-`found: false` is not an error — a call nobody spoke on, or one older than the session's half hour.
+`found: false` is not an error, and now means only two things: an id nothing was ever created for,
+or a call older than the session's half hour. Every created call has a document from the moment it
+is created, because the greeting lives in it. Treat it as *nothing to merge*, never as *the call
+failed*.
 
 Deliberately **not** a Retell webhook. The browser sees the call end anyway, it is the thing that
 has to render the result, and a webhook would add signature verification and a second write path
@@ -223,6 +250,62 @@ for nothing the customer would notice. That changes the day phone calls exist, b
 is no browser.
 
 ---
+
+## Two modes, one transcript
+
+A conversation moves between typing and talking and back, sometimes several times, and it is one
+conversation throughout. The screen shows **one list**, top to bottom, in the order things actually
+happened. What changes between the two modes is not the list — it is what gets drawn into it.
+
+| | what the screen shows |
+|---|---|
+| **call running** | live transcript only. Customer's speech right, agent's left. No pills. |
+| **call ended** | the text chat as before: bubbles, and the standing `options` as pills. |
+
+**During the call, the words come from the Retell Web SDK, not from here.** Its `update` event
+carries the whole transcript array, both roles, in order, growing word by word as each side speaks.
+Nothing in this service can stream — a turn is only written once it is finished — so a page that
+waits for `GET /voice/session` shows a blank screen for the three seconds a customer is watching
+most closely.
+
+**When a turn commits, the same words arrive here permanently**, as `said` and `spoke`. The live
+layer is a tail on the end of the committed one, and the two are separated by counting rather than
+by matching text:
+
+```
+N   = committed turns with n >= 1        (the greeting, turn 0, is not one)
+idx = position of the (N + 1)th 'user' entry in the SDK's transcript array
+      found     -> live tail = transcript.slice(idx)
+      not found -> live tail = []
+render: committed bubbles, then the tail
+```
+
+The greeting needs no special case: it is turn 0 in the committed layer from the moment the call is
+created, so it is on screen before anyone speaks and it is still there after a reload.
+
+The live layer is **ephemeral by design** — it is gone on reload, and it is the only place a
+half-spoken sentence or a turn that errored ever appears. The committed layer is the record.
+
+**Context survives every crossing, in both directions, and always has:**
+
+- **typing → talking**: `POST /voice/create-call` takes `checklist`, `place`, `options`,
+  `checklistDisplay`, `checklistAnswered` and `message`, writes them under the new session before
+  the call is minted, and opens on the question already on screen.
+- **talking → typing**: `GET /voice/session` hands back `checklist` (with `_ui`) and `place`; post
+  them into `POST /client/fencing-chat` as `knownChecklist` and `place`.
+
+**Merge what comes back, never replace.** An empty `checklist` means nothing is known yet, which is
+true of a call that has only just connected.
+
+**Every call gets a new `sessionId`, and its `turns` start empty.** That is deliberate: the page
+already holds everything said before this call. It follows that transcript entries must be keyed by
+session as well as turn — `v-{sessionId}-{n}` — because two calls in one conversation both have a
+turn 1, and a key of `v-{n}` silently overwrites the first call's lines with the second's.
+
+The mode changes are worth drawing. A divider where a call starts and where it ends, and a
+microphone mark on spoken bubbles, is the whole of it: without them a transcript that switches
+register mid-list looks like a rendering bug rather than a conversation that changed medium.
+
 
 ## Environment
 

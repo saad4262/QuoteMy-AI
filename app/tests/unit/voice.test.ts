@@ -486,14 +486,43 @@ describe('a second call in the same conversation', () => {
     const stored = await repo.readVoiceSession(res.body.sessionId as string);
     expect(stored?.checklist).toMatchObject({ suburb: 'Berwick, VIC, 3806', material: 'colorbond' });
     expect(stored?.place).toMatchObject({ suburb: 'Berwick' });
-    // Only this call's turns belong to this call; the page already has the earlier ones.
-    expect(stored?.turns).toEqual([]);
+    /* Only this call's turns belong to this call; the page already has the earlier ones. The one
+       exception is the greeting, which is this call's opening line and nothing else's. */
+    expect(stored?.turns).toHaveLength(1);
+    expect(stored?.turns[0]).toMatchObject({ n: 0, said: '', wrote: '' });
+    /* The opening line, whatever it turned out to be. It is the recap only when the page carried
+       `checklistDisplay` too - the checklist alone is what the pipeline needs, not what is read
+       out - and this call carried no display, so it opens like any other. */
+    expect(stored?.turns[0]!.spoke).toBe(res.body.greeting);
   });
 
-  it('starts clean when the page has nothing to carry', async () => {
+  it('keeps the greeting when the page has nothing to carry', async () => {
     const res = await request(app).post('/api/v1/voice/create-call').send({});
     expect(res.status).toBe(200);
-    expect(await repo.readVoiceSession(res.body.sessionId as string)).toBeNull();
+
+    /* A session is written even with nothing carried, because the greeting has to survive a
+       reload: Retell speaks it from a dynamic variable and never tells this service it did, so
+       turn zero is the only record that the call opened at all. */
+    const stored = await repo.readVoiceSession(res.body.sessionId as string);
+    expect(stored?.checklist).toEqual({});
+    expect(stored?.turns).toHaveLength(1);
+    expect(stored?.turns[0]).toMatchObject({ n: 0, said: '', offered: [] });
+    expect(stored?.turns[0]!.spoke).toBe(res.body.greeting);
+  });
+
+  it('numbers the first spoken turn 1, so the greeting does not take its place', async () => {
+    const created = await request(app).post('/api/v1/voice/create-call').send({});
+    const sessionId = created.body.sessionId as string;
+
+    await request(app)
+      .post(`/api/v1/voice/turn?sessionId=${sessionId}`)
+      .send({ spokenText: 'I need a fence in Berwick' });
+
+    const turns = (await repo.readVoiceSession(sessionId))!.turns;
+    expect(turns.map((turn) => turn.n)).toEqual([0, 1]);
+    // The greeting has no written form, so the handover still offers the real last question.
+    const session = await request(app).get(`/api/v1/voice/session?sessionId=${sessionId}`);
+    expect(session.body.message).toBeTruthy();
   });
 });
 
@@ -697,7 +726,11 @@ describe('create-call, carrying a conversation', () => {
     const stored = await repo.readVoiceSession(res.body.sessionId as string);
     expect(stored?.checklist).toMatchObject({ material: 'colorbond' });
     expect(stored?.checklistDisplay).toMatchObject({ material: { title: 'Material', value: 'Colorbond' } });
-    expect(stored?.turns).toEqual([]);
+    /* The greeting, and the choices it read out. `offered` is carried rather than left empty so
+       the "turn n offers, turn n + 1 chose" rule survives the handover into a call. */
+    expect(stored?.turns).toHaveLength(1);
+    expect(stored?.turns[0]!.offered).toEqual([{ label: '10 metres', value: 10 }]);
+    expect(stored?.turns[0]!.spoke).toContain('How long is the fence?');
   });
 });
 
