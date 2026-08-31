@@ -352,3 +352,76 @@ describe('a bare number only answers the question that was asked', () => {
     expect(state.checklist.lengthMeters).toBe(20);
   });
 });
+
+/**
+ * Asking about a fence is not choosing one.
+ *
+ * Straight off two screenshots, a week apart. The customer typed "colorbon, timber pine, aluminium
+ * ... from these which is best?? and avalibilty of color bewtween all these?" while the material
+ * question was on screen, and the brief filled itself in with Treated pine - a fence they had
+ * explicitly not picked - and moved on to the height. The first fix caught the model reporting a
+ * value out of a question and missed the route that needs no model at all, which is why the second
+ * screenshot looked exactly like the first.
+ */
+describe('a question names things without choosing them', () => {
+  const ASKED = { askedAbout: 'avalibilty of color bewtween all these?', askedKind: 'advice' as const };
+  const COMPARING = 'colorbon , timber pine , aluminium ... from these which is best ?? and avalibilty of color bewtween all these?';
+
+  it('does not choose a fence out of a sentence comparing three of them', () => {
+    const state = run(COMPARING, partial({ material: null, _ui: ui({ lastAsked: 'material' }) }), turn({ material: 'colorbond' }, ASKED));
+
+    expect(state.checklist.material).toBeNull();
+    // And the question they were asked is still waiting for them.
+    expect(state.missing).toContain('material');
+  });
+
+  /**
+   * The same sentence with the model contributing nothing, because the model was never the
+   * problem: `validate` runs the whole message through the vocabulary and finds a material
+   * ANYWHERE in it, so "timber pine" scored two words and won on its own.
+   */
+  it('does not choose one in code either, with nothing from the model at all', () => {
+    const state = run(COMPARING, partial({ material: null, _ui: ui({ lastAsked: 'material' }) }), turn({}, ASKED));
+
+    expect(state.checklist.material).toBeNull();
+  });
+
+  /**
+   * The other direction, and the one that matters just as much: a question does not cancel an
+   * answer that arrived with it. Erring towards asking again is right; erring into asking twice is
+   * the complaint this whole conversation started with.
+   */
+  it('still takes the answer when they answer and ask in the same breath', () => {
+    const asked = { askedAbout: 'do i need a council permit?', askedKind: 'advice' as const };
+    const state = run(
+      'aluminium, do i need a council permit?',
+      partial({ material: null, _ui: ui({ lastAsked: 'material' }) }),
+      turn({ material: 'aluminium' }, asked),
+    );
+
+    expect(state.checklist.material).toBe('aluminium');
+  });
+
+  /**
+   * "Aluminium" is a word in `aluminium` AND in `pool_aluminium`, so a version of this that counted
+   * how many choices the sentence touched threw away an answer somebody had given in plain words.
+   * What disqualifies a value is another choice being NAMED, not a word being shared.
+   */
+  it('is not confused by two choices sharing a word', () => {
+    const asked = { askedAbout: 'is it any good on a slope?', askedKind: 'advice' as const };
+    const state = run(
+      'aluminium thanks, is it any good on a slope?',
+      partial({ material: null, _ui: ui({ lastAsked: 'material' }) }),
+      turn({ material: 'aluminium' }, asked),
+    );
+
+    expect(state.checklist.material).toBe('aluminium');
+  });
+
+  /** A tap carries no question at all, so none of this applies to the commonest turn there is. */
+  it('leaves a tapped option exactly as it was', () => {
+    const state = run('colorbond', partial({ material: null, _ui: ui({ lastAsked: 'material' }) }), turn({}));
+
+    expect(state.checklist.material).toBe('colorbond');
+  });
+});

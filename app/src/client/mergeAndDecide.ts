@@ -158,37 +158,73 @@ const COURTESY = new Set([
 ]);
 
 /**
- * Did they only ask a question, and answer nothing?
+ * Words that are still asking.
  *
- * Naming a material inside a question is not choosing it. "Is Colorbond better than treated pine?"
- * and "what colours does Colorbond come in?" both put a material in front of the model while the
- * material question was on screen, and the model duly reported one - so the brief filled itself in
- * with a fence the customer had explicitly not chosen yet, and the next question moved on. They
- * asked; they did not decide. (Reproduced on the live model, and it behaves this way with or
- * without the question-answering feature, so it is not new.)
+ * Left over once the question has been taken out, they mean the sentence has not finished being a
+ * question - "from these which is best", "what colours" - so whatever else is in it is being
+ * compared, not chosen.
+ */
+const STILL_ASKING = new Set([
+  'what', 'whats', 'which', 'how', 'why', 'when', 'who', 'whose', 'where', 'do', 'does', 'did',
+  'better', 'best', 'cheaper', 'cheapest', 'vs', 'versus', 'compare', 'comparison', 'difference',
+  'differences', 'between', 'bewtween', 'recommend', 'suggest', 'suitable', 'worth', 'available',
+  'availble', 'avalibilty', 'availability',
+]);
+
+/**
+ * What they told us, with their own question taken back out of it.
  *
- * Decided by subtraction rather than by asking the model to be careful: take the words of the
- * question back out of the message, and if nothing but courtesy is left, nothing was answered.
- * That keeps the genuine both-at-once case working - "Colorbond thanks, is it OK on a slope?"
- * leaves "colorbond" behind once "is it OK on a slope?" is removed, so the choice still lands.
+ * The model reports the question in the customer's own words (`askedAbout`), so subtracting those
+ * words from the message leaves whatever they said that was NOT part of asking. Nothing left means
+ * they asked and answered nothing.
  *
  * Same shape as `saysMoreThanTheAnswer` in `voice/matchSpoken.ts`, inverted: that one asks whether
- * a sentence says more than the option it matched, this one asks whether it says anything at all
- * beyond the question.
- *
- * When a word is in both the question and the answer it errs towards dropping the value, which is
- * the direction this pipeline always errs: an omitted field gets asked again, a wrongly filled one
- * gets quoted at the wrong price.
+ * a sentence says more than the option it matched, this one asks what a sentence says beyond its
+ * question.
  */
-function onlyAsksAQuestion(question: string | null, message: string): boolean {
-  if (!question?.trim()) return false;
+function whatTheyToldUs(message: string, question: string | null): string[] {
+  const words = slug(message).split('-').filter(Boolean);
+  const asked = slug(question ?? '').split('-').filter(Boolean);
+  if (!asked.length) return words.filter((word) => !COURTESY.has(word));
 
-  const asked = new Set(slug(question).split('-').filter(Boolean));
-  if (!asked.size) return false;
+  /* Cut the question out where it actually sits, rather than deleting its words wherever they
+     appear. It is asked for in the customer's own words, so it usually lands as one run of them -
+     and a word can be in the question AND be the answer. "Aluminium, do I need a council permit?"
+     came back with the whole sentence as the question, and deleting its words one by one deleted
+     "aluminium" along with them, so a customer who had answered was asked again. */
+  const at = words.findIndex((_, index) => asked.every((word, offset) => words[index + offset] === word));
+  const left =
+    at >= 0
+      ? [...words.slice(0, at), ...words.slice(at + asked.length)]
+      : // Paraphrased rather than copied - fall back to taking its words out wherever they are.
+        words.filter((word) => !asked.includes(word));
 
-  return slug(message)
-    .split('-')
-    .every((word) => !word || asked.has(word) || COURTESY.has(word));
+  return left.filter((word) => !COURTESY.has(word));
+}
+
+/** Every word that names this choice - its own slug and the words of the label the customer read. */
+const wordsOf = (entry: string, labelFor: (entry: string) => string): string[] =>
+  (slug(entry) + '-' + slug(labelFor(entry))).split('-').filter((word) => word.length > 2);
+
+/**
+ * Did they name something OTHER than the value we are about to accept?
+ *
+ * Not a count of how many choices the words touch, which is the version that got this wrong: a
+ * customer who says "aluminium" has named `aluminium` and `pool_aluminium` both, and counting two
+ * threw away an answer somebody gave in plain words. What matters is whether they said something
+ * that this value does not account for - "aluminium" alongside "timber pine" is a comparison,
+ * "aluminium" on its own is an answer, however many choices happen to share the word.
+ */
+function namesAnotherChoice(
+  words: string[],
+  value: unknown,
+  list: readonly string[],
+  labelFor: (entry: string) => string,
+): boolean {
+  const chosen = (Array.isArray(value) ? value : [value]).map(String);
+  const itsOwn = new Set(chosen.flatMap((entry) => wordsOf(entry, labelFor)));
+  const said = new Set(words.filter((word) => !itsOwn.has(word)));
+  return list.some((entry) => !chosen.includes(entry) && wordsOf(entry, labelFor).some((word) => said.has(word)));
 }
 
 /**
@@ -373,15 +409,51 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const everyField = schema.fields.map((spec) => spec.key);
   const askedInOrder = askedFields(schema.fields).map((spec) => spec.key as ChecklistField);
 
-  /* A turn that is only a question fills nothing - see `onlyAsksAQuestion`. Handled here, beside
-     `offTopic`, because both answer the same question: is there anything in this turn the model is
-     entitled to have read a value out of? The customer-facing reply is unaffected; the question on
-     screen is simply asked again, with their answer above it. */
-  const questionOnly = onlyAsksAQuestion(parsed.askedAbout, rawMessage);
+  /* A turn that is only a question fills nothing. Handled here, beside `offTopic`, because both
+     answer the same question: is there anything in this turn the model is entitled to have read a
+     value out of? The customer-facing reply is unaffected; the question on screen is simply asked
+     again, with their answer above it. */
+  const asking = !!parsed.askedAbout?.trim();
+  const told = whatTheyToldUs(rawMessage, parsed.askedAbout);
+  const questionOnly = asking && told.length === 0;
 
   const docFacts = parsed.offTopic ? {} : input.docFacts;
   const agentChecklist = parsed.offTopic || questionOnly ? {} : (parsed.checklist || {});
   const merged: Record<string, unknown> = {};
+  /**
+   * They asked something AND a value fell out of their sentence. Is that value an answer, or just
+   * one of the things they were asking about?
+   *
+   * "Colorbond, timber pine, aluminium, from these which is best?" names three fences and chooses
+   * none of them. So a value only counts when what is left of the sentence, once their own question
+   * has been subtracted, names exactly that one choice and has stopped asking. Naming two is
+   * comparing; naming one while still saying "which is best" is also comparing.
+   *
+   * Only ever consulted on a turn carrying a question - the ordinary answering turn, which is
+   * almost all of them, does not reach here at all.
+   */
+  function answersRatherThanAsks(field: string, value: unknown): boolean {
+    if (told.some((word) => STILL_ASKING.has(word))) return false;
+
+    const spec = specOf(schema.fields, field);
+    if (!spec) return false;
+    // A field whose choices are keyed by another answer has none until that answer exists.
+    const key = spec.optionsKeyedBy ? merged[spec.optionsKeyedBy] : null;
+    if (spec.optionsKeyedBy && !key) return false;
+    /* The pinned answer is the field's own "there is none of this" - "No gates". It is not part of
+       the trade's vocabulary and so is not in the choice list, but it is very much a choice the
+       customer can make, and leaving it out would drop it every time they said it alongside a
+       question. */
+    const list = optionsFor(schema, spec, key ? String(key) : undefined).map(String);
+    if (spec.pinned) list.push(String(spec.pinned.value));
+    // Nothing to name - a length, a count, a price. The words above are the whole guard there.
+    if (!list.length) return true;
+
+    const label = (entry: string) =>
+      spec.pinned && entry === spec.pinned.value ? spec.pinned.label : labelFor(field as ChecklistField, entry);
+    return !namesAnotherChoice(told, value, list, label);
+  }
+
   for (const field of everyField) {
     const knownValue = validate(field, (known as Record<string, unknown>)[field], schema, labelFor);
     const agentValue = validate(field, (agentChecklist as Record<string, unknown>)[field], schema, labelFor);
@@ -396,6 +468,11 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     if (value === null || mayOverwrite(field)) {
       const accept =
         agentValue !== null &&
+        /* The model reads a question the same way it reads an answer, and on the field it just
+           asked about `mayOverwrite` trusts it outright - which is how "which of these three is
+           best?" came back as a chosen fence. On a turn carrying a question it has to pass the
+           same test as the shortcut below. */
+        (!asking || answersRatherThanAsks(field, agentValue)) &&
         (mayOverwrite(field) ||
           (mentioned(field as ChecklistField, agentValue) && !isNegative(agentValue) && !bareNumberAnswer));
       value = accept ? agentValue : knownValue;
@@ -408,13 +485,20 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      Resolved here rather than trusting the model to read its own multiple choice back - the
      choices were generated in code, so they can be recognised in code.
 
-     `questionOnly` matters more here than anywhere else, and this is where the brief used to fill
-     itself in: `validate` runs the whole raw message through the vocabulary, so it finds a material
-     ANYWHERE in a sentence - and "is Colorbond better than treated pine?" is a sentence with two of
-     them in it. The model was not even involved; this line picked one on its own. */
+     This is where the brief used to fill itself in, and it needed no model to do it: `validate`
+     runs the whole message through the vocabulary, which finds a material ANYWHERE in a sentence -
+     and "colorbond, timber pine, aluminium, from these which is best?" is a sentence with three of
+     them in it. It scored two words for treated pine, one for aluminium, and quietly chose a fence
+     for somebody who was asking which fence to choose.
+
+     So on a turn where they asked something, this shortcut has to earn it: take their question
+     back out (`told`), and only accept a value when what is left names exactly that one choice and
+     has stopped asking. Naming two is comparing. Naming one while still saying "which is best" is
+     also comparing. On every other turn - a tap, a typed answer, no question at all - nothing
+     changes, because there is nothing here to be careful about. */
   if (ui.lastAsked && ui.lastAsked !== 'alternative' && rawMessage && !questionOnly) {
     const direct = validate(ui.lastAsked, rawMessage, schema, labelFor);
-    if (direct !== null) merged[ui.lastAsked] = direct;
+    if (direct !== null && (!asking || answersRatherThanAsks(ui.lastAsked, direct))) merged[ui.lastAsked] = direct;
   }
 
   // Nobody could quote the brief exactly, so the results turn offered the nearest things somebody

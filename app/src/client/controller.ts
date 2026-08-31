@@ -6,7 +6,7 @@ import { readSource, type UploadedFile } from '../ingest.js';
 import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
 import { asObject, chatError } from './errors.js';
-import { loadTradeSchema } from './schema.js';
+import { loadTradeSchema, makeLabelFor, type TradeSchema } from './schema.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
 import { runTurn, SAID_NOTHING } from './agent.js';
 import { readAttachmentFacts } from './attachmentFacts.js';
@@ -51,18 +51,29 @@ async function answerIfAsked(
   parsed: TurnExtraction,
   known: Partial<Checklist>,
   ui: UiState | null,
+  schema: TradeSchema,
   repo: BusinessRepository,
 ): Promise<Answer | null> {
   if (!parsed.askedAbout?.trim() || !parsed.askedKind) return null;
   if ((ui?.answers ?? 0) >= MAX_ANSWERS) return null;
 
   const place = ui?.place ?? null;
+  /* What was on screen when they asked, in the words they saw. `__other__` opens a text box rather
+     than naming a fence, so it is not one of the things they can be pointing at. */
+  const labelFor = makeLabelFor(schema);
+  const choices = (ui?.lastValues ?? [])
+    .map(String)
+    .filter((value) => value !== '__other__')
+    .map((value) => (ui?.lastAsked ? labelFor(ui.lastAsked, value) : value));
+
   return answerQuestion(
     { question: parsed.askedAbout, kind: parsed.askedKind },
     {
       suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
       state: place?.state ?? null,
       material: typeof known.material === 'string' ? known.material : null,
+      asked: ui?.lastQuestion || null,
+      choices,
     },
     { repo },
   );
@@ -140,7 +151,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
       message: input.message,
       suggestedSuburb: turnResult.data.suggestedSuburb || docSuburbHint || ui?.suburbHint || null,
     }),
-    answerIfAsked(turnResult.data, known, ui, repo),
+    answerIfAsked(turnResult.data, known, ui, schema, repo),
   ]);
 
   const state = mergeAndDecide({

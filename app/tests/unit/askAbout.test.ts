@@ -41,7 +41,7 @@ function answeringAi(text: string, sources: { name: string; figure: string | nul
   };
 }
 
-const NOWHERE = { suburb: null, state: null, material: null };
+const NOWHERE = { suburb: null, state: null, material: null, asked: null, choices: [] };
 
 describe('tidyProse', () => {
   /**
