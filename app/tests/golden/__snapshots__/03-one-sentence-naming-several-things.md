@@ -37,7 +37,8 @@ customer: "I need a fence quote"
       "rejectedPlaces": [],
       "nearbyPlaces": {},
       "suburbHint": null,
-      "place": null
+      "place": null,
+      "answers": 0
     }
   },
   "checklistDisplay": {},
@@ -117,7 +118,8 @@ customer: "yes go ahead"
       "rejectedPlaces": [],
       "nearbyPlaces": {},
       "suburbHint": null,
-      "place": null
+      "place": null,
+      "answers": 0
     }
   },
   "checklistDisplay": {},
@@ -235,7 +237,8 @@ picked place: Berwick, VIC 3806
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -360,7 +363,8 @@ customer: "30m colorbond fence, none to remove"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -496,7 +500,8 @@ customer: "1.8m"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -638,7 +643,8 @@ customer: "none"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -786,7 +792,8 @@ customer: "none"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -929,7 +936,8 @@ customer: "none"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -1096,7 +1104,8 @@ customer: "yes"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistComplete": true,

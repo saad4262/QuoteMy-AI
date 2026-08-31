@@ -203,6 +203,10 @@ function fail(base: Pick<ChatResponse, 'sessionId' | 'place' | 'checklist' | 'ch
   };
 }
 
+/** Same rule as `formatResult`: an answer to their own question goes in front, never instead. */
+const withAnswer = (gate: ChatResponse, message: string): string =>
+  gate.answer ? gate.answer.text + '\n\n' + message : message;
+
 export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: TradeSchema): ChatResponse {
   const { canonicalMaterial, materialLabel } = makeMaterialNaming(schema);
   const checklist = gate.checklist as Checklist;
@@ -310,7 +314,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
     if (offers.length) {
       const asked = materialLabel(material ?? '') + (heightKey && heightKey !== 'any' ? ' at ' + heightKey : '');
-      const previousUi: UiState = checklist._ui ?? { turn: 0, cursor: {}, lastAsked: null, lastQuestion: '', lastValues: [], lastType: 'message', fixing: false, rejectedPlaces: [], nearbyPlaces: {}, suburbHint: null, place: null };
+      const previousUi: UiState = checklist._ui ?? { turn: 0, cursor: {}, lastAsked: null, lastQuestion: '', lastValues: [], lastType: 'message', fixing: false, rejectedPlaces: [], nearbyPlaces: {}, suburbHint: null, place: null, answers: 0 };
       const uiOut: UiState = {
         ...previousUi,
         lastAsked: 'alternative',
@@ -409,7 +413,12 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     intent: existingPrice !== null ? 'compare_quote' : 'new_quote',
     place: gate.place,
     type: 'result',
-    message: 'Here are the local businesses that cover your job.',
+    /* Carried through rather than dropped with the rest of the gate turn's wording: somebody who
+       said "yes, and what colour does it come in?" asked a real question, we went and paid to look
+       it up, and this is the one turn that builds its own response object from scratch - so
+       without this the answer is bought and then silently thrown away. */
+    message: withAnswer(gate, 'Here are the local businesses that cover your job.'),
+    ...(gate.answer ? { answer: gate.answer } : {}),
     options: [],
     results: resultsOut,
     avgRatePerMeter: Math.round(top.reduce((sum, q) => sum + q.ratePerMeter, 0) / top.length),

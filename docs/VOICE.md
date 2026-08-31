@@ -422,6 +422,20 @@ small:
 - **`enable_typing_sound` on the same node** covers the rest. It cannot be cut off mid-sentence the
   way a spoken filler can, and it says "working" without saying anything.
 
+**The one turn that is deliberately slower.** A caller who asks a question of their own — "is
+Colorbond better than timber", "what's it going for" — gets it answered from a live web search
+(`src/client/askAbout.ts`), which takes 8–16 seconds against the 1–2 of an ordinary turn. That is
+inside the tool's 30-second timeout with room to spare, and the filler and typing sound cover it.
+It is worth the wait: the alternative, and what happened before, was the question being ignored and
+the next checklist question asked as though nobody had spoken.
+
+The answer is spoken **in full**, as the same words the screen gets — it arrives at the front of
+`response.message`, so `toSpeech` reads it out with no extra handling. What is never spoken is a
+link: `answer.text` is scrubbed of URLs, bare domains and markdown before it leaves the process,
+because a text-to-speech engine reads `ses.vic.gov.au` out one letter at a time. The `answer.sources`
+array carries what links exist, and only the screen ever sees it — a call hands over the answer's
+words but not its sources.
+
 ---
 
 ## Building the Retell agent

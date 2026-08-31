@@ -173,6 +173,58 @@ Two optional additions you can ignore or use:
 
 ---
 
+## 6a. New: `answer` — nothing to do, but there is something nice you could do
+
+Customers ask things. *"Is Colorbond better than timber?"*, *"what's it going for these days?"*,
+*"my fence blew over, what do I do?"* The backend now answers those from a live web search and
+carries on with the brief in the same turn.
+
+**You do not have to change anything.** The answer is already at the front of `message`, with a
+blank line between it and the question, so it renders in your existing bubble as-is:
+
+```
+Colorbond is steel, so it will not rot and never needs painting.
+Timber looks warmer but wants a coat every few years.
+
+Got it — what height are you after?
+```
+
+`options` still arrive, `type` is unchanged, the checklist still advances. It is an extra paragraph
+on a turn you already render.
+
+**What you could do.** The same answer also arrives broken up, so you can style it as a distinct
+"looked this up for you" block above the question rather than one long paragraph:
+
+```jsonc
+{
+  "message": "hipages says $85 to $100 a metre… \n\nWhat height are you after?",
+  "answer": {
+    "kind": "rates",                       // or "advice"
+    "text": "hipages says $85 to $100 a metre…",   // the same words already inside `message`
+    "sources": [
+      { "name": "hipages", "figure": "$85 to $100 a metre installed", "url": "https://…" },
+      { "name": "Yellow Pages", "figure": "$75 to $150 a metre", "url": null }
+    ]
+  },
+  "options": [ /* … as always … */ ]
+}
+```
+
+Three things to know if you do:
+
+1. **`answer.text` is the same text that is already inside `message`.** If you render `answer`
+   separately, render `message` with that prefix removed — or you will show it twice.
+2. **`url` is usually `null`,** and that is correct rather than missing. It is filled only for a
+   page the provider actually opened and cited; a link invented for the other four would point at
+   something nobody read. Render a plain name when there is no URL.
+3. **`answer` is absent on almost every turn.** It appears only when the customer asked something,
+   and at most six times in a conversation.
+
+`answer.text` never contains a URL or markdown — deliberately, because the same string is read
+aloud on voice calls.
+
+---
+
 ## 7. Two-minute test once it is wired up
 
 Run one fencing conversation end to end and confirm each line:

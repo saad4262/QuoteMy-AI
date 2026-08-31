@@ -4,6 +4,7 @@ import { logger } from '../config.js';
 import { AppError } from '../http.js';
 import { readSource, type UploadedFile } from '../ingest.js';
 import { getRepository, type BusinessRepository } from '../store.js';
+import { answerQuestion } from './askAbout.js';
 import { asObject, chatError } from './errors.js';
 import { loadTradeSchema } from './schema.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
@@ -15,7 +16,7 @@ import { mergeAndDecide } from './mergeAndDecide.js';
 import { resolveSuburb } from './suburb.js';
 import { priceAndRank } from './priceAndRank.js';
 import { saveChatResult } from './saveResult.js';
-import type { ChatBody, ChatResponse, Checklist, Place, UiState } from './schemas.js';
+import type { Answer, ChatBody, ChatResponse, Checklist, Place, TurnExtraction, UiState } from './schemas.js';
 
 /**
  * One route, one handler - same principle as the business side's `POST /business`. Unlike that
@@ -28,6 +29,44 @@ import type { ChatBody, ChatResponse, Checklist, Place, UiState } from './schema
  */
 
 const filesOf = (req: Request): UploadedFile[] => (Array.isArray(req.files) ? req.files : []);
+
+/**
+ * How many of the customer's own questions one conversation may have searched for.
+ *
+ * The daily spend ceiling is the wrong instrument here on its own: `chatLimiter` allows forty
+ * messages a minute on one session, and at roughly seven cents a rates question that is over a
+ * dollar a minute from a single browser tab. Six is far past what anybody genuinely asks while
+ * booking a fence, and past it the question is simply not looked up - the next checklist question
+ * is asked exactly as it was before any of this existed.
+ */
+const MAX_ANSWERS = 6;
+
+/**
+ * The search, but only when there is something to search for and budget left to do it with.
+ *
+ * Deliberately not inside `askAbout.ts`: that file answers a question, this decides whether we are
+ * answering one at all, and that decision belongs beside the rest of the turn's control flow.
+ */
+async function answerIfAsked(
+  parsed: TurnExtraction,
+  known: Partial<Checklist>,
+  ui: UiState | null,
+  repo: BusinessRepository,
+): Promise<Answer | null> {
+  if (!parsed.askedAbout?.trim() || !parsed.askedKind) return null;
+  if ((ui?.answers ?? 0) >= MAX_ANSWERS) return null;
+
+  const place = ui?.place ?? null;
+  return answerQuestion(
+    { question: parsed.askedAbout, kind: parsed.askedKind },
+    {
+      suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
+      state: place?.state ?? null,
+      material: typeof known.material === 'string' ? known.material : null,
+    },
+    { repo },
+  );
+}
 
 export interface FencingChatDeps {
   ai?: AiClient;
@@ -85,16 +124,24 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     await recordSpend(turnResult.usage.costUsd, repo);
   }
 
-  /* The suburb, resolved from words rather than from a picker.
-     Done here rather than inside `mergeAndDecide` because it needs Google and that function is
-     pure - the golden conversations drive it turn after turn with nothing to stub. A place the
-     browser sent still wins; this only answers when nobody has answered yet. */
-  const resolved = await resolveSuburb({
-    place,
-    ui,
-    message: input.message,
-    suggestedSuburb: turnResult.data.suggestedSuburb || docSuburbHint || ui?.suburbHint || null,
-  });
+  /* The suburb, resolved from words rather than from a picker, and the answer to anything they
+     asked - both here rather than inside `mergeAndDecide` because both reach outside the process
+     and that function is pure, which is what lets the golden conversations drive it turn after
+     turn with nothing to stub. A place the browser sent still wins; the suburb lookup only answers
+     when nobody has answered yet.
+
+     Together rather than one after the other: they are a Google round trip and a web search, they
+     need nothing from each other, and run in sequence they would add their two waits together on
+     the one turn where a customer is already waiting longest. */
+  const [resolved, answer] = await Promise.all([
+    resolveSuburb({
+      place,
+      ui,
+      message: input.message,
+      suggestedSuburb: turnResult.data.suggestedSuburb || docSuburbHint || ui?.suburbHint || null,
+    }),
+    answerIfAsked(turnResult.data, known, ui, repo),
+  ]);
 
   const state = mergeAndDecide({
     sessionId: input.sessionId,
@@ -124,7 +171,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     );
   }
 
-  const formatted = formatFencingResult({ state, matcher });
+  const formatted = formatFencingResult({ state, matcher, answer });
   return matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
 }
 

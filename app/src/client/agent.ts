@@ -10,12 +10,18 @@ import type { DocFacts } from './attachmentFacts.js';
 const MODEL = 'gpt-4o-mini';
 
 /**
- * Ported verbatim from n8n's `Fencing AI Agent` system message, with one change: n8n's agent had
- * a `fencing_knowledge_lookup` tool for general questions (permits, materials, process) unrelated
- * to filling in the brief. This call has no tool-calling loop, so that instruction is replaced
- * with "leave everything empty" - a general question gets no answer here rather than a
- * hallucinated one. Restoring the knowledge-lookup tool is a separate, deliberately deferred
- * piece of work (see the port's final summary).
+ * Ported from n8n's `Fencing AI Agent` system message.
+ *
+ * n8n answered general questions - permits, materials, process - from a `fencing_knowledge_lookup`
+ * tool holding a pasted block of Victorian fencing knowledge. The port dropped it, and for a while
+ * this prompt told the model outright that it had no way to answer such a question: the turn then
+ * fell through to the next checklist question and the customer was re-asked it with no sign that
+ * they had asked anything. It did not read as a refusal, it read as not listening.
+ *
+ * `askedAbout` is that hole filled, from a live search rather than a pasted block - half of what
+ * customers ask ("what is Colorbond going for") has an answer that goes stale. This call only
+ * REPORTS the question; `askAbout.ts` answers it. Keeping those apart is what stops a cheap model
+ * with no search behind it from inventing a price from memory.
  */
 const SYSTEM_PROMPT = `You read one side of a fencing quote conversation. You do NOT choose the question, you do NOT choose the multiple-choice options, and you do NOT write the customer-facing question — all of that is generated in code from the business schema and from what businesses near this customer actually publish rates for. Anything you write in those places is thrown away before the customer sees it.
 
@@ -31,7 +37,9 @@ Reply with ONLY a raw JSON object. No markdown, no code fences, no text outside 
   "suggestedSuburb": null,
   "wantsMoreOptions": false,
   "confirmed": false,
-  "offTopic": false
+  "offTopic": false,
+  "askedAbout": null,
+  "askedKind": null
 }
 
 ack
@@ -83,9 +91,26 @@ false for everything else, and false whenever you are the least bit unsure:
   "I want GTA 6"                        -> true
 A real customer wrongly told we only do fencing is a lost job; an off-topic message wrongly let through just gets asked a question. Lean hard towards false.
 
+askedAbout
+The customer's own question, copied in their words, when they asked one rather than (or as well as) answering. Null when they did not ask anything — which is most turns.
+
+  "my fence blew over in the storm, what do I do"   -> that sentence
+  "is colorbond better than timber?"                -> that sentence
+  "what's colorbond going for these days"           -> that sentence
+  "what colours does it come in"                    -> that sentence
+  "1.8m"                                            -> null, that is an answer
+  "how much will mine cost?"                        -> null, that is what this whole conversation is working out
+
+Copy it, do not rewrite it. It is what gets looked up, so a tidied-up version looks up a question they did not ask.
+
+A question and an answer arrive together all the time — "colorbond thanks, is it any good on a slope?" fills material AND sets askedAbout. Doing one is never a reason to skip the other.
+
+askedKind
+"rates" when they are asking what something costs in general — "what does colorbond go for", "which is cheaper". "advice" for every other fencing question — materials, colours, permits, damage, process, maintenance, how long it lasts. Null exactly when askedAbout is null.
+
 NEVER write a question. NEVER list choices. NEVER mention a price or a rate. NEVER name a material or height that was not on screen and was not clearly said by the customer.
 
-If the customer asks something general and unrelated to filling in their brief (permits, materials, process, warranty), leave checklist empty, leave ack empty, and set nothing else — you have no way to answer that here.`;
+You do NOT answer the question yourself. You only report that it was asked. Answering happens elsewhere, with a live search behind it — anything you wrote would be from memory, about a country and a year you cannot check, and a customer would act on it.`;
 
 export interface TurnInput {
   message: string;
@@ -158,6 +183,8 @@ export const SAID_NOTHING: TurnExtraction = {
   wantsMoreOptions: false,
   confirmed: false,
   offTopic: false,
+  askedAbout: null,
+  askedKind: null,
 };
 
 export async function runTurn(

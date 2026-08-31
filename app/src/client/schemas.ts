@@ -54,6 +54,21 @@ export const turnExtractionSchema = z.object({
    * only when nothing else about the turn landed.
    */
   offTopic: z.boolean(),
+  /**
+   * A question the customer asked, in their own words, when they asked one instead of - or as well
+   * as - answering the question on screen. "my fence has blown over, what do I do", "is Colorbond
+   * better than timber", "what's Colorbond going for".
+   *
+   * Null on the overwhelming majority of turns. This is the model reporting that a question was
+   * asked, never answering it: the answer is a separate call with a search behind it, because
+   * anything this one wrote would be from memory and about a country and a year it cannot check.
+   */
+  askedAbout: z.string().nullable(),
+  /**
+   * Which kind, because the two are answered differently: 'rates' goes looking for what Australian
+   * sites list and is hedged accordingly, 'advice' is everything else about fencing.
+   */
+  askedKind: z.enum(['advice', 'rates']).nullable(),
 });
 export type TurnExtraction = z.infer<typeof turnExtractionSchema>;
 
@@ -87,6 +102,12 @@ export interface UiState {
    * question come back on the very next message.
    */
   place: Place | null;
+  /**
+   * How many questions this conversation has had answered from a search. Capped, because each one
+   * costs money and the per-session rate limit allows forty messages a minute - which without a
+   * ceiling is a dollar a minute from one browser tab.
+   */
+  answers: number;
 }
 
 export interface PlaceHint {
@@ -121,6 +142,34 @@ export type Checklist = Record<string, unknown> & { _ui?: UiState };
 export interface ChatOption {
   label: string;
   value: string | number;
+}
+
+/** One site an answer leaned on, and what it said. */
+export interface AnswerSource {
+  /** As a person would say it - "hipages", "Yellow Pages". Never a URL: this is read aloud. */
+  name: string;
+  /** What that site listed, in its own terms: "$85 to $100 a metre installed". Null for advice. */
+  figure: string | null;
+  /**
+   * Only when the provider actually cited that page. Usually null, and that is not a fault: a
+   * search answer routinely names five sites off the results and annotates one. A URL guessed to
+   * fill the gap would be a false citation, which is worse than no link at all.
+   */
+  url: string | null;
+}
+
+/**
+ * An answer to something the customer asked that was not a checklist answer.
+ *
+ * `text` is also prefixed onto `message`, so a screen that has never heard of this field still
+ * shows the answer. This exists so a screen that HAS heard of it can render the sources properly
+ * instead of leaving them buried in a paragraph.
+ */
+export interface Answer {
+  /** Prose. No markdown and no URL - it is read out loud on calls. */
+  text: string;
+  sources: AnswerSource[];
+  kind: 'advice' | 'rates';
 }
 
 export interface ChecklistDisplayEntry {
@@ -212,6 +261,11 @@ export interface ChatResponse {
   place: Place | null;
   type: 'message' | 'question' | 'confirmation' | 'result';
   message: string;
+  /**
+   * Present only on a turn where the customer asked something. Its `text` is ALREADY at the front
+   * of `message` - this is the same answer broken up, not a second one to render as well.
+   */
+  answer?: Answer | null;
   options: ChatOption[];
   expects?: 'suburb';
   suggestedSuburb?: string | null;

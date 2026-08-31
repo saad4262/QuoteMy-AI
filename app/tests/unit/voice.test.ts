@@ -191,7 +191,7 @@ function readingAi(extraction: Record<string, unknown>): { ai: AiClient; calls: 
         if (call.name !== 'turn') return inner.callStructured(call);
         const data = {
           ack: 'Got it', clearFields: [], suggestedSuburb: null,
-          wantsMoreOptions: false, confirmed: false, offTopic: false,
+          wantsMoreOptions: false, confirmed: false, offTopic: false, askedAbout: null, askedKind: null,
           checklist: {
             material: null, heightKey: null, lengthMeters: null, removal: null,
             conditions: null, gateType: null, gateQty: null, existingPrice: null, ...extraction,

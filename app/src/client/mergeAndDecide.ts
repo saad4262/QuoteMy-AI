@@ -225,6 +225,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     nearbyPlaces: {},
     suburbHint: null,
     place: null,
+    answers: 0,
   };
   const schema = input.schema;
   const labelFor = makeLabelFor(schema);
@@ -505,9 +506,13 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
 
   /* Only when the turn produced nothing else. The model is reading a sentence and can misjudge
      one, so a value that was actually accepted, a field reopened, or a yes/no on the recap all
-     outrank it - being wrong here turns a real customer away. */
+     outrank it - being wrong here turns a real customer away.
+
+     A question about fencing outranks it too, and has to: `offTopic` empties the whole checklist
+     above, so a mis-flagged "do I need a permit?" would throw the answer away with it and leave
+     the customer told we only do fencing - in reply to a fencing question. */
   const offTopic =
-    parsed.offTopic === true && !changedSomething && clearedFields.length === 0 && !saidYes && !saidNo;
+    parsed.offTopic === true && !parsed.askedAbout && !changedSomething && clearedFields.length === 0 && !saidYes && !saidNo;
 
   return {
     sessionId: input.sessionId,

@@ -43,6 +43,8 @@ const turn = (checklist: Partial<TurnExtraction['checklist']> = {}, over: Partia
   wantsMoreOptions: false,
   confirmed: false,
   offTopic: false,
+  askedAbout: null,
+  askedKind: null,
   checklist: {
     material: null, heightKey: null, lengthMeters: null, removal: null,
     conditions: null, gateType: null, gateQty: null, existingPrice: null,

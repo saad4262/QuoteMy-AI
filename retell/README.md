@@ -9,17 +9,32 @@ here.
 
 ---
 
-## Already created on this account
+## Already created — on the client's account
+
+Live since 2026-08-31. **These live on the client's own Retell account**, which is the one that gets
+billed and the one that owns the agent at handover.
 
 | | |
 |---|---|
-| Conversation flow | `conversation_flow_f53c56682df5` |
-| Agent | `agent_29da95d54d4b96b211dbdf95bf` |
+| Conversation flow | `conversation_flow_7a2d3d5f144f` |
+| Agent | `agent_a03417f57d8c563e7da530e348` |
 | Voice | `11labs-Amy` — British, female, young. See the note below on why not Australian |
 
 The files here are the payloads that produced those, verified against the live API. Re-run Steps 2
 and 4 only to create a second flow/agent or to rebuild on another account; to change an existing one
 use `update-conversation-flow` / `update-agent` instead.
+
+**There is a second agent on that account — `agent_4eae2907bbe51081c8bffe4fc2`, "QuoteMy FAQ
+Agent".** It is not ours, it runs a `retell-llm` engine rather than a conversation flow, and nothing
+in this folder touches it. Do not update or delete it while tidying up.
+
+### The previous pair, which are dead to this project
+
+`conversation_flow_f53c56682df5` and `agent_29da95d54d4b96b211dbdf95bf` were built on a **personal
+account** during development and are no longer used. They still exist there and are deliberately not
+deleted, so there is a way back if the client's account ever misbehaves — but nothing in this repo
+points at them, and that account is out of credit, so a call against it answers `402`. If you find
+either id anywhere, it is stale.
 
 **Do not use the dashboard's Import button.** It expects an agent *export bundle* (one object holding
 both `agent` and `conversationFlow`) exported from another Retell workspace. Handing it either file

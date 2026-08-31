@@ -31,6 +31,17 @@ const schema = z.object({
    */
   MAX_CHAT_SPEND_PER_DAY_USD: z.coerce.number().default(25),
 
+  /**
+   * Whether a customer's own question ("is Colorbond better than timber", "what is it going for")
+   * gets answered from a web search.
+   *
+   * On by default, and worth its own switch because it is the one part of a chat turn whose cost
+   * is measured in cents rather than fractions of one - roughly $0.07 for a rates question against
+   * $0.0003 for an ordinary turn. Off, the conversation still runs: the question is simply not
+   * answered and the next checklist question is asked, which is exactly how it behaved before.
+   */
+  ANSWER_QUESTIONS: z.stringbool().default(true),
+
   // Resolves serviceArea.baseLocation to a point so the customer side can match by distance.
   // Unset means the field stays null - never a guessed coordinate.
   GEOCODING_API_KEY: z.string().optional(),

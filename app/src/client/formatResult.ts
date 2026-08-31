@@ -3,7 +3,7 @@ import { questionFor } from './schema.js';
 import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
 import { slug } from './fuzzyMatch.js';
-import type { ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
+import type { Answer, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -24,9 +24,11 @@ export interface FormatResultInput {
   state: MergedState;
   /** Present only on turns where the matcher actually ran (`state.needsMatcher` was true). */
   matcher: MatchResult | null;
+  /** Present only on turns where the customer asked something and the search answered it. */
+  answer?: Answer | null;
 }
 
-export function formatFencingResult({ state, matcher }: FormatResultInput): ChatResponse {
+export function formatFencingResult({ state, matcher, answer = null }: FormatResultInput): ChatResponse {
   const checklist = { ...state.checklist };
   const sessionId = state.sessionId;
   const place = state.place;
@@ -301,6 +303,9 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     // Carried so the picker answers once. Cleared on the turn a suburb is handed back because
     // nobody covered it - otherwise the place would be restored next turn and fail identically.
     place: askingSuburbAgain ? null : place,
+    // Counted here rather than where the search runs, because this is the object that survives the
+    // round trip through the client - a counter anywhere else resets every turn and caps nothing.
+    answers: (ui.answers ?? 0) + (answer ? 1 : 0),
   };
 
   const checklistDisplay: ChecklistDisplay = {};
@@ -338,7 +343,16 @@ export function formatFencingResult({ state, matcher }: FormatResultInput): Chat
     intent: Number(checklist.existingPrice) > 0 ? 'compare_quote' : 'new_quote',
     place,
     type,
-    message,
+    /* The answer goes in front of the question rather than instead of it, and above the ack rather
+       than inside it: `acknowledged()` has already put "Got it" on the question, so the turn reads
+       as an answer, a blank line, then "Got it - what height are you after?". Every question is
+       still asked, in the same order, from the same template - the aside rides along.
+
+       It is put into `message` as well as carried in its own field because the screen that renders
+       this is in another repository: a frontend that has never heard of `answer` shows the answer
+       anyway, and one that has can render the sources properly. */
+    message: answer ? answer.text + '\n\n' + message : message,
+    ...(answer ? { answer } : {}),
     options,
     ...(expectsSuburb ? { expects: 'suburb' as const } : {}),
     ...(expectsSuburb && suburbHint ? { suggestedSuburb: suburbHint } : {}),

@@ -24,6 +24,18 @@ export interface ModelCall<T> {
   timeoutMs?: number;
   /** Overrides the client's default model for this one call - e.g. a cheap model for a small, low-stakes turn. */
   model?: string;
+  /**
+   * Built-in provider tools for this one call - today only `[{ type: 'web_search' }]`. Almost every
+   * call has none: a model that can look something up is a model that can spend money and take
+   * seconds doing it, so it is opt-in per call rather than a property of the client.
+   */
+  tools?: OpenAI.Responses.Tool[];
+  /**
+   * Ceiling on tool calls in one response. Each web search is billed per call, and left uncapped
+   * the model happily runs three searches for one question - so this is a cost control, not a
+   * correctness one.
+   */
+  maxToolCalls?: number;
 }
 
 export interface StageUsage {
@@ -35,9 +47,31 @@ export interface StageUsage {
   costUsd: number;
 }
 
+/** A page the provider says it actually opened while answering. */
+export interface Citation {
+  title: string;
+  url: string;
+}
+
 export interface ModelResult<T> {
   data: T;
   usage: StageUsage;
+  /**
+   * Pages the provider cited, read from the reply's `url_citation` annotations rather than from
+   * anything the model wrote. Only ever present on a call that had a search tool.
+   *
+   * Treat it as evidence, never as the list of sources: a search answer routinely names five sites
+   * off the search results and annotates one of them. It is what we can prove was opened, which is
+   * a smaller set than what was read.
+   */
+  citations?: Citation[];
+  /**
+   * How many searches the model actually ran. Billed per call and separately from tokens, so the
+   * caller adds `searches * WEB_SEARCH_CALL_USD` to the spend - counted rather than assumed from
+   * the cap, because the model routinely stops at one when two were allowed and a ledger that
+   * charges for the ceiling trips the daily limit early.
+   */
+  searches?: number;
 }
 
 export interface AiClient {
@@ -57,6 +91,15 @@ export const MODEL_PRICES: Record<string, { in: number; out: number }> = {
   'gpt-4o-mini': { in: 0.15, out: 0.6 },
   mock: { in: 0, out: 0 },
 };
+
+/**
+ * Charged per `web_search` call, USD. Verified on OpenAI's pricing page 2026-08-31 - never from
+ * memory (CLAUDE.md).
+ *
+ * It is a flat fee, not tokens, so `costUsd` below cannot see it and the daily chat ceiling would
+ * under-count every search we ever run. Whoever adds the tool to a call adds this to the spend.
+ */
+export const WEB_SEARCH_CALL_USD = 0.01;
 
 export function costUsd(model: string, tokensIn: number, tokensOut: number): number {
   const p = MODEL_PRICES[model];
@@ -85,6 +128,33 @@ function buildInput(call: ModelCall<unknown>): OpenAI.Responses.ResponseInput | 
   }
 
   return [{ role: 'user', content: parts }];
+}
+
+/**
+ * The pages the reply cited, dug out of its `url_citation` annotations.
+ *
+ * Read defensively rather than by walking a known path: the annotation shape is the provider's, it
+ * varies by tool, and a search answer whose citations we failed to read is still a usable answer.
+ * Nothing here throws - the worst case is an empty list.
+ */
+function readCitations(response: OpenAI.Responses.Response): Citation[] {
+  const found: Citation[] = [];
+  const seen = new Set<string>();
+
+  for (const item of response.output ?? []) {
+    if (item.type !== 'message') continue;
+    for (const part of item.content ?? []) {
+      const annotations = (part as { annotations?: unknown }).annotations;
+      if (!Array.isArray(annotations)) continue;
+      for (const raw of annotations) {
+        const a = raw as { type?: string; title?: string; url?: string };
+        if (a.type !== 'url_citation' || !a.url || seen.has(a.url)) continue;
+        seen.add(a.url);
+        found.push({ title: a.title ?? '', url: a.url });
+      }
+    }
+  }
+  return found;
 }
 
 /**
@@ -134,7 +204,12 @@ export class OpenAiClient implements AiClient {
           costUsd: costUsd(call.model ?? this.model, tokensIn, tokensOut),
         };
         logger.info({ stage: call.name, ...usage }, 'model call');
-        return { data: parsed.value, usage };
+        return {
+          data: parsed.value,
+          usage,
+          ...(raw.citations.length ? { citations: raw.citations } : {}),
+          ...(raw.searches ? { searches: raw.searches } : {}),
+        };
       }
 
       retries += 1;
@@ -168,7 +243,7 @@ export class OpenAiClient implements AiClient {
   private async request(
     call: ModelCall<unknown>,
     feedback: string,
-  ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number; citations: Citation[]; searches: number }> {
     const ATTEMPTS = 3;
     const deadline = Date.now() + (call.timeoutMs ?? env.MODEL_TIMEOUT_MS);
 
@@ -202,7 +277,7 @@ export class OpenAiClient implements AiClient {
   private async attempt(
     call: ModelCall<unknown>,
     feedback: string,
-  ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
+  ): Promise<{ text: string; tokensIn: number; tokensOut: number; citations: Citation[]; searches: number }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), call.timeoutMs ?? env.MODEL_TIMEOUT_MS);
 
@@ -214,6 +289,8 @@ export class OpenAiClient implements AiClient {
           input: buildInput(call),
           max_output_tokens: call.maxOutputTokens,
           ...(this.sendTemperature ? { temperature: 0 } : {}),
+          ...(call.tools?.length ? { tools: call.tools } : {}),
+          ...(call.maxToolCalls ? { max_tool_calls: call.maxToolCalls } : {}),
           text: {
             format: {
               type: 'json_schema',
@@ -230,6 +307,8 @@ export class OpenAiClient implements AiClient {
         text: response.output_text ?? '',
         tokensIn: response.usage?.input_tokens ?? 0,
         tokensOut: response.usage?.output_tokens ?? 0,
+        citations: readCitations(response),
+        searches: (response.output ?? []).filter((item) => item.type === 'web_search_call').length,
       };
     } finally {
       clearTimeout(timer);
@@ -403,6 +482,7 @@ export class MockAiClient implements AiClient {
     if (call.name === 'transcribe') data = this.transcribe(call.files ?? []);
     else if (call.name === 'review') data = this.review(text, rates);
     else if (call.name === 'turn') data = this.turn(text);
+    else if (call.name === 'answer') data = this.answer();
     else data = this.extraction(text, rates);
 
     const usage = {
@@ -522,6 +602,21 @@ export class MockAiClient implements AiClient {
    * drive a full conversation through tapped multiple-choice options and typed one-word answers
    * offline, without an API key.
    */
+  /**
+   * The offline stand-in for a web-searched answer. Deliberately says nothing a customer could
+   * mistake for research: there is no search behind it, and an answer that reads plausibly while
+   * being invented is the exact failure this whole product is built to avoid.
+   *
+   * It exists so the plumbing either side of the search - the cap, the cache, the prefix onto the
+   * message, the speech - can be driven end to end with no key and no network.
+   */
+  private answer() {
+    return {
+      text: 'I cannot look that up right now, but a fencer will be able to tell you when they quote.',
+      sources: [],
+    };
+  }
+
   private turn(context: string) {
     const rawMessage = (context.split('\n\n')[0] ?? '').trim();
     const lastAskedMatch = context.match(/--- The question you asked last turn ---\nfield: (\w+)/);
@@ -559,6 +654,11 @@ export class MockAiClient implements AiClient {
       // The offline reader cannot judge a subject, and guessing would fail real conversations
       // in tests for no benefit. Judging this is the real model's job.
       offTopic: false,
+      /* Same reason, and one more: recognising a question here would put a searched aside into
+         every golden conversation that contains a question mark, which is not what those
+         snapshots are pinning. A test that wants an answer injects a client that returns one. */
+      askedAbout: null,
+      askedKind: null,
     };
   }
 

@@ -37,7 +37,8 @@ customer: "I need a fence quote"
       "rejectedPlaces": [],
       "nearbyPlaces": {},
       "suburbHint": null,
-      "place": null
+      "place": null,
+      "answers": 0
     }
   },
   "checklistDisplay": {},
@@ -117,7 +118,8 @@ customer: "yes go ahead"
       "rejectedPlaces": [],
       "nearbyPlaces": {},
       "suburbHint": null,
-      "place": null
+      "place": null,
+      "answers": 0
     }
   },
   "checklistDisplay": {},
@@ -235,7 +237,8 @@ picked place: Berwick, VIC 3806
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -360,7 +363,8 @@ customer: "aluminium"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -491,7 +495,8 @@ customer: "1800mm"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -628,7 +633,8 @@ customer: "30 metres"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -771,7 +777,8 @@ customer: "old timber fence"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -920,7 +927,8 @@ customer: "nothing tricky"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -1075,7 +1083,8 @@ customer: "a single pedestrian gate"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -1225,7 +1234,8 @@ customer: "2 gates"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistDisplay": {
@@ -1405,7 +1415,8 @@ customer: "yes please"
         "state": "VIC",
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
-      }
+      },
+      "answers": 0
     }
   },
   "checklistComplete": true,

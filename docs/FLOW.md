@@ -283,7 +283,7 @@ Inside it, in order:
 6. **Logging discipline** — never the API key, never the full prompt at `info`. Prompt text logs at
    `debug` only; the description and transcript are truncated in logs.
 
-### Tool calls — the honest answer: there are none, and that is the point
+### Tool calls — there is exactly one, and everywhere else is still the point
 
 In n8n the review agent had two `toolCode` nodes and its prompt said *"You MUST call your knowledge
 lookup tools before deciding anything."* That is a written request to a model to do something that
@@ -299,11 +299,36 @@ Nothing to call, nothing to skip, and one fewer round trip (which is also why th
 cheaper — the n8n version accumulated ~11,600 input tokens across three tool round-trips; the same
 content sent once is ~4,000).
 
-Real tool calling comes back only when the model genuinely needs to *look something up it cannot be
-given up front* — the customer-side matching flow, where the candidate contractor set depends on the
-customer's answers. When that day comes, it goes behind a small typed registry in `src/ai/tools/`
-with the same chokepoint rules. The business-onboarding pipeline does not need it and will not get
-it.
+That still holds everywhere a step's next step is known — which is the whole business pipeline, and
+every turn of the customer chat that answers a question **we** asked.
+
+**The exception is a question the customer asks.** "Is Colorbond better than timber", "what is it
+going for these days", "my fence blew over, what do I do" — those cannot be given up front, because
+half of them have an answer that changes month to month. `src/client/askAbout.ts` answers them with
+OpenAI's built-in `web_search` on the Responses API. What keeps it inside the rules above:
+
+- **It is a second call, not a tool loop.** The chat's reading turn (`gpt-4o-mini`, no tools) only
+  *reports* that a question was asked, in `askedAbout` / `askedKind`. The answer is a separate call
+  on `gpt-5.6-terra` — `gpt-4o-mini` cannot take the search tool at all, verified against the live
+  API. Keeping them apart is what stops a cheap model with nothing to look things up with from
+  writing a price from memory.
+- **It decides nothing.** The next question, the options and the order are settled before it runs
+  and are not affected by what comes back. The answer is prefixed to `message`; the question the
+  code had already chosen is still underneath it.
+- **It is capped three ways** — six per conversation (`MAX_ANSWERS`), two searches per answer
+  (`MAX_SEARCHES`), and the existing daily spend ceiling, which it pays into including the flat
+  `$10/1k` search fee that `costUsd` cannot see.
+- **It fails to null.** A search outage costs the aside, never the quote — the same trade
+  `geocode.ts` makes with Google.
+
+It did not become the `src/ai/tools/` registry this section used to anticipate. One tool with one
+call site is a file, not a registry; that idea is still the right one on the second tool.
+
+What the model writes there is **prose only, and prose is scrubbed before it ships**: `tidyProse`
+strips markdown, links and bare domains, because the same string is read aloud by a text-to-speech
+engine on voice calls. That is not defensive tidying — on every trial run against the live API the
+model appended an inline `([hipages.com.au](https://…))` citation to a paragraph it had just been
+told to keep clean.
 
 **Adding a trade** stays plug-and-play, exactly as it was in n8n: drop `src/prompts/sop/tiling.md`
 next to `fencing.md`, add the trade's enums to `vocab.ts`, register it in the trade map. No pipeline
