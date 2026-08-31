@@ -172,34 +172,35 @@ const STILL_ASKING = new Set([
 ]);
 
 /**
- * What they told us, with their own question taken back out of it.
+ * The message with their own question cut out of it. What is left is what they told us.
  *
- * The model reports the question in the customer's own words (`askedAbout`), so subtracting those
- * words from the message leaves whatever they said that was NOT part of asking. Nothing left means
- * they asked and answered nothing.
- *
- * Same shape as `saysMoreThanTheAnswer` in `voice/matchSpoken.ts`, inverted: that one asks whether
- * a sentence says more than the option it matched, this one asks what a sentence says beyond its
- * question.
+ * Kept as text rather than as a bag of words because the leftovers get read by `validate` like any
+ * other answer, and a height only survives as "1.8m" - reduced to words it becomes "1" and "8m",
+ * which is a different fence.
  */
-function whatTheyToldUs(message: string, question: string | null): string[] {
-  const words = slug(message).split('-').filter(Boolean);
-  const asked = slug(question ?? '').split('-').filter(Boolean);
-  if (!asked.length) return words.filter((word) => !COURTESY.has(word));
+function withoutTheirQuestion(message: string, question: string | null): string {
+  const asked = (question ?? '').trim();
+  if (!asked) return message;
 
   /* Cut the question out where it actually sits, rather than deleting its words wherever they
      appear. It is asked for in the customer's own words, so it usually lands as one run of them -
      and a word can be in the question AND be the answer. "Aluminium, do I need a council permit?"
      came back with the whole sentence as the question, and deleting its words one by one deleted
-     "aluminium" along with them, so a customer who had answered was asked again. */
-  const at = words.findIndex((_, index) => asked.every((word, offset) => words[index + offset] === word));
-  const left =
-    at >= 0
-      ? [...words.slice(0, at), ...words.slice(at + asked.length)]
-      : // Paraphrased rather than copied - fall back to taking its words out wherever they are.
-        words.filter((word) => !asked.includes(word));
+     "aluminium" along with them, so a customer who had answered was asked again.
+     Punctuation is allowed to differ between the two, because it routinely does. */
+  const span = new RegExp(
+    asked
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('\\W*'),
+    'i',
+  );
+  if (span.test(message)) return message.replace(span, ' ');
 
-  return left.filter((word) => !COURTESY.has(word));
+  // Paraphrased rather than copied - fall back to taking its words out wherever they are.
+  const words = new Set(slug(asked).split('-').filter(Boolean));
+  return message.replace(/[a-z0-9']+/gi, (word) => (words.has(slug(word)) ? ' ' : word));
 }
 
 /** Every word that names this choice - its own slug and the words of the label the customer read. */
@@ -414,7 +415,18 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      value out of? The customer-facing reply is unaffected; the question on screen is simply asked
      again, with their answer above it. */
   const asking = !!parsed.askedAbout?.trim();
-  const told = whatTheyToldUs(rawMessage, parsed.askedAbout);
+  /* Politeness goes too, but only on a turn carrying a question - an ordinary answer is left exactly
+     as the customer typed it. "Aluminium thanks, is it any good on a slope?" leaves "aluminium
+     thanks", and that one extra word is enough to stop `oneOf` matching the slug outright, which
+     drops it into a tie between `aluminium` and `pool_aluminium` and resolves to nothing. */
+  const remainder = asking
+    ? withoutTheirQuestion(rawMessage, parsed.askedAbout).replace(/[a-z']+/gi, (word) =>
+        COURTESY.has(word.toLowerCase()) ? ' ' : word,
+      )
+    : rawMessage;
+  const told = slug(remainder)
+    .split('-')
+    .filter((word) => word && !COURTESY.has(word));
   const questionOnly = asking && told.length === 0;
 
   const docFacts = parsed.offTopic ? {} : input.docFacts;
@@ -432,8 +444,19 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
    * Only ever consulted on a turn carrying a question - the ordinary answering turn, which is
    * almost all of them, does not reach here at all.
    */
-  function answersRatherThanAsks(field: string, value: unknown): boolean {
-    if (told.some((word) => STILL_ASKING.has(word))) return false;
+  function answersRatherThanAsks(field: string, value: unknown, asked: boolean): boolean {
+    if (asked) {
+      // Still asking. "...treated pine or colorbond, which is best?" is a comparison, not a choice.
+      if (told.some((word) => STILL_ASKING.has(word))) return false;
+
+      /* What is LEFT has to be what says this, and the value has to be the one it says.
+         "Can you tell me which fence type is better, treated pine or colorbond?" leaves "can you
+         tell me" once the question is out, and that names no fence at all - so the treated pine the
+         vocabulary found was read entirely out of the question they were asking. The name check
+         below could not see that, because nothing in the leftovers contradicted it either. */
+      const said = validate(field, remainder, schema, labelFor);
+      if (said === null || JSON.stringify(said) !== JSON.stringify(value)) return false;
+    }
 
     const spec = specOf(schema.fields, field);
     if (!spec) return false;
@@ -451,7 +474,11 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
 
     const label = (entry: string) =>
       spec.pinned && entry === spec.pinned.value ? spec.pinned.label : labelFor(field as ChecklistField, entry);
-    return !namesAnotherChoice(told, value, list, label);
+    /* "Nothing tricky" comes back as an EMPTY array - a complete answer with no words of its own,
+       so it has nothing to claim "none" with and read as the customer naming a choice they had not
+       chosen. It is the pinned answer; give it the pinned answer's words. */
+    const named = Array.isArray(value) && value.length === 0 && spec.pinned ? [spec.pinned.value] : value;
+    return !namesAnotherChoice(told, named, list, label);
   }
 
   for (const field of everyField) {
@@ -472,7 +499,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
            asked about `mayOverwrite` trusts it outright - which is how "which of these three is
            best?" came back as a chosen fence. On a turn carrying a question it has to pass the
            same test as the shortcut below. */
-        (!asking || answersRatherThanAsks(field, agentValue)) &&
+        (!asking || answersRatherThanAsks(field, agentValue, true)) &&
         (mayOverwrite(field) ||
           (mentioned(field as ChecklistField, agentValue) && !isNegative(agentValue) && !bareNumberAnswer));
       value = accept ? agentValue : knownValue;
@@ -497,8 +524,13 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      also comparing. On every other turn - a tap, a typed answer, no question at all - nothing
      changes, because there is nothing here to be careful about. */
   if (ui.lastAsked && ui.lastAsked !== 'alternative' && rawMessage && !questionOnly) {
-    const direct = validate(ui.lastAsked, rawMessage, schema, labelFor);
-    if (direct !== null && (!asking || answersRatherThanAsks(ui.lastAsked, direct))) merged[ui.lastAsked] = direct;
+    /* Guarded whether or not they were judged to have asked something, because this path has no
+       judgement in it at all - it is a fuzzy match over a sentence. "Treated pine or colorbond,
+       what do you reckon?" came back from the model with no question flagged on it, and this line
+       scored two words for treated pine against one for colorbond and picked a fence. Naming two of
+       the choices is never choosing one, however the turn was read. */
+    const direct = validate(ui.lastAsked, remainder, schema, labelFor);
+    if (direct !== null && answersRatherThanAsks(ui.lastAsked, direct, asking)) merged[ui.lastAsked] = direct;
   }
 
   // Nobody could quote the brief exactly, so the results turn offered the nearest things somebody

@@ -418,6 +418,42 @@ describe('a question names things without choosing them', () => {
     expect(state.checklist.material).toBe('aluminium');
   });
 
+  /**
+   * The leftovers have to SAY it, not merely fail to contradict it.
+   *
+   * "Can you tell me which fence type is better, treated pine or colorbond?" leaves "can you tell
+   * me" once their question is cut out - which names no fence at all, so the treated pine the
+   * vocabulary found was read entirely out of the question. An earlier version only checked that
+   * nothing else was named, and "can you tell me" names nothing else either, so it let it through.
+   */
+  it('does not accept a value that only the question said', () => {
+    const asked = { askedAbout: 'which fence type is better treated pine or colorbond ?', askedKind: 'advice' as const };
+    const state = run(
+      'can you tell me which fence type is better treated pine or colorbond ?',
+      partial({ material: null, _ui: ui({ lastAsked: 'material' }) }),
+      turn({ material: 'colorbond' }, asked),
+    );
+
+    expect(state.checklist.material).toBeNull();
+    expect(state.missing).toContain('material');
+  });
+
+  /**
+   * The same two fences weighed up, with the model failing to flag it as a question at all - which
+   * it does. So the shortcut is guarded whether or not a question was reported: it is a fuzzy match
+   * over a sentence with no judgement in it, and "treated pine" outscoring "colorbond" two words to
+   * one is not somebody choosing a fence.
+   */
+  it('does not pick the higher-scoring of two fences when no question was flagged', () => {
+    const state = run(
+      'treated pine or colorbond, what do you reckon?',
+      partial({ material: null, _ui: ui({ lastAsked: 'material' }) }),
+      turn({}),
+    );
+
+    expect(state.checklist.material).toBeNull();
+  });
+
   /** A tap carries no question at all, so none of this applies to the commonest turn there is. */
   it('leaves a tapped option exactly as it was', () => {
     const state = run('colorbond', partial({ material: null, _ui: ui({ lastAsked: 'material' }) }), turn({}));

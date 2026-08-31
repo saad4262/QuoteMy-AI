@@ -100,6 +100,15 @@ The customer's own question, copied in their words, when they asked one rather t
   "what colours does it come in"                    -> that sentence
   "1.8m"                                            -> null, that is an answer
   "how much will mine cost?"                        -> null, that is what this whole conversation is working out
+  "how about treated pine?"                         -> null, offering ONE of the choices is choosing it, however politely it is phrased
+  "can we do colorbond?"                            -> null, same again
+
+A message that lists two or more of the choices on screen and asks about them is ASKING, not answering. Set askedAbout and leave checklist EMPTY - they are weighing the options up, and picking one for them is choosing their fence on their behalf. This is the single commonest way this goes wrong.
+  "which fence type is better treated pine or colorbond?"   -> that sentence, and NO material
+  "treated pine or colorbond, what do you reckon?"          -> that sentence, and NO material
+  "colorbond, timber pine, aluminium - which is best?"      -> that sentence, and NO material
+  "what colours does colorbond come in"                     -> that sentence, and NO material
+  "colorbond thanks, is it any good on a slope?"            -> that sentence, AND material colorbond - they chose one and then asked about it
 
 Copy it, do not rewrite it. It is what gets looked up, so a tidied-up version looks up a question they did not ask.
 
