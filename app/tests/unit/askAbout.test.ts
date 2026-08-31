@@ -220,6 +220,42 @@ describe('a question inside the conversation', () => {
     expect(answered).toBe(6);
   });
 
+  /**
+   * Asking about a fence is not choosing one.
+   *
+   * Straight off a screenshot: the customer asked "which which colors availble in colorbond and
+   * treated pine?" while the material question was on screen, and the brief filled itself in with
+   * Treated pine - a fence they had explicitly not picked yet - and moved on to the height. Two
+   * separate routes did it, and both are now shut: the model reporting a value out of a question,
+   * and `mergeAndDecide`'s tapped-option path running the whole sentence through the vocabulary,
+   * which finds a material anywhere in it. The second one needs no model at all.
+   */
+  it('does not choose a fence for somebody who was only asking about one', async () => {
+    setAiClient(askingAi('is colorbond better than treated pine', 'advice', 'Colorbond needs less upkeep.'));
+
+    const opener = await runFencingChat(
+      { message: 'I need a fence quote', sessionId: 'q1', place: '', knownChecklist: '' },
+      [],
+      { repo },
+    );
+    const response = await runFencingChat(
+      {
+        message: 'is colorbond better than treated pine',
+        sessionId: 'q1',
+        place: JSON.stringify({ suburb: 'Berwick', state: 'VIC', latitude: -38.03, longitude: 145.34 }),
+        knownChecklist: JSON.stringify(opener.checklist),
+      },
+      [],
+      { repo },
+    );
+
+    // Answered, but nothing chosen on their behalf.
+    expect(response.answer?.text).toBe('Colorbond needs less upkeep.');
+    expect((response.checklist as Record<string, unknown>).material ?? null).toBeNull();
+    // And the question they were asked is still waiting for them.
+    expect(response.checklistPending.some((entry) => entry.key === 'material')).toBe(true);
+  });
+
   it('is never read out as a web address on a call', async () => {
     setAiClient(
       askingAi('what does colorbond cost', 'rates', 'hipages says $85 a metre. ([hipages.com.au](https://hipages.com.au/x))'),

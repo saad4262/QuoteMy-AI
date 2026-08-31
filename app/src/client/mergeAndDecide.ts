@@ -149,6 +149,49 @@ export interface MergedState {
 const CHANGE_WORDS = /\b(actually|instead|change|changed|wrong|incorrect|not right|sorry|meant|rather|galat|badal|nahi)\b/i;
 
 /**
+ * Politeness and glue. Never an answer on their own, so they do not count as something the customer
+ * said beyond their question.
+ */
+const COURTESY = new Set([
+  'thanks', 'thank', 'thankyou', 'please', 'cheers', 'mate', 'yeah', 'yep', 'ok', 'okay', 'hi', 'hello',
+  'hey', 'sorry', 'um', 'uh', 'well', 'so', 'and', 'or', 'the', 'a', 'an', 'is', 'it', 'i', 'my', 'me',
+]);
+
+/**
+ * Did they only ask a question, and answer nothing?
+ *
+ * Naming a material inside a question is not choosing it. "Is Colorbond better than treated pine?"
+ * and "what colours does Colorbond come in?" both put a material in front of the model while the
+ * material question was on screen, and the model duly reported one - so the brief filled itself in
+ * with a fence the customer had explicitly not chosen yet, and the next question moved on. They
+ * asked; they did not decide. (Reproduced on the live model, and it behaves this way with or
+ * without the question-answering feature, so it is not new.)
+ *
+ * Decided by subtraction rather than by asking the model to be careful: take the words of the
+ * question back out of the message, and if nothing but courtesy is left, nothing was answered.
+ * That keeps the genuine both-at-once case working - "Colorbond thanks, is it OK on a slope?"
+ * leaves "colorbond" behind once "is it OK on a slope?" is removed, so the choice still lands.
+ *
+ * Same shape as `saysMoreThanTheAnswer` in `voice/matchSpoken.ts`, inverted: that one asks whether
+ * a sentence says more than the option it matched, this one asks whether it says anything at all
+ * beyond the question.
+ *
+ * When a word is in both the question and the answer it errs towards dropping the value, which is
+ * the direction this pipeline always errs: an omitted field gets asked again, a wrongly filled one
+ * gets quoted at the wrong price.
+ */
+function onlyAsksAQuestion(question: string | null, message: string): boolean {
+  if (!question?.trim()) return false;
+
+  const asked = new Set(slug(question).split('-').filter(Boolean));
+  if (!asked.size) return false;
+
+  return slug(message)
+    .split('-')
+    .every((word) => !word || asked.has(word) || COURTESY.has(word));
+}
+
+/**
  * Which field the customer named, in their own words, when they say something is wrong. Only ever
  * consulted while correcting, so "the height is 1.8m" during a normal turn is an answer rather
  * than a request to empty the height.
@@ -330,8 +373,14 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const everyField = schema.fields.map((spec) => spec.key);
   const askedInOrder = askedFields(schema.fields).map((spec) => spec.key as ChecklistField);
 
+  /* A turn that is only a question fills nothing - see `onlyAsksAQuestion`. Handled here, beside
+     `offTopic`, because both answer the same question: is there anything in this turn the model is
+     entitled to have read a value out of? The customer-facing reply is unaffected; the question on
+     screen is simply asked again, with their answer above it. */
+  const questionOnly = onlyAsksAQuestion(parsed.askedAbout, rawMessage);
+
   const docFacts = parsed.offTopic ? {} : input.docFacts;
-  const agentChecklist = parsed.offTopic ? {} : (parsed.checklist || {});
+  const agentChecklist = parsed.offTopic || questionOnly ? {} : (parsed.checklist || {});
   const merged: Record<string, unknown> = {};
   for (const field of everyField) {
     const knownValue = validate(field, (known as Record<string, unknown>)[field], schema, labelFor);
@@ -355,10 +404,15 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     merged[field] = value;
   }
 
-  // The customer tapped an option and the client sent its value straight through as the message.
-  // Resolved here rather than trusting the model to read its own multiple choice back - the
-  // choices were generated in code, so they can be recognised in code.
-  if (ui.lastAsked && ui.lastAsked !== 'alternative' && rawMessage) {
+  /* The customer tapped an option and the client sent its value straight through as the message.
+     Resolved here rather than trusting the model to read its own multiple choice back - the
+     choices were generated in code, so they can be recognised in code.
+
+     `questionOnly` matters more here than anywhere else, and this is where the brief used to fill
+     itself in: `validate` runs the whole raw message through the vocabulary, so it finds a material
+     ANYWHERE in a sentence - and "is Colorbond better than treated pine?" is a sentence with two of
+     them in it. The model was not even involved; this line picked one on its own. */
+  if (ui.lastAsked && ui.lastAsked !== 'alternative' && rawMessage && !questionOnly) {
     const direct = validate(ui.lastAsked, rawMessage, schema, labelFor);
     if (direct !== null) merged[ui.lastAsked] = direct;
   }
