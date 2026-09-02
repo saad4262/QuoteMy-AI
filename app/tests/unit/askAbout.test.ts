@@ -112,7 +112,15 @@ describe('answering a question', () => {
 
     const answer = await answerQuestion({ question: 'what does colorbond cost', kind: 'rates' }, NOWHERE, { ai: model.ai });
 
-    expect(answer?.sources[0]).toEqual({ name: 'hipages', figure: '$85 a metre', url: 'https://hipages.com.au/article/colorbond' });
+    expect(answer?.sources[0]).toEqual({
+      name: 'hipages',
+      figure: '$85 a metre',
+      url: 'https://hipages.com.au/article/colorbond',
+      // One published number is a range of one, and is as tappable as a spread.
+      perMetreMin: 85,
+      perMetreMax: 85,
+      budgetValue: 'budget:85-85:hipages',
+    });
     /* Yellow Pages was named off the search results and never opened, so there is no page to link
        to. A URL invented to fill that gap would be a citation to something nobody read. */
     expect(answer?.sources[1]?.url).toBeNull();

@@ -1,4 +1,5 @@
 import type { ServiceExtract } from '../store.js';
+import { budgetText } from './budget.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { titleCase, type TradeSchema } from './schema.js';
@@ -383,6 +384,20 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
   const benchmark = existingPrice === null ? average : existingPrice;
   const cheapest = top[0]!.projectTotalMin;
 
+  /* The guide range they tapped off a search answer, said next to what the businesses actually
+     charge. This is the only thing that figure ever does: it is not in `benchmark`, it filters
+     nothing and it ranks nothing, because it is what a web page says fencing costs in general and
+     these are real rates from real businesses covering this address (`CONTEXT.md` §7). */
+  const guide = (checklist._ui as UiState | undefined)?.budget ?? null;
+  const rates = top.map((quote) => quote.ratePerMeter);
+  const guideLine = guide
+    ? ' The sites you looked at said ' +
+      budgetText(guide) +
+      '; these work out at ' +
+      budgetText({ perMetreMin: Math.min(...rates), perMetreMax: Math.max(...rates) }) +
+      '.'
+    : '';
+
   const resultsOut: QuoteResult[] = top.map((quote) => ({
     businessId: quote.uid,
     autoAcceptsAi: quote.autoAcceptsAi,
@@ -417,12 +432,13 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
        said "yes, and what colour does it come in?" asked a real question, we went and paid to look
        it up, and this is the one turn that builds its own response object from scratch - so
        without this the answer is bought and then silently thrown away. */
-    message: withAnswer(gate, 'Here are the local businesses that cover your job.'),
+    message: withAnswer(gate, 'Here are the local businesses that cover your job.' + guideLine),
     ...(gate.answer ? { answer: gate.answer } : {}),
     options: [],
     results: resultsOut,
     avgRatePerMeter: Math.round(top.reduce((sum, q) => sum + q.ratePerMeter, 0) / top.length),
     comparison: {
+      ...(guide ? { marketGuide: guide } : {}),
       potentialSavings: benchmark !== null && benchmark > cheapest ? benchmark - cheapest : null,
       marketAverage: average,
       totalQuotesScreened: matcher.totalCovering,

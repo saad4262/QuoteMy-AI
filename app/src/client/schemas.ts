@@ -123,6 +123,12 @@ export interface UiState {
    * ceiling is a dollar a minute from one browser tab.
    */
   answers: number;
+  /**
+   * A guide range the customer tapped off a rates answer, carried so the results screen can show
+   * what the web said next to what the businesses actually quoted. Absent until they tap one, and
+   * it changes nothing about which businesses are shown or what they cost.
+   */
+  budget?: Budget;
 }
 
 export interface PlaceHint {
@@ -159,12 +165,33 @@ export interface ChatOption {
   value: string | number;
 }
 
+/**
+ * What a site's figure works out to per metre, read out of `figure` in code.
+ *
+ * A guide, never a price: it is shown beside the real quotes on the results screen and takes no
+ * part in producing them. See `budget.ts` for why it must never reach `existingPrice`.
+ */
+export interface Budget {
+  perMetreMin: number;
+  perMetreMax: number;
+  /** The site it came from, as a person would say it. Null if the chip lost it in transit. */
+  source: string | null;
+}
+
 /** One site an answer leaned on, and what it said. */
 export interface AnswerSource {
   /** As a person would say it - "hipages", "Yellow Pages". Never a URL: this is read aloud. */
   name: string;
   /** What that site listed, in its own terms: "$85 to $100 a metre installed". Null for advice. */
   figure: string | null;
+  /** `figure` as numbers, parsed in code - the model never does arithmetic (`CONTEXT.md` §4). */
+  perMetreMin: number | null;
+  perMetreMax: number | null;
+  /**
+   * Send this back as the turn's `message` to compare the quotes against this site's range. Null
+   * when the site gave no per-metre figure, which is every source on an advice question.
+   */
+  budgetValue: string | null;
   /**
    * Only when the provider actually cited that page. Usually null, and that is not a fault: a
    * search answer routinely names five sites off the results and annotates one. A URL guessed to
@@ -251,6 +278,8 @@ export interface ComparisonQuote {
 }
 
 export interface Comparison {
+  /** What the web said per metre, when the customer tapped a guide figure. Never used in pricing. */
+  marketGuide?: Budget;
   potentialSavings: number | null;
   marketAverage: number | null;
   totalQuotesScreened: number;

@@ -3,7 +3,8 @@ import { questionFor } from './schema.js';
 import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
 import { slug } from './fuzzyMatch.js';
-import type { Answer, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
+import { budgetText } from './budget.js';
+import type { Answer, Budget, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -26,9 +27,11 @@ export interface FormatResultInput {
   matcher: MatchResult | null;
   /** Present only on turns where the customer asked something and the search answered it. */
   answer?: Answer | null;
+  /** Present only on the turn a guide figure was tapped off one of those answers. */
+  budget?: Budget | null;
 }
 
-export function formatFencingResult({ state, matcher, answer = null }: FormatResultInput): ChatResponse {
+export function formatFencingResult({ state, matcher, answer = null, budget = null }: FormatResultInput): ChatResponse {
   const checklist = { ...state.checklist };
   const sessionId = state.sessionId;
   const place = state.place;
@@ -109,6 +112,9 @@ export function formatFencingResult({ state, matcher, answer = null }: FormatRes
   const rejects = (value: string | null): boolean =>
     !!value && rejectedPlaces.some((key) => key && (slug(value).includes(key) || key.includes(slug(value))));
   let carriedHint = rejects(state.suburbHint) ? null : state.suburbHint;
+
+  // Tapped this turn, or tapped earlier and carried - the client round-trips `_ui` and nothing else.
+  const carriedBudget = budget ?? ui.budget ?? null;
 
   const lastWasConfirmation = ui.lastType === 'confirmation';
   const saidYes = state.saidYes === true;
@@ -270,7 +276,7 @@ export function formatFencingResult({ state, matcher, answer = null }: FormatRes
       }
       type = 'question';
     }
-  } else if (!lastWasConfirmation) {
+  } else if (!lastWasConfirmation || budget) {
     // Everything is known. One recap, then the handoff - built from the checklist's own values,
     // never from a sentence the model wrote, so it can never mention a value that isn't stored.
     const recap = [
@@ -303,6 +309,12 @@ export function formatFencingResult({ state, matcher, answer = null }: FormatRes
     ];
   }
 
+  /* The tap said nothing about the fence, so the question above is unchanged and is simply put
+     again. This one line is the whole of what the customer gets back for it, until the results
+     screen - and it is careful not to promise a price, because the figure is a stranger's guide
+     and their real quotes are still being collected. */
+  if (budget) message = "Noted — I'll show you how the quotes compare to " + budgetText(budget) + '.\n\n' + message;
+
   const suburbHint = rejects(carriedHint) ? null : carriedHint;
   const expectsSuburb = options.length === 0 && (askingSuburbAgain || (!place && /\bsuburbs?\b|\bpost ?code\b|\bsuggestions\b/i.test(message)));
 
@@ -323,6 +335,9 @@ export function formatFencingResult({ state, matcher, answer = null }: FormatRes
     // Counted here rather than where the search runs, because this is the object that survives the
     // round trip through the client - a counter anywhere else resets every turn and caps nothing.
     answers: (ui.answers ?? 0) + (answer ? 1 : 0),
+    // Kept out of the checklist deliberately: it is not one of the trade's fields, nothing is
+    // asked about it, and the brief panel must not show a web figure as though it were an answer.
+    ...(carriedBudget ? { budget: carriedBudget } : {}),
   };
 
   const checklistDisplay: ChecklistDisplay = {};

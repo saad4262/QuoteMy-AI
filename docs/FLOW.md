@@ -320,6 +320,14 @@ OpenAI's built-in `web_search` on the Responses API. What keeps it inside the ru
   `$10/1k` search fee that `costUsd` cannot see.
 - **It fails to null.** A search outage costs the aside, never the quote — the same trade
   `geocode.ts` makes with Google.
+- **Its figures are a guide, never a price.** A rates answer names four or five sites and what each
+  one charges per metre. `budget.ts` reads those numbers back out of `sources[].figure` in code (the
+  model never does the arithmetic) and hands the client a `budgetValue` chip per site. Tapping one
+  carries the range in `_ui.budget` and buys exactly one thing: a sentence on the results turn
+  saying what the web said next to what the businesses actually quoted, plus `comparison.marketGuide`
+  for a screen that wants to render it. It is not in `benchmark`, it filters nothing, it ranks
+  nothing, and it must never reach `checklist.existingPrice` — that field hides every business that
+  cannot beat it, and a number nobody quoted has no business doing that.
 
 It did not become the `src/ai/tools/` registry this section used to anticipate. One tool with one
 call site is a file, not a registry; that idea is still the right one on the second tool.

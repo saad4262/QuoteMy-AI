@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { getAiClient, WEB_SEARCH_CALL_USD, type AiClient, type Citation } from '../ai.js';
 import { env, logger } from '../config.js';
 import type { BusinessRepository } from '../store.js';
+import { budgetTapValue, perMetreRange } from './budget.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
 import type { Answer, AnswerSource } from './schemas.js';
 
@@ -231,11 +232,21 @@ export async function answerQuestion(asked: AskedAbout, context: AskContext, dep
 
     const sources: AnswerSource[] = result.data.sources
       .filter((source) => source.name.trim())
-      .map((source) => ({
-        name: tidyProse(source.name),
-        figure: source.figure ? tidyProse(source.figure) : null,
-        url: urlFor(source.name, citations),
-      }));
+      .map((source) => {
+        const name = tidyProse(source.name);
+        const figure = source.figure ? tidyProse(source.figure) : null;
+        /* The same figure as numbers, so the customer can tap one and see it beside the real
+           quotes at the end. Read here in code and never asked of the model - see `budget.ts`. */
+        const range = perMetreRange(figure);
+        return {
+          name,
+          figure,
+          url: urlFor(source.name, citations),
+          perMetreMin: range?.min ?? null,
+          perMetreMax: range?.max ?? null,
+          budgetValue: range ? budgetTapValue(name, range) : null,
+        };
+      });
 
     const answer: Answer = { text, sources, kind: asked.kind };
     cache.set(key, { answer, at: Date.now() });

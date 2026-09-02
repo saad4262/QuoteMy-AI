@@ -5,6 +5,7 @@ import { AppError } from '../http.js';
 import { readSource, type UploadedFile } from '../ingest.js';
 import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
+import { readBudgetTap } from './budget.js';
 import { asObject, chatError } from './errors.js';
 import { loadTradeSchema, makeLabelFor, type TradeSchema } from './schema.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
@@ -111,6 +112,14 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   // document rather than a new code path.
   const schema = await loadTradeSchema('fencing', repo);
 
+  /* A guide figure tapped off a rates answer. It is not an answer to anything we asked, so the
+     rest of the turn must not see it: the message is emptied out, which leaves the question on
+     screen asked again with its own choices intact. Left in place it would be read as the answer
+     to whatever was on screen - taps are resolved against `ui.lastAsked` in code, and "budget:75-
+     120:hipages" would have become somebody's fence type. */
+  const budget = readBudgetTap(input.message);
+  const message = budget ? '' : input.message;
+
   /* A tapped option needs no model at all.
      The value came from a list this code generated last turn, so this code already knows exactly
      what it means - `mergeAndDecide` resolves it against `ui.lastAsked` without help. Calling the
@@ -118,10 +127,11 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
      spinner, and money, on what is by far the commonest turn in the conversation. Free text still
      goes to the model, because that genuinely needs reading. */
   const tapped =
-    !files.length &&
-    !!ui?.lastValues?.length &&
-    ui.lastValues.some((value) => String(value) === input.message.trim()) &&
-    input.message.trim() !== '__other__';
+    !!budget ||
+    (!files.length &&
+      !!ui?.lastValues?.length &&
+      ui.lastValues.some((value) => String(value) === message.trim()) &&
+      message.trim() !== '__other__');
 
   let turnResult;
   if (tapped) {
@@ -129,7 +139,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   } else {
     await assertWithinDailyBudget(repo);
     turnResult = await runTurn(
-      { message: input.message, extractedText, docFacts, docSuburbHint, known, ui },
+      { message, extractedText, docFacts, docSuburbHint, known, ui },
       { ai: deps.ai },
     );
     await recordSpend(turnResult.usage.costUsd, repo);
@@ -148,7 +158,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     resolveSuburb({
       place,
       ui,
-      message: input.message,
+      message,
       suggestedSuburb: turnResult.data.suggestedSuburb || docSuburbHint || ui?.suburbHint || null,
     }),
     answerIfAsked(turnResult.data, known, ui, schema, repo),
@@ -156,14 +166,14 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
 
   const state = mergeAndDecide({
     sessionId: input.sessionId,
-    message: input.message,
+    message,
     place: place ?? resolved.place,
     suburbChoices: resolved.choices,
     known,
     turnExtraction: turnResult.data,
     docFacts,
     docSuburbHint,
-    haystackText: input.message + ' ' + extractedText,
+    haystackText: message + ' ' + extractedText,
     schema,
   });
 
@@ -182,7 +192,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
     );
   }
 
-  const formatted = formatFencingResult({ state, matcher, answer });
+  const formatted = formatFencingResult({ state, matcher, answer, budget });
   return matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
 }
 
