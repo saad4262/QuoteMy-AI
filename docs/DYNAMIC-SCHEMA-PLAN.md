@@ -795,6 +795,16 @@ A trade that fits one of the three is a document. A trade that fits none is a ne
 which will be rare, and is the correct place for that decision to live. **The model never writes a
 formula** (`CLAUDE.md` non-negotiable #4).
 
+**Supply vs labour-only belongs here, not in the chat.** Fencing is quoted supply-and-install
+(`sop/fencing/rules.md` F4), but tiling and decking are routinely labour-only with the customer
+buying the material — so this spec gains a `supplyOptions` key, the business publishes its own
+labour-only rate against a new SOP rule, and the customer's "who supplies it?" is an ordinary schema
+field like `removal`. A trade whose schema omits `supplyOptions` is unchanged by all of it.
+**A material price from a web search must never enter the total** — in any trade. Those figures are
+a market guide for the customer and nothing else (`FLOW.md` §5, `budget.ts`); adding one on top of a
+supply-and-install rate double-counts the material, and a labour-only quote needs the tradesperson's
+own number, which no website has.
+
 **Verify.** Golden conversations 1, 11 and 12 must not move — fencing goes through `linear` and must
 produce byte-identical quotes.
 
