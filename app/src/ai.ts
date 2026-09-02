@@ -658,6 +658,7 @@ export class MockAiClient implements AiClient {
          every golden conversation that contains a question mark, which is not what those
          snapshots are pinning. A test that wants an answer injects a client that returns one. */
       askedAbout: null,
+      namedOffList: null,
       askedKind: null,
     };
   }

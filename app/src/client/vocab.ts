@@ -33,3 +33,20 @@ export type ChecklistField = string;
 /* The order questions are asked in - and which fields there are at all - now lives in
    `fieldSpec.ts` as `FENCING_FIELDS`. The rule it encodes is unchanged: the first field still empty
    is the one asked next, which is what guarantees nothing is skipped and nothing is asked twice. */
+
+/**
+ * A value the customer named that the trade vocabulary has no slug for, marked as exactly that.
+ *
+ * The prefix is the whole point. `tubular-steel` sitting in a checklist is indistinguishable from a
+ * canonical slug, and the one rule this product does not bend is that a slug means the same thing
+ * everywhere - two spellings of one material and both businesses vanish from search
+ * (`CONTEXT.md` §8). `other:tubular-steel` can never be mistaken for one: it matches no rate table,
+ * it is never written to a business document, and anything reading it can see at a glance that it
+ * came from a customer's mouth rather than from the vocabulary.
+ */
+export const OFF_LIST = /^other:[a-z0-9][a-z0-9-]*$/;
+export const offListValue = (slugged: string): string => 'other:' + slugged;
+export const offListWords = (value: unknown): string | null => {
+  const text = String(value ?? '');
+  return OFF_LIST.test(text) ? text.slice('other:'.length) : null;
+};

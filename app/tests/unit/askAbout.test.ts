@@ -256,6 +256,59 @@ describe('a question inside the conversation', () => {
     expect(response.checklistPending.some((entry) => entry.key === 'material')).toBe(true);
   });
 
+  /**
+   * Straight off a screenshot: the material question was on screen, the customer asked "please
+   * tell me first which type is better", and underneath a full six-line answer comparing the
+   * three came "Sorry, I didn't catch that - what type of fence are you after?". They were
+   * understood well enough to be answered; apologising for not hearing them in the same breath
+   * reads as two different chats. The apology belongs to a message that landed on nothing, not to
+   * one we just answered.
+   */
+  it('does not apologise for not catching a question it just answered', async () => {
+    const ANSWER = 'Colorbond needs the least upkeep; hardwood is the better timber.';
+    // The real model reports no checklist out of a question - the offline one would take the whole
+    // sentence as the material, which is a different bug with its own test above.
+    const inner = new MockAiClient();
+    setAiClient({
+      model: 'asking',
+      async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
+        const usage = { name: call.name, ms: 1, tokensIn: 0, tokensOut: 0, retries: 0, costUsd: 0 };
+        if (call.name === 'answer') return { data: call.schema.parse({ text: ANSWER, sources: [] }), usage };
+        const base = await inner.callStructured(call);
+        if (call.name !== 'turn' || !call.user.includes('which type is better')) return base;
+        const reported = base.data as { checklist: Record<string, unknown> };
+        const checklist = { ...reported.checklist, material: null };
+        return {
+          ...base,
+          data: call.schema.parse({ ...reported, checklist, askedAbout: 'which type of fence is better', askedKind: 'advice' }),
+        };
+      },
+    });
+
+    const place = JSON.stringify({ suburb: 'Pakenham', state: 'VIC', latitude: -38.07, longitude: 145.48 });
+    const opener = await runFencingChat({ message: 'I need a fence quote', sessionId: 'a1', place, knownChecklist: '' }, [], { repo });
+    // The turn that puts the material question on screen, so the next one is asking it again.
+    const asked = await runFencingChat(
+      { message: 'yes go ahead', sessionId: 'a1', place, knownChecklist: JSON.stringify(opener.checklist) },
+      [],
+      { repo },
+    );
+    expect(asked.type).toBe('question');
+
+    const response = await runFencingChat(
+      { message: 'please tell me first which type is better', sessionId: 'a1', place, knownChecklist: JSON.stringify(asked.checklist) },
+      [],
+      { repo },
+    );
+
+    expect(response.answer?.text).toBe(ANSWER);
+    expect(response.message).not.toMatch(/didn't catch/i);
+    // Still the same question, still with the choices under it - the answer rides along.
+    expect(response.message.startsWith(ANSWER)).toBe(true);
+    expect(response.message.trim()).toMatch(/\?$/);
+    expect(response.options.length).toBeGreaterThan(0);
+  });
+
   it('is never read out as a web address on a call', async () => {
     setAiClient(
       askingAi('what does colorbond cost', 'rates', 'hipages says $85 a metre. ([hipages.com.au](https://hipages.com.au/x))'),

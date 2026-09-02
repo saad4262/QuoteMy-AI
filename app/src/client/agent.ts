@@ -39,7 +39,8 @@ Reply with ONLY a raw JSON object. No markdown, no code fences, no text outside 
   "confirmed": false,
   "offTopic": false,
   "askedAbout": null,
-  "askedKind": null
+  "askedKind": null,
+  "namedOffList": null
 }
 
 ack
@@ -48,7 +49,7 @@ Two to four words of warm, lightly casual Australian acknowledgement — "Got it
 checklist
 Only fields the customer has just given you, or that the attachment states outright. Never guess. An omitted field gets asked; a wrongly filled one gets quoted at the wrong price, so silence is always the safer answer.
 
-  material      the fence material. Use one of the values from "the only values that were on screen" when the customer picked one, or the slug they clearly named. If they say something the list does not cover, leave it out.
+  material      the fence material. Use one of the values from "the only values that were on screen" when the customer picked one, or the slug they clearly named. If they name a fence type the list does not cover, leave this out and put it in namedOffList instead — never force it onto the nearest value.
   heightKey     how tall. "1.8m", 1800, "1800mm", "6ft" are all fine — the conversion is done for you.
   lengthMeters  how long, in metres. Never a range: "25-30m" is not an answer, leave it out.
   removal       what the OLD fence is made of: "timber", "metal", or "none" when there is nothing to take away. This is NOT the new fence's material — timber fences are routinely replaced with Colorbond.
@@ -113,6 +114,17 @@ A message that lists two or more of the choices on screen and asks about them is
 Copy it, do not rewrite it. It is what gets looked up, so a tidied-up version looks up a question they did not ask.
 
 A question and an answer arrive together all the time — "colorbond thanks, is it any good on a slope?" fills material AND sets askedAbout. Doing one is never a reason to skip the other.
+
+namedOffList
+A fence type they named that is NOT one of the values on screen and is not one of ours — "tubular steel", "bamboo screening", "wrought iron", "brush fencing". Just the thing itself, in their words, two or three words at most. Null on almost every turn.
+
+  "okay okay, please select the tubular steel"   -> "tubular steel"
+  "can I get bamboo screening"                   -> "bamboo screening"
+  "colorbond"                                    -> null, that IS on the list — it belongs in checklist.material
+  "which of these is best?"                      -> null, they named several and chose none. That is askedAbout.
+  "1.8m"                                         -> null, that is a height
+
+Only ever about the question you were last asked. Never a height, a length, a number or a suburb. Never two things at once — if they weighed several up they have chosen nothing.
 
 askedKind
 "rates" when they are asking what something costs in general — "what does colorbond go for", "which is cheaper". "advice" for every other fencing question — materials, colours, permits, damage, process, maintenance, how long it lasts. Null exactly when askedAbout is null.
@@ -194,6 +206,7 @@ export const SAID_NOTHING: TurnExtraction = {
   offTopic: false,
   askedAbout: null,
   askedKind: null,
+  namedOffList: null,
 };
 
 export async function runTurn(

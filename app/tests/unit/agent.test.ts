@@ -58,7 +58,7 @@ describe('an empty send costs nothing and breaks nothing', () => {
           data: call.schema.parse({
             ack: '', checklist: { material: null, heightKey: null, lengthMeters: null, removal: null,
               conditions: null, gateType: null, gateQty: null, existingPrice: null },
-            clearFields: [], suggestedSuburb: null, wantsMoreOptions: false, confirmed: false, offTopic: false, askedAbout: null, askedKind: null,
+            clearFields: [], suggestedSuburb: null, wantsMoreOptions: false, confirmed: false, offTopic: false, askedAbout: null, askedKind: null, namedOffList: null,
           }),
           usage: { name: 'turn', ms: 1, tokensIn: 1, tokensOut: 1, retries: 0, costUsd: 0 },
         };

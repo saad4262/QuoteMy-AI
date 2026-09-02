@@ -44,6 +44,7 @@ const turn = (checklist: Partial<TurnExtraction['checklist']> = {}, over: Partia
   confirmed: false,
   offTopic: false,
   askedAbout: null,
+  namedOffList: null,
   askedKind: null,
   checklist: {
     material: null, heightKey: null, lengthMeters: null, removal: null,
@@ -459,5 +460,103 @@ describe('a question names things without choosing them', () => {
     const state = run('colorbond', partial({ material: null, _ui: ui({ lastAsked: 'material' }) }), turn({}));
 
     expect(state.checklist.material).toBe('colorbond');
+  });
+});
+
+/**
+ * A fence type nobody on the list builds.
+ *
+ * Off a screenshot of a voice call: the caller heard three choices, said "okay okay, please select
+ * the tubular steel", and was told "Sorry, I didn't catch that" - then read the same three choices
+ * again. It had caught it perfectly; tubular steel is simply not in the trade's vocabulary. The
+ * list is what businesses near them publish rates against and it is short, so this is not a rare
+ * customer being difficult - it is most of the fences sold in Australia.
+ *
+ * So it is taken as their answer and the brief moves on. Nobody turns out to quote it, and the
+ * results turn is where that is said, with the whole brief in hand to offer alternatives against.
+ */
+describe('a fence type the vocabulary has no slug for', () => {
+  const asked = ui({ lastAsked: 'material', lastValues: ['aluminium', 'pool_aluminium', 'pool_glass'] });
+
+  it('takes what they named and carries on', () => {
+    const state = run(
+      'okay okay, please select the tubular steel',
+      partial({ material: null, _ui: asked }),
+      turn({}, { namedOffList: 'tubular steel' }),
+    );
+
+    expect(state.checklist.material).toBe('other:tubular-steel');
+    // Asked and answered - the question does not come back, and the next one is asked.
+    expect(state.missing).not.toContain('material');
+    expect(state.offListChoice).toEqual({ field: 'material', label: 'Tubular steel' });
+  });
+
+  /**
+   * The marker is the safety. A bare `tubular-steel` in a checklist is indistinguishable from a
+   * canonical slug, and one slug meaning two things is the failure this product guards hardest
+   * against - so what a customer named carries a prefix that no vocabulary value can have.
+   */
+  it('survives the next turn, and is never mistaken for one of ours', () => {
+    const chosen = partial({ material: 'other:tubular-steel', _ui: ui({ lastAsked: 'heightKey' }) });
+    const state = run('1.8m', chosen, turn({ heightKey: '1.8m' }));
+
+    // `validate` runs over the echoed checklist every turn, and used to wipe it.
+    expect(state.checklist.material).toBe('other:tubular-steel');
+    expect(state.missing).not.toContain('material');
+    // Read back to the customer in their own words, never as the marker.
+    expect(state.labelFor('material', 'other:tubular-steel')).toBe('Tubular steel');
+  });
+
+  /** It is only off-list if it is genuinely absent. A model that reports one of ours here is wrong. */
+  it('ignores it when the vocabulary does have the thing they named', () => {
+    const state = run('colorbond', partial({ material: null, _ui: asked }), turn({}, { namedOffList: 'Colorbond' }));
+
+    expect(state.checklist.material).toBe('colorbond');
+    expect(state.offListChoice).toBeNull();
+  });
+
+  /** A clause is a misread, not a fence. "Tubular steel" is two words; a sentence is not. */
+  it('refuses a whole sentence', () => {
+    const state = run(
+      'I was thinking maybe something in a nice dark steel if that is possible',
+      partial({ material: null, _ui: asked }),
+      turn({}, { namedOffList: 'something in a nice dark steel if that is possible' }),
+    );
+
+    expect(state.checklist.material).toBeNull();
+  });
+
+  /** Only ever the field on screen. It cannot reach across and answer something else. */
+  it('does not answer a field that was not asked', () => {
+    const state = run(
+      'tubular steel',
+      partial({ material: null, _ui: ui({ lastAsked: 'lengthMeters' }) }),
+      turn({}, { namedOffList: 'tubular steel' }),
+    );
+
+    expect(state.checklist.material).toBeNull();
+  });
+
+  /** A real answer always wins - this is the last thing tried, never the first. */
+  it('is not consulted when they answered from the list', () => {
+    const state = run(
+      'colorbond, is tubular steel a thing?',
+      partial({ material: null, _ui: asked }),
+      turn({ material: 'colorbond' }, { namedOffList: 'tubular steel', askedAbout: 'is tubular steel a thing?', askedKind: 'advice' }),
+    );
+
+    expect(state.checklist.material).toBe('colorbond');
+    expect(state.offListChoice).toBeNull();
+  });
+
+  /** Weighing several up is choosing none, and that stays true here. */
+  it('takes nothing from a turn that was only a question', () => {
+    const state = run(
+      'is tubular steel better than colorbond',
+      partial({ material: null, _ui: asked }),
+      turn({}, { namedOffList: 'tubular steel', askedAbout: 'is tubular steel better than colorbond', askedKind: 'advice' }),
+    );
+
+    expect(state.checklist.material).toBeNull();
   });
 });

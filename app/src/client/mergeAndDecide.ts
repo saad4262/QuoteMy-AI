@@ -4,7 +4,7 @@ import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, numbersIn, oneOf,
 import { askedFields, specOf } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, PlaceHint, TurnExtraction, UiState } from './schemas.js';
-import { type ChecklistField } from './vocab.js';
+import { OFF_LIST, offListValue, type ChecklistField } from './vocab.js';
 
 /**
  * Everything the conversation knows, settled in one place, before anything is said back. Ported
@@ -39,6 +39,11 @@ function validate(field: string, value: unknown, schema: TradeSchema, labelFor: 
       return null; // never trusted from anywhere but the picker - see mergeAndDecide()
 
     case 'enum': {
+      /* Named by the customer, and the vocabulary has no slug for it - see `OFF_LIST`. It was
+         accepted once, on the turn they said it; this is what stops it being wiped on the next
+         one. Without this the checklist came back through `known` and `oneOf` found nothing in the
+         vocabulary, exactly as it should - so the answer disappeared and the question came back. */
+      if (OFF_LIST.test(String(value))) return String(value);
       /* A pinned answer is the field's own "there is none of this" - "No gates", "Nothing to
          remove". It is not part of the trade's vocabulary and must not be read against it, so a
          negative resolves straight to it. Keyed off the spec rather than off the field's name,
@@ -138,6 +143,11 @@ export interface MergedState {
    * hands back the identical recap, which reads as the chat ignoring them.
    */
   fixingUnresolved: boolean;
+  /**
+   * They answered with a fence type the trade vocabulary has no slug for, and it was taken. The
+   * reply says so plainly - the brief has moved on, and nobody may turn out to build it.
+   */
+  offListChoice: { field: ChecklistField; label: string } | null;
   /**
    * What they sent was about something other than a fence, and nothing else about the turn
    * landed either. Both halves matter: a real answer always wins, so an on-topic reply the model
@@ -433,6 +443,42 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const agentChecklist = parsed.offTopic || questionOnly ? {} : (parsed.checklist || {});
   const merged: Record<string, unknown> = {};
   /**
+   * A fence type they named that the vocabulary has no slug for, taken as their answer.
+   *
+   * The choice list is what businesses near them publish rates against, and it is short - three at
+   * a time out of eight. Somebody who says "tubular steel" has not misspoken; they have named a
+   * fence that half of Australia builds and none of our businesses has priced. Answering that with
+   * "sorry, I didn't catch that" is a lie about what happened and leaves them saying it again into
+   * a list that will never contain it.
+   *
+   * So it is stored, the brief fills in, and the conversation carries on to the height and the
+   * length like any other answer. Nobody turns out to quote it, and the results turn says so and
+   * offers what they DO build - which is the honest moment to find out, and the only one that has
+   * the whole brief to offer alternatives against.
+   *
+   * The closed vocabulary is not weakened by this. Nothing here reaches a business document: a
+   * rate table is still written only in canonical slugs, and the drift `CONTEXT.md` §8 is about -
+   * two businesses spelling one material differently and both vanishing from search - cannot start
+   * here. What this stores is a customer's own words, on the customer's own side, and its whole
+   * effect is that the matcher finds nobody.
+   */
+  function offListAnswer(field: string, named: string | null): string | null {
+    if (!named?.trim() || field !== ui.lastAsked) return null;
+
+    const spec = specOf(schema.fields, field);
+    // Enums only. A height nobody builds at is a different problem with its own answer, and a
+    // length is a number - neither has a vocabulary for a word to be missing from.
+    if (spec?.type !== 'enum') return null;
+
+    // Two or three words, not a sentence. "Tubular steel" is a fence; a clause is a misread.
+    const value = slug(named).split('-').filter(Boolean);
+    if (!value.length || value.length > 4 || value.join('-').length > 40) return null;
+
+    // Already ours under another name - then it is not off-list at all, and belongs in the enum.
+    return validate(field, named, schema, labelFor) === null ? offListValue(value.join('-')) : null;
+  }
+
+  /**
    * They asked something AND a value fell out of their sentence. Is that value an answer, or just
    * one of the things they were asking about?
    *
@@ -531,6 +577,17 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
        the choices is never choosing one, however the turn was read. */
     const direct = validate(ui.lastAsked, remainder, schema, labelFor);
     if (direct !== null && answersRatherThanAsks(ui.lastAsked, direct, asking)) merged[ui.lastAsked] = direct;
+  }
+
+  /* Nothing on the list fitted, and they named something else. Last, so a real answer always wins:
+     a customer who says "colorbond, or is tubular steel a thing?" gets colorbond. */
+  let offListChoice: { field: ChecklistField; label: string } | null = null;
+  if (ui.lastAsked && !questionOnly && (merged[ui.lastAsked] === null || merged[ui.lastAsked] === undefined)) {
+    const offList = offListAnswer(ui.lastAsked, parsed.namedOffList);
+    if (offList) {
+      merged[ui.lastAsked] = offList;
+      offListChoice = { field: ui.lastAsked as ChecklistField, label: labelFor(ui.lastAsked as ChecklistField, offList) };
+    }
   }
 
   // Nobody could quote the brief exactly, so the results turn offered the nearest things somebody
@@ -713,6 +770,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     saidYes,
     saidNo,
     message: rawMessage,
+    offListChoice,
     fixingUnresolved,
     offTopic,
   };

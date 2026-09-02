@@ -241,7 +241,12 @@ export function formatFencingResult({ state, matcher, answer = null }: FormatRes
       options = [];
     } else {
       options = buildOptions(nextField);
-      const misunderstood = askingAgain && !wantsMore && !exhausted && rawMessage.trim().length > 0 && !state.offListHeight;
+      /* "Sorry, I didn't catch that" is for a message that landed on nothing. A customer who
+         asked "which type is better", got the answer, and is now being asked the question again
+         was understood perfectly - apologising underneath our own answer reads as though nobody
+         noticed it. So an answered turn re-asks plainly, with the choices on screen under it. */
+      const misunderstood =
+        askingAgain && !wantsMore && !exhausted && !answer && rawMessage.trim().length > 0 && !state.offListHeight;
       const offList = nextField === 'heightKey' && state.offListHeight ? 'Fences are not built at ' + state.offListHeight + ' — ' : null;
 
       message = offList
@@ -251,6 +256,18 @@ export function formatFencingResult({ state, matcher, answer = null }: FormatRes
           : misunderstood
             ? "Sorry, I didn't catch that — " + question.charAt(0).toLowerCase() + question.slice(1)
             : acknowledged(question);
+      /* They named a fence nobody on the list builds, and it was taken as their answer. Said in
+         front of the next question rather than instead of it, the same way an answer to their own
+         question rides along - the brief has moved on, and pretending otherwise is what "sorry, I
+         didn't catch that" used to do. It is honest about the risk without refusing them: the
+         results turn is where nobody turns out to build it, with the whole brief in hand to offer
+         alternatives against. */
+      if (state.offListChoice) {
+        message =
+          state.offListChoice.label +
+          " — got it. Not one everybody does, so I'll see who can.\n\n" +
+          message;
+      }
       type = 'question';
     }
   } else if (!lastWasConfirmation) {

@@ -4,7 +4,7 @@ import { getRepository, type BusinessRepository } from '../store.js';
 import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
 import { FENCING_FIELDS, FIELD_TYPES, specOf, type FieldSpec } from './fieldSpec.js';
-import { type ChecklistField } from './vocab.js';
+import { type ChecklistField, offListWords } from './vocab.js';
 
 /**
  * The trade's vocabulary, read from Firestore `schema/{trade}` at the start of a conversation.
@@ -268,6 +268,10 @@ const titleCase = (value: unknown): string => {
  */
 export function makeLabelFor(schema: TradeSchema) {
   return function labelFor(field: ChecklistField, value: unknown): string {
+    // Their own words, said back to them. The marker is for code; nobody reads "other:".
+    const named = offListWords(value);
+    if (named) return titleCase(named);
+
     const group = GROUPS[field];
     const table = group ? schema.labels[group] : undefined;
     if (table?.[String(value)]) return table[String(value)]!;

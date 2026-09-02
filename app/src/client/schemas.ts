@@ -68,6 +68,21 @@ export const turnExtractionSchema = z.object({
    * Which kind, because the two are answered differently: 'rates' goes looking for what Australian
    * sites list and is hedged accordingly, 'advice' is everything else about fencing.
    */
+  /**
+   * A fence type the customer named that the trade vocabulary has no slug for - "tubular steel",
+   * "bamboo screening", "wrought iron".
+   *
+   * The list they are offered is what businesses near them actually publish rates against, and it
+   * is short. Somebody who names something else has not misspoken and is not being difficult: half
+   * the fences sold in Australia are not on it. Telling them "sorry, I didn't catch that" is a lie
+   * and a dead end, so it is taken as their answer - and the search for a business to do it comes
+   * back empty at the end, which is the honest place to find that out.
+   *
+   * Reported here rather than read out of the sentence in code, because picking the fence type out
+   * of "okay okay, please select the tubular steel" is reading, which is what the model is for.
+   * What code decides is whether it is allowed in - see `mergeAndDecide`.
+   */
+  namedOffList: z.string().nullable(),
   askedKind: z.enum(['advice', 'rates']).nullable(),
 });
 export type TurnExtraction = z.infer<typeof turnExtractionSchema>;
