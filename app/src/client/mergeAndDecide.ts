@@ -759,7 +759,13 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     ack: typeof parsed.ack === 'string' ? parsed.ack.trim().slice(0, 40) : '',
     suggestedSuburb: typeof parsed.suggestedSuburb === 'string' && parsed.suggestedSuburb.trim() ? parsed.suggestedSuburb.trim() : null,
     suburbChoices: place ? [] : (input.suburbChoices ?? []),
-    wantsMoreOptions: parsed.wantsMoreOptions === true,
+    /* Not on a turn that carried a question. The model read "so can you suggest me which fence is
+       better for me?" as asking for other choices, and the option page turned over underneath a
+       customer who was reading an answer about the three that had just scrolled away - prose about
+       one set of fences over buttons offering a different set. Asking which is best is not asking
+       for different ones. A genuine "what else have you got" is still caught, by `WANTS_MORE` on
+       their own words in `formatResult`, which needs no model to read. */
+    wantsMoreOptions: parsed.wantsMoreOptions === true && !asking,
     confirmed: parsed.confirmed === true,
     docSuburbHint: input.docSuburbHint,
     suburbHint: carriedSuburbHint,

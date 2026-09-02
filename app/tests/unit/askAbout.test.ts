@@ -41,7 +41,7 @@ function answeringAi(text: string, sources: { name: string; figure: string | nul
   };
 }
 
-const NOWHERE = { suburb: null, state: null, material: null, asked: null, choices: [] };
+const NOWHERE = { suburb: null, state: null, material: null, asked: null, choices: [], everything: [] };
 
 describe('tidyProse', () => {
   /**
@@ -315,6 +315,110 @@ describe('a question inside the conversation', () => {
     expect(response.message.startsWith(ANSWER)).toBe(true);
     expect(response.message.trim()).toMatch(/\?$/);
     expect(response.options.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Straight off a screenshot. A customer typed "basically i have farmhouse in australia .. so can
+   * you suggest me which fence is better for me?" while page two of the materials was on screen -
+   * aluminium, pool aluminium, pool glass - and got a careful answer about pool barriers and glass
+   * panels. Chainmesh and rural wire, the two that answer a farm question, sat on page three and
+   * were never sent, so as far as the model was concerned they did not exist.
+   */
+  it('sends the whole list, not the three that happen to be on screen', async () => {
+    let asked = '';
+    const inner = new MockAiClient();
+    setAiClient({
+      model: 'capturing',
+      async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
+        const usage = { name: call.name, ms: 1, tokensIn: 0, tokensOut: 0, retries: 0, costUsd: 0 };
+        if (call.name === 'answer') {
+          asked = call.user;
+          return { data: call.schema.parse({ text: 'Rural wire suits a farm.', sources: [] }), usage };
+        }
+        const base = await inner.callStructured(call);
+        if (call.name !== 'turn' || !call.user.includes('farmhouse')) return base;
+        const reported = base.data as { checklist: Record<string, unknown> };
+        return {
+          ...base,
+          data: call.schema.parse({
+            ...reported,
+            checklist: { ...reported.checklist, material: null },
+            askedAbout: 'which fence suits a farmhouse',
+            askedKind: 'advice',
+          }),
+        };
+      },
+    });
+
+    const place = JSON.stringify({ suburb: 'Berwick', state: 'VIC', latitude: -38.03, longitude: 145.34 });
+    const opener = await runFencingChat({ message: 'I need a fence quote', sessionId: 'f1', place, knownChecklist: '' }, [], { repo });
+    const asking = await runFencingChat(
+      { message: 'yes go ahead', sessionId: 'f1', place, knownChecklist: JSON.stringify(opener.checklist) },
+      [],
+      { repo },
+    );
+    await runFencingChat(
+      {
+        message: 'basically i have farmhouse in australia .. so can you suggest me which fence is better for me?',
+        sessionId: 'f1',
+        place,
+        knownChecklist: JSON.stringify(asking.checklist),
+      },
+      [],
+      { repo },
+    );
+
+    // The page they were looking at is still there - it is what "which of these" points at.
+    expect(asked).toContain('the choices under it: Treated pine');
+    // And the two that actually answer a farm question, which were three pages away.
+    expect(asked).toContain('Chainmesh');
+    expect(asked).toContain('Rural wire');
+  });
+
+  /**
+   * The same screenshot, second half: the answer came back about the three materials that had been
+   * on screen, and underneath it the choices had already turned over to the next page - because the
+   * model read "can you suggest me which is better" as "show me something else". Prose about one
+   * set of fences over buttons offering a different set.
+   */
+  it('does not turn the option page over while they are asking a question', async () => {
+    const inner = new MockAiClient();
+    setAiClient({
+      model: 'wants-more',
+      async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
+        const usage = { name: call.name, ms: 1, tokensIn: 0, tokensOut: 0, retries: 0, costUsd: 0 };
+        if (call.name === 'answer') return { data: call.schema.parse({ text: 'An answer.', sources: [] }), usage };
+        const base = await inner.callStructured(call);
+        if (call.name !== 'turn' || !call.user.includes('farmhouse')) return base;
+        const reported = base.data as { checklist: Record<string, unknown> };
+        return {
+          ...base,
+          data: call.schema.parse({
+            ...reported,
+            checklist: { ...reported.checklist, material: null },
+            askedAbout: 'which fence suits a farmhouse',
+            askedKind: 'advice',
+            wantsMoreOptions: true,
+          }),
+        };
+      },
+    });
+
+    const place = JSON.stringify({ suburb: 'Berwick', state: 'VIC', latitude: -38.03, longitude: 145.34 });
+    const opener = await runFencingChat({ message: 'I need a fence quote', sessionId: 'f2', place, knownChecklist: '' }, [], { repo });
+    const asking = await runFencingChat(
+      { message: 'yes go ahead', sessionId: 'f2', place, knownChecklist: JSON.stringify(opener.checklist) },
+      [],
+      { repo },
+    );
+    const answered = await runFencingChat(
+      { message: 'i have a farmhouse, which is better?', sessionId: 'f2', place, knownChecklist: JSON.stringify(asking.checklist) },
+      [],
+      { repo },
+    );
+
+    expect(answered.answer?.text).toBe('An answer.');
+    expect(answered.options).toEqual(asking.options);
   });
 
   it('is never read out as a web address on a call', async () => {

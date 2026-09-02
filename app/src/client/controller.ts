@@ -7,7 +7,8 @@ import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
 import { readBudgetTap } from './budget.js';
 import { asObject, chatError } from './errors.js';
-import { loadTradeSchema, makeLabelFor, type TradeSchema } from './schema.js';
+import { specOf } from './fieldSpec.js';
+import { loadTradeSchema, makeLabelFor, optionsFor, type TradeSchema } from './schema.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
 import { runTurn, SAID_NOTHING } from './agent.js';
 import { readAttachmentFacts } from './attachmentFacts.js';
@@ -18,6 +19,10 @@ import { resolveSuburb } from './suburb.js';
 import { priceAndRank } from './priceAndRank.js';
 import { saveChatResult } from './saveResult.js';
 import type { Answer, ChatBody, ChatResponse, Checklist, Place, TurnExtraction, UiState } from './schemas.js';
+import type { ChecklistField } from './vocab.js';
+
+/** A keyed list resolves against a value the customer has already given, and only a string is one. */
+const asText = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
 /**
  * One route, one handler - same principle as the business side's `POST /business`. Unlike that
@@ -67,6 +72,18 @@ async function answerIfAsked(
     .filter((value) => value !== '__other__')
     .map((value) => (ui?.lastAsked ? labelFor(ui.lastAsked, value) : value));
 
+  /* And the whole list those three came off, which is a different thing and is why this is here:
+     the page on screen is what "which of these" points at, but "I have a farmhouse" is a question
+     about everything we publish - and answered off the page alone it produced advice about pool
+     fencing. Keyed lists (fencing heights are keyed by material) resolve against what they have
+     already chosen; before that choice there is genuinely nothing to list. */
+  const spec = ui?.lastAsked ? specOf(schema.fields, ui.lastAsked) : undefined;
+  const everything = spec
+    ? optionsFor(schema, spec, spec.optionsKeyedBy ? asText(known[spec.optionsKeyedBy]) : null).map((value) =>
+        labelFor(spec.key as ChecklistField, String(value)),
+      )
+    : [];
+
   return answerQuestion(
     { question: parsed.askedAbout, kind: parsed.askedKind },
     {
@@ -75,6 +92,7 @@ async function answerIfAsked(
       material: typeof known.material === 'string' ? known.material : null,
       asked: ui?.lastQuestion || null,
       choices,
+      everything,
     },
     { repo },
   );
