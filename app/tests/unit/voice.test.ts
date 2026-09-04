@@ -646,6 +646,49 @@ describe('the opening line', () => {
     expect(greetingFor({ display: {}, message: '', options: [] })).toBe(OPENING_LINE);
   });
 
+  /**
+   * Off a live call: it opened with `Welcome back. ""` - welcoming back somebody who had never
+   * been here, and then reading two quote marks out loud. An empty string that has been
+   * JSON-encoded somewhere between the page and here is still empty, but `'""'.trim()` is
+   * truthy, so it counted as a whole conversation to come back to.
+   */
+  it('is not fooled by an empty string that arrives wearing quote marks', () => {
+    expect(greetingFor({ display: {}, message: '""', options: [] })).toBe(OPENING_LINE);
+    expect(greetingFor({ message: "''" })).toBe(OPENING_LINE);
+    expect(greetingFor({ message: '   ' })).toBe(OPENING_LINE);
+  });
+
+  /**
+   * The page JSON-encodes every other field in the create-call body, so it encodes this one too -
+   * and "nothing" arrives as the four characters `null`, which is a perfectly good sentence as far
+   * as a string is concerned. Left alone it opened a call with "Welcome. null".
+   */
+  it('reads a question the page encoded, and the word null as nothing', async () => {
+    const app = createApp();
+    setRepository(new MemoryRepository());
+
+    const plain = await request(app).post('/api/v1/voice/create-call').send({ message: 'null', checklist: 'null' });
+    expect(plain.body.greeting).toBe(OPENING_LINE);
+
+    const encoded = await request(app)
+      .post('/api/v1/voice/create-call')
+      .send({ message: JSON.stringify('How long is the fence?') });
+    expect(encoded.body.greeting).toContain('How long is the fence?');
+    expect(encoded.body.greeting).not.toContain('"How long');
+  });
+
+  /**
+   * A question carried with nothing answered under it is not a conversation the caller would
+   * recognise having had. Told "welcome back" on what is, to them, a first call, the machine
+   * sounds like it has them confused with somebody else.
+   */
+  it('does not welcome back somebody who has not answered anything yet', () => {
+    const said = greetingFor({ display: {}, message: 'What are you after?' });
+    expect(said).toContain('Welcome.');
+    expect(said).not.toContain('Welcome back');
+    expect(said).toContain('What are you after?');
+  });
+
   it('picks the conversation up instead of starting again', () => {
     const said = greetingFor({
       display: { suburb: { title: 'Suburb', value: 'Pakenham, VIC, 3810' }, material: { title: 'Material', value: 'Treated pine' } },

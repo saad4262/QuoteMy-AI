@@ -75,6 +75,18 @@ function readRecap(response: ChatResponse): string {
   return `${opener}That is everything I need. Shall I go and find you some quotes? Or tell me what you would like to change.`;
 }
 
+/**
+ * Nothing carried, in every shape a page can send it: absent, empty, whitespace - or a pair of
+ * quote marks with nothing between them, which is an empty string that got JSON-encoded somewhere
+ * on the way here.
+ *
+ * That last one is not hypothetical. It opened a live call with `Welcome back. ""` - a greeting
+ * claiming a conversation that never happened, with two quote marks read out loud after it -
+ * because `'""'.trim()` is perfectly truthy. A real question has letters in it; nothing else here
+ * does.
+ */
+const nothingCarried = (text: string | null | undefined): boolean => !text || !/[a-z0-9]/i.test(text);
+
 /** The opening line of a call that has nothing behind it. */
 export const OPENING_LINE =
   'Hi there, thanks for calling. I can get you fencing quotes from businesses near you — it only takes a couple of minutes. What are you after?';
@@ -97,16 +109,19 @@ export function greetingFor(carried: {
   const known = Object.values(carried.display ?? {})
     .map((entry) => spoken(entry.value))
     .filter(Boolean);
-  const question = carried.message?.trim() ? spoken(carried.message) : '';
+  const question = nothingCarried(carried.message) ? '' : spoken(carried.message!.trim());
 
   // Nothing carried at all: an ordinary first call.
   if (!known.length && !question) return OPENING_LINE;
 
-  const recap = known.length ? ` I still have your details — ${known.join(', ')}.` : '';
+  /* "Welcome back" only when there is something of theirs to come back to.
+     A question with nothing answered under it is not a conversation they would recognise having
+     had, and being welcomed back to one reads as the machine mistaking them for somebody else. */
+  const opener = known.length ? `Welcome back. I still have your details — ${known.join(', ')}.` : 'Welcome.';
   const options = speakable(carried.options ?? []);
   const choices = question && options.length ? ` ${readOptions(options)}` : '';
 
-  return `Welcome back.${recap}${question ? ` ${question}` : ''}${choices}`;
+  return `${opener}${question ? ` ${question}` : ''}${choices}`;
 }
 
 export function toSpeech(response: ChatResponse): string {

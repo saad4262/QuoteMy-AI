@@ -235,6 +235,30 @@ export async function voiceTurn(req: Request, res: Response): Promise<void> {
  * With no key configured this still answers with a session id, which is what makes the whole voice
  * path testable from Postman with no Retell account at all.
  */
+/**
+ * The question that was on screen, whichever way the page encoded it.
+ *
+ * Every other field in this body is JSON text, so a page that encodes them all sends this one as
+ * `"How long is the fence?"` - quote marks and all - and they end up in the greeting. And a page
+ * that means "nothing" sends the four characters `null`, which is a perfectly good sentence as far
+ * as a string is concerned: it opened a call with "Welcome. null".
+ *
+ * Both shapes are already being sent by real clients, so both are accepted here rather than argued
+ * about - the same defensive read the Firestore values get.
+ */
+function asText(value: string | undefined): string {
+  const raw = value?.trim();
+  if (!raw) return '';
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null) return '';
+    return typeof parsed === 'string' ? parsed : raw;
+  } catch {
+    // Not JSON at all - a page sending the sentence plainly, which is just as valid.
+    return raw;
+  }
+}
+
 export async function createVoiceCall(req: Request, res: Response): Promise<void> {
   const sessionId = newVoiceSession();
 
@@ -267,7 +291,7 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
      same rule as every other sentence in this product. With nothing carried it is the ordinary
      greeting; with a conversation behind it, it says so and picks up the question already on
      screen, so pressing the microphone at the seventh question does not start again at hello. */
-  const greeting = greetingFor({ display: carried.display ?? {}, message: body.message, options });
+  const greeting = greetingFor({ display: carried.display ?? {}, message: asText(body.message), options });
 
   /* Written for every call now, not only one that carries a conversation, because the greeting has
      to be kept somewhere.
