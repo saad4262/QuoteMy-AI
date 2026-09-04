@@ -1,3 +1,4 @@
+import type { AnswerImage } from './client/schemas.js';
 import { resolveExisting, type ExtraValue } from './vocabulary.js';
 import type { Trade } from './vocab.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
@@ -281,6 +282,14 @@ export interface VoiceTurnRecord {
    * one answers it. A screen fills the pill on turn `n` from `turns[n + 1].chose`.
    */
   offered: { label: string; value: string | number }[];
+  /**
+   * Photos this turn put on the screen, when the caller asked to see something.
+   *
+   * A voice call is a web call: the page is open in front of them for the whole thing, polling
+   * this session. So "show me colorbond" is answerable out loud on a call - the line says the
+   * photos are on their screen and this is how they get there. Absent on almost every turn.
+   */
+  images?: AnswerImage[];
   /**
    * The label of the choice they picked, when what they said was one of the options just read out.
    *

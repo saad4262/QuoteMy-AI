@@ -46,6 +46,13 @@ const schema = z.object({
   // Unset means the field stays null - never a guessed coordinate.
   GEOCODING_API_KEY: z.string().optional(),
 
+  /**
+   * Image search, for a customer who asks to SEE a fence type rather than be told about it.
+   * A tenth of a cent a search. Unset means the question is answered in words instead, which is
+   * exactly how it behaved before pictures existed - never a broken image and never silence.
+   */
+  SERPER_API_KEY: z.string().optional(),
+
   MIN_TEXT_CHARS: z.coerce.number().default(40),
   MAX_TEXT_CHARS: z.coerce.number().default(60_000),
 
@@ -108,5 +115,5 @@ export const logger = pino({
   // separately because an uploaded .env can carry NODE_ENV=development there, and a missing
   // transport takes the whole process down at boot.
   ...(isProd || process.env.VERCEL ? {} : { transport: { target: 'pino-pretty' } }),
-  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64', 'RETELL_API_KEY'],
+  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64', 'RETELL_API_KEY', 'SERPER_API_KEY'],
 });

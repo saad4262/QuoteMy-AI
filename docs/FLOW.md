@@ -329,6 +329,23 @@ OpenAI's built-in `web_search` on the Responses API. What keeps it inside the ru
   nothing, and it must never reach `checklist.existingPrice` — that field hides every business that
   cannot beat it, and a number nobody quoted has no business doing that.
 
+- **A question that asks to SEE something is answered with photographs, not prose.** "Show me
+  colorbond", "what does treated pine look like", "what colours does it come in" — a paragraph
+  describing a colour is a worse answer than the colour, and somebody choosing between six fence
+  types they have never seen is choosing blind. `askedKind: 'looks'` routes to
+  `src/client/pictures.ts`, which is a Serper image search (`gl: au`, one credit, about a tenth of a
+  cent — a tenth of what the prose search costs) and no model call at all. It returns `answer.images`
+  alongside a single written line, and the checklist question still follows underneath.
+  - Nothing is stored and nothing is ours: these are photos on other people's sites, found fresh
+    each time and cached for a week, so `sourceName` travels with every one of them.
+  - **Different sites come first.** Left in Google's order an image search returns one fencing
+    company's gallery four times over, so a customer's first look at Colorbond would be four photos
+    of a competitor's work inside our own chat.
+  - **A picture is never a choice.** It is not an option, not a checklist value, not a price — the
+    same boundary the guide figures live under, for the same reason.
+  - **Empty falls through to the written answer.** No `SERPER_API_KEY`, a search outage, or every
+    result filtered out as a logo all end in prose rather than in silence.
+
 It did not become the `src/ai/tools/` registry this section used to anticipate. One tool with one
 call site is a file, not a registry; that idea is still the right one on the second tool.
 

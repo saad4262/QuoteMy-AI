@@ -6,6 +6,7 @@ import { readSource, type UploadedFile } from '../ingest.js';
 import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
 import { readBudgetTap } from './budget.js';
+import { findPictures, PICTURES_LINE } from './pictures.js';
 import { asObject, chatError } from './errors.js';
 import { specOf } from './fieldSpec.js';
 import { loadTradeSchema, makeLabelFor, optionsFor, type TradeSchema } from './schema.js';
@@ -84,12 +85,29 @@ async function answerIfAsked(
       )
     : [];
 
+  const material = typeof known.material === 'string' ? known.material : null;
+
+  /* Asked to be shown rather than told. A paragraph describing a colour is a worse answer than the
+     colour, and somebody choosing between six fence types they have never seen is choosing blind -
+     so this one question is answered with photographs and a single written line, and the checklist
+     question follows underneath exactly as it does under any other answer.
+
+     No prose search on this path: it is a cent and three seconds for a paragraph nobody asked for.
+     Falling through when nothing comes back is deliberate - no key, a search outage or six logos
+     filtered out all end here, and words are a worse answer than pictures but a far better one
+     than pretending the question was never asked. The label rather than the slug, because
+     "Treated pine" is what Google knows and `timber_pine` is ours. */
+  if (parsed.askedKind === 'looks') {
+    const images = await findPictures(parsed.askedAbout, material ? labelFor('material', material) : null, repo);
+    if (images.length) return { text: PICTURES_LINE, sources: [], images, kind: 'looks' };
+  }
+
   return answerQuestion(
-    { question: parsed.askedAbout, kind: parsed.askedKind },
+    { question: parsed.askedAbout, kind: parsed.askedKind === 'rates' ? 'rates' : 'advice' },
     {
       suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
       state: place?.state ?? null,
-      material: typeof known.material === 'string' ? known.material : null,
+      material,
       asked: ui?.lastQuestion || null,
       choices,
       everything,

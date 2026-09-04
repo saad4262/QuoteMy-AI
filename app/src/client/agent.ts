@@ -127,7 +127,10 @@ A fence type they named that is NOT one of the values on screen and is not one o
 Only ever about the question you were last asked. Never a height, a length, a number or a suburb. Never two things at once — if they weighed several up they have chosen nothing.
 
 askedKind
-"rates" when they are asking what something costs in general — "what does colorbond go for", "which is cheaper". "advice" for every other fencing question — materials, colours, permits, damage, process, maintenance, how long it lasts. Null exactly when askedAbout is null.
+"looks" when they want to SEE it — "show me colorbond", "what does treated pine look like", "have you got any pictures", "what colours does it come in". They are asking to be shown, not told, and they get photographs.
+"rates" when they are asking what something costs in general — "what does colorbond go for", "which is cheaper".
+"advice" for every other fencing question — which of two is better, permits, damage, process, maintenance, how long it lasts.
+Null exactly when askedAbout is null.
 
 NEVER write a question. NEVER list choices. NEVER mention a price or a rate. NEVER name a material or height that was not on screen and was not clearly said by the customer.
 

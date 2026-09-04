@@ -170,6 +170,11 @@ export async function runVoiceTurn(
         // What this turn put on the table. `chose` below answers the turn before it, not this one.
         offered: response.options,
         chose: choseFrom(offered, asked, response.checklist),
+        /* A caller who asked to see something gets it on the page they are already looking at.
+           `speakText` tells them it is there; without this the line would be true of the text chat
+           and a lie on the phone. Only on the turn they asked, so a transcript does not repeat the
+           same six photos down its whole length. */
+        ...(response.answer?.images?.length ? { images: response.answer.images } : {}),
       },
     ].slice(-MAX_TURNS),
     resultId: resultId ?? session?.resultId ?? null,

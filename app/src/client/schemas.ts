@@ -65,8 +65,9 @@ export const turnExtractionSchema = z.object({
    */
   askedAbout: z.string().nullable(),
   /**
-   * Which kind, because the two are answered differently: 'rates' goes looking for what Australian
-   * sites list and is hedged accordingly, 'advice' is everything else about fencing.
+   * Which kind, because each is answered differently: 'rates' goes looking for what Australian
+   * sites list and is hedged accordingly, 'looks' comes back as photographs rather than prose, and
+   * 'advice' is everything else about fencing.
    */
   /**
    * A fence type the customer named that the trade vocabulary has no slug for - "tubular steel",
@@ -83,7 +84,7 @@ export const turnExtractionSchema = z.object({
    * What code decides is whether it is allowed in - see `mergeAndDecide`.
    */
   namedOffList: z.string().nullable(),
-  askedKind: z.enum(['advice', 'rates']).nullable(),
+  askedKind: z.enum(['advice', 'rates', 'looks']).nullable(),
 });
 export type TurnExtraction = z.infer<typeof turnExtractionSchema>;
 
@@ -178,6 +179,26 @@ export interface Budget {
   source: string | null;
 }
 
+/**
+ * One photo from an image search, shown so they can see what something looks like.
+ *
+ * Not ours, not stored, and found fresh every time - so `sourceName` is displayed with each one.
+ * What the customer is looking at is an example off the web, never a job this marketplace did.
+ *
+ * Nothing here is tappable. A picture never becomes an option, a checklist value or a price - the
+ * same rule the web rate figures live under, and for the same reason.
+ */
+export interface AnswerImage {
+  /** The full-size image, on whoever's site it lives. */
+  url: string;
+  /** Google's own cached thumbnail. Smaller and steadier than the original - render this one. */
+  thumbUrl: string;
+  /** The site it is on, as a person would say it. Shown under the photo; never a URL. */
+  sourceName: string;
+  width: number;
+  height: number;
+}
+
 /** One site an answer leaned on, and what it said. */
 export interface AnswerSource {
   /** As a person would say it - "hipages", "Yellow Pages". Never a URL: this is read aloud. */
@@ -211,7 +232,12 @@ export interface Answer {
   /** Prose. No markdown and no URL - it is read out loud on calls. */
   text: string;
   sources: AnswerSource[];
-  kind: 'advice' | 'rates';
+  /**
+   * Photos, when they asked to see something rather than to be told about it. Absent on every
+   * other answer. `text` stands on its own without them - it is what a phone call hears.
+   */
+  images?: AnswerImage[];
+  kind: 'advice' | 'rates' | 'looks';
 }
 
 export interface ChecklistDisplayEntry {

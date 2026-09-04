@@ -217,6 +217,15 @@ Tapping "Treated pine" in the text chat leaves "Treated pine" in the transcript;
 leave the same thing, not "Treated pine. I need treated pine." It is `null` when they said something
 of their own.
 
+`images` is present only on a turn where the caller **asked to see something** — "show me
+colorbond", "what colours does it come in". A voice call is a web call: the page is open in front of
+them for the whole of it, polling this endpoint, so the photos go there and the line spoken out loud
+says they are on their screen. **Draw them under that turn.** Each carries `thumbUrl` (render this
+one — it is Google's cached copy and steadier than the original), `url`, and `sourceName`, which
+**must be shown with the photo**: these are examples found on other people's websites, not work this
+marketplace did. They are not tappable and they answer nothing — the turn's own `offered` choices
+are still the answer to the question that was asked.
+
 `checklistAnswered` and `checklistPending` are the brief panel's two halves, so it fills in **while
 the call runs** rather than all at once when it ends. **Draw the panel from these two arrays.**
 `checklistDisplay` holds the same answers keyed by field, which is right for looking one up and
@@ -435,6 +444,11 @@ link: `answer.text` is scrubbed of URLs, bare domains and markdown before it lea
 because a text-to-speech engine reads `ses.vic.gov.au` out one letter at a time. The `answer.sources`
 array carries what links exist, and only the screen ever sees it — a call hands over the answer's
 words but not its sources.
+
+The same holds for a caller who asks to **see** something. The photos go to the page (see `images`
+on the turn record above); what the call gets is one line saying they are on their screen, which is
+true of both doors because a voice call is a web call with the page open. That line is written in
+code and never mentions a URL, so nothing here reaches the speech engine as an address.
 
 ---
 
