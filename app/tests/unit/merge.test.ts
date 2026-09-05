@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { MockAiClient, setAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
+import { runFencingChat } from '../../src/client/controller.js';
 import { mergeAndDecide } from '../../src/client/mergeAndDecide.js';
 import { clearSchemaCache, loadTradeSchema, type TradeSchema } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
+import { BERWICK } from '../golden/conversations.js';
 import type { Checklist, Place, TurnExtraction, UiState } from '../../src/client/schemas.js';
 
 /**
@@ -46,6 +49,8 @@ const turn = (checklist: Partial<TurnExtraction['checklist']> = {}, over: Partia
   askedAbout: null,
   namedOffList: null,
   askedKind: null,
+  pictureOf: null,
+  mentionedOldFence: false,
   checklist: {
     material: null, heightKey: null, lengthMeters: null, removal: null,
     conditions: null, gateType: null, gateQty: null, existingPrice: null,
@@ -558,5 +563,110 @@ describe('a fence type the vocabulary has no slug for', () => {
     );
 
     expect(state.checklist.material).toBeNull();
+  });
+});
+
+/**
+ * "My fence blew over" and then, six questions later, "nothing to remove".
+ *
+ * Both cannot be true, and the one that gets believed is whichever arrived last - which takes the
+ * removal charge out of a quote for a job that starts by pulling a fence down. Nobody would spot
+ * that until the day.
+ */
+describe('a fence they said was already there', () => {
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+  });
+
+  /** Reports an old fence on the turn it is mentioned, and nothing else out of the ordinary. */
+  function mentionsOldFence(said: string): AiClient {
+    const inner = new MockAiClient();
+    return {
+      model: 'mentions',
+      async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
+        const base = await inner.callStructured(call);
+        if (call.name !== 'turn' || !call.user.includes(said)) return base;
+        const reported = base.data as { checklist: Record<string, unknown> };
+        return {
+          ...base,
+          data: call.schema.parse({
+            ...reported,
+            checklist: { ...reported.checklist, material: null },
+            ack: "No worries, we'll get that sorted for you",
+            mentionedOldFence: true,
+          }),
+        };
+      },
+    };
+  }
+
+  async function upToRemoval(script: string[]) {
+    let checklist: Checklist | null = null;
+    let place: Place | null = null;
+    let response = null as Awaited<ReturnType<typeof runFencingChat>> | null;
+
+    for (const text of script) {
+      if (text === 'Berwick') place = BERWICK;
+      response = await runFencingChat(
+        {
+          message: text,
+          sessionId: 'oldfence',
+          place: place ? JSON.stringify(place) : '',
+          knownChecklist: checklist ? JSON.stringify(checklist) : '',
+        },
+        [],
+        { repo },
+      );
+      checklist = response.checklist;
+      place = response.place ?? null;
+    }
+    return response!;
+  }
+
+  const brief = (damage: string) => [
+    'I need a fence quote',
+    'yes go ahead',
+    'Berwick',
+    damage,
+    'colorbond',
+    '1.8m',
+    '20',
+    'none',
+  ];
+
+  it('puts the removal question back once when they say there is nothing to take away', async () => {
+    const damage = 'my fence blew over in the storm last night';
+    setAiClient(mentionsOldFence(damage));
+
+    const response = await upToRemoval(brief(damage));
+
+    expect(response.message).toContain("there's a fence there already");
+    expect(response.checklist.removal ?? null).toBeNull();
+    expect(response.checklistPending.some((entry) => entry.key === 'removal')).toBe(true);
+  });
+
+  /* Asked twice it stops being a check and becomes an argument - and they may well mean it, since
+     a fence that blew over may already have been carted away. */
+  it('takes the same answer the second time without asking again', async () => {
+    const damage = 'my fence blew over in the storm last night';
+    setAiClient(mentionsOldFence(damage));
+
+    const response = await upToRemoval([...brief(damage), 'none']);
+
+    expect(response.message).not.toContain("there's a fence there already");
+    expect(response.checklist.removal).toBe('none');
+  });
+
+  it('says nothing when they never mentioned an old fence', async () => {
+    setAiClient(new MockAiClient());
+
+    const response = await upToRemoval(brief('colorbond please'));
+
+    expect(response.message).not.toContain("there's a fence there already");
+    expect(response.checklist.removal).toBe('none');
   });
 });

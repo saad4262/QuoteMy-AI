@@ -154,7 +154,15 @@ describe('inside the conversation', () => {
   });
 
   /** Reports "show me what that looks like" on the turn it is said, and counts the prose calls. */
-  function showMeAi(said: string): { ai: AiClient; prose: () => number } {
+  function showMeAi(
+    said: string,
+    kind: 'advice' | 'rates' | null = null,
+    pictureOf: string | null = 'colorbond',
+    /** What the model reported as their fence type, when it read the naming as a choice. */
+    material: string | null = null,
+    /** The question on its own, when it is only part of what they said. */
+    askedAbout: string = said,
+  ): { ai: AiClient; prose: () => number } {
     const inner = new MockAiClient();
     let prose = 0;
     return {
@@ -176,9 +184,10 @@ describe('inside the conversation', () => {
             ...base,
             data: call.schema.parse({
               ...reported,
-              checklist: { ...reported.checklist, material: null },
-              askedAbout: said,
-              askedKind: 'looks',
+              checklist: { ...reported.checklist, material },
+              askedAbout,
+              askedKind: kind,
+              pictureOf,
             }),
           };
         },
@@ -241,6 +250,59 @@ describe('inside the conversation', () => {
   });
 
   /**
+   * Looking is not choosing. "Show me colorbond" names a fence and picks nothing - and taking it as
+   * the answer chose for somebody who was still deciding, then moved on to the height while they
+   * were looking at photographs of the question they were on.
+   */
+  it('does not choose their fence for them when they only asked to see it', async () => {
+    serperReturns([IMAGE(1, 'bunnings.com.au')]);
+    const asked = 'show me colorbond';
+    // What the real model does with this, verified against the live API: it names the material.
+    const { ai } = showMeAi(asked, null, 'colorbond', 'colorbond');
+    setAiClient(ai);
+
+    const response = await say(upToMaterial(asked));
+
+    expect(response.answer?.images).toHaveLength(1);
+    expect(response.checklist.material ?? null).toBeNull();
+    // The question they were on is still the question they are on.
+    expect(response.checklistPending.some((entry) => entry.key === 'material')).toBe(true);
+    expect(response.options.length).toBeGreaterThan(0);
+  });
+
+  /** A choice and a question in one sentence: both stand, because they are about different fences. */
+  it('keeps a fence they chose while asking to see a different one', async () => {
+    serperReturns([IMAGE(1, 'bunnings.com.au')]);
+    const asked = 'colorbond, and show me what treated pine looks like';
+    // The question is only half the sentence - the other half is an answer.
+    const { ai } = showMeAi(asked, null, 'treated pine', 'colorbond', 'show me what treated pine looks like');
+    setAiClient(ai);
+
+    const response = await say(upToMaterial(asked));
+
+    expect(response.answer?.images).toHaveLength(1);
+    expect(response.checklist.material).toBe('colorbond');
+  });
+
+  /**
+   * The mirror of the test above, and the way this broke for months in the other direction: a
+   * message that leans on the word "pictures" was read as a picture question, and the half asked
+   * in words was dropped. Neither field may decide the other.
+   */
+  it('answers in words when the picture half is the loud one', async () => {
+    serperReturns([IMAGE(1, 'bunnings.com.au')]);
+    const asked = 'give me pictures of treated pine and colorbond, and which is better';
+    const { ai, prose } = showMeAi(asked, 'advice', 'treated pine and colorbond');
+    setAiClient(ai);
+
+    const response = await say(upToMaterial(asked));
+
+    expect(response.answer?.images).toHaveLength(1);
+    expect(response.message).toContain('Colorbond is steel sheeting.');
+    expect(prose()).toBe(1);
+  });
+
+  /**
    * No key, a search outage, or six logos filtered out all land here. Words are a worse answer than
    * pictures and a far better one than behaving as though nothing was asked - which is the exact
    * failure the whole answering path was built to fix.
@@ -288,6 +350,43 @@ describe('inside the conversation', () => {
     expect(session?.turns.at(-1)?.images).toHaveLength(1);
     expect(spoken.speakText).toContain('on your screen');
     expect(spoken.speakText).not.toContain('http');
+  });
+
+  /**
+   * Off a real call: "which is better, treated pine or Colorbond? I've got a farmhouse - and give
+   * me pictures of both." One message asking for two things. Read as a single kind it came back as
+   * advice and the photos were simply dropped, which is the half the customer notices missing.
+   *
+   * Both are owed, and on the same turn - they run together rather than one after the other, so
+   * asking for both costs no more waiting than asking for the words alone.
+   */
+  it('answers in words and in photos when one message asks for both', async () => {
+    serperReturns([IMAGE(1, 'bunnings.com.au'), IMAGE(2, 'stratco.com.au')]);
+    const asked = 'which is better, treated pine or colorbond, and show me pictures of both';
+    const { ai, prose } = showMeAi(asked, 'advice', 'treated pine and colorbond');
+    setAiClient(ai);
+
+    const response = await say(upToMaterial(asked));
+
+    expect(response.message).toContain('Colorbond is steel sheeting.');
+    expect(response.answer?.images).toHaveLength(2);
+    expect(response.answer?.kind).toBe('advice');
+    expect(prose()).toBe(1);
+  });
+
+  /**
+   * What they asked to SEE, not the sentence they asked it in. That whole message handed to an
+   * image search is thirty words of context around the two that matter.
+   */
+  it('searches for what they asked to see, not for their whole question', async () => {
+    const fetcher = serperReturns([IMAGE(1, 'bunnings.com.au')]);
+    const asked = 'which is better, treated pine or colorbond, and show me pictures of both';
+    setAiClient(showMeAi(asked, 'advice', 'treated pine and colorbond').ai);
+
+    await say(upToMaterial(asked));
+
+    const body = JSON.parse(String((fetcher.mock.calls[0]![1] as { body: string }).body)) as { q: string };
+    expect(body.q).toBe('treated pine and colorbond fence australia');
   });
 
   it('says the same thing out loud as it does on screen', () => {

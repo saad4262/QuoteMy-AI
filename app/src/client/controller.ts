@@ -61,7 +61,14 @@ async function answerIfAsked(
   schema: TradeSchema,
   repo: BusinessRepository,
 ): Promise<Answer | null> {
-  if (!parsed.askedAbout?.trim() || !parsed.askedKind) return null;
+  /* Two halves, each with its own entry condition, because each needs different things reported.
+     Words need the question and the kind of answer it wants; pictures need only the subject - so a
+     turn that named what to show but did not think to also copy the sentence out ("show me
+     colorbond") still gets its photographs, rather than nothing at all on the strength of a field
+     it did not need. */
+  const showing = parsed.pictureOf?.trim() ?? '';
+  const asking = parsed.askedKind && parsed.askedAbout?.trim() ? parsed.askedAbout.trim() : '';
+  if (!showing && !asking) return null;
   if ((ui?.answers ?? 0) >= MAX_ANSWERS) return null;
 
   const place = ui?.place ?? null;
@@ -86,34 +93,39 @@ async function answerIfAsked(
     : [];
 
   const material = typeof known.material === 'string' ? known.material : null;
+  const context = {
+    suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
+    state: place?.state ?? null,
+    material,
+    asked: ui?.lastQuestion || null,
+    choices,
+    everything,
+  };
 
-  /* Asked to be shown rather than told. A paragraph describing a colour is a worse answer than the
-     colour, and somebody choosing between six fence types they have never seen is choosing blind -
-     so this one question is answered with photographs and a single written line, and the checklist
-     question follows underneath exactly as it does under any other answer.
+  /* Being shown and being told are two different things they can ask for, and one message asks for
+     both all the time: "which is better, treated pine or colorbond - and show me pictures of both".
+     Read as one kind that came back as advice and the pictures were dropped, which is exactly what
+     a customer notices. So they are two questions here, asked at once rather than one after the
+     other - the pictures land on the same turn as the words, and cost it no extra time.
 
-     No prose search on this path: it is a cent and three seconds for a paragraph nobody asked for.
-     Falling through when nothing comes back is deliberate - no key, a search outage or six logos
-     filtered out all end here, and words are a worse answer than pictures but a far better one
-     than pretending the question was never asked. The label rather than the slug, because
-     "Treated pine" is what Google knows and `timber_pine` is ours. */
-  if (parsed.askedKind === 'looks') {
-    const images = await findPictures(parsed.askedAbout, material ? labelFor('material', material) : null, repo);
-    if (images.length) return { text: PICTURES_LINE, sources: [], images, kind: 'looks' };
-  }
+     Only what they asked to SEE goes to the image search, never the whole sentence: that message
+     handed to Google is thirty words of context around the two that matter. The fence they have
+     already chosen fills in for "it"; the label rather than the slug, because "Treated pine" is
+     what Google knows and `timber_pine` is ours. */
+  const [images, written] = await Promise.all([
+    showing ? findPictures(showing, material ? labelFor('material', material) : null, repo) : [],
+    /* No words asked for, none written: a cent and three seconds for a paragraph nobody wanted.
+       Which half runs is now each field's own business, so neither can cancel the other. */
+    asking && parsed.askedKind ? answerQuestion({ question: asking, kind: parsed.askedKind }, context, { repo }) : null,
+  ]);
 
-  return answerQuestion(
-    { question: parsed.askedAbout, kind: parsed.askedKind === 'rates' ? 'rates' : 'advice' },
-    {
-      suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
-      state: place?.state ?? null,
-      material,
-      asked: ui?.lastQuestion || null,
-      choices,
-      everything,
-    },
-    { repo },
-  );
+  if (written) return images.length ? { ...written, images } : written;
+  if (images.length) return { text: PICTURES_LINE, sources: [], images, kind: 'looks' };
+
+  /* Asked to be shown and there was nothing to show - no key, a search outage, or every result
+     filtered out as a logo. Words are a worse answer than pictures and a far better one than
+     pretending the question was never asked. */
+  return showing ? answerQuestion({ question: asking || showing, kind: 'advice' }, context, { repo }) : null;
 }
 
 export interface FencingChatDeps {

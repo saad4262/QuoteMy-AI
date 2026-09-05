@@ -250,13 +250,33 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
       /* "Sorry, I didn't catch that" is for a message that landed on nothing. A customer who
          asked "which type is better", got the answer, and is now being asked the question again
          was understood perfectly - apologising underneath our own answer reads as though nobody
-         noticed it. So an answered turn re-asks plainly, with the choices on screen under it. */
+         noticed it. So an answered turn re-asks plainly, with the choices on screen under it.
+
+         Nor when there is something to say back. "My fence blew over in the storm" answers no
+         question on the list, so it landed here and was told "sorry, I didn't catch that" - to
+         somebody who had just explained why they were calling. The model acknowledges what it
+         understood and leaves `ack` empty when it understood nothing, so an ack is the difference
+         between a message that missed and one that was heard but was not an answer. */
       const misunderstood =
-        askingAgain && !wantsMore && !exhausted && !answer && rawMessage.trim().length > 0 && !state.offListHeight;
+        askingAgain &&
+        !wantsMore &&
+        !exhausted &&
+        !answer &&
+        !state.ack.trim() &&
+        rawMessage.trim().length > 0 &&
+        !state.offListHeight;
       const offList = nextField === 'heightKey' && state.offListHeight ? 'Fences are not built at ' + state.offListHeight + ' — ' : null;
+      /* They said their fence was broken and then said there was nothing to take away. Put back to
+         them once, with the reason, because a removal charge quietly missing from a job that starts
+         by pulling a fence down is a wrong price nobody would spot until the day. They may well
+         mean it - a fence that blew over may already have been carted off - so this asks, and
+         whatever comes back next is taken. */
+      const recheck = state.checkRemoval ? "You mentioned there's a fence there already, so just to check — " : null;
 
       message = offList
         ? offList + 'which of these is closest?'
+        : recheck
+          ? recheck + question.charAt(0).toLowerCase() + question.slice(1)
         : exhausted
           ? "That's everything we cover — " + question.charAt(0).toLowerCase() + question.slice(1)
           : misunderstood
@@ -335,6 +355,10 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
     // Counted here rather than where the search runs, because this is the object that survives the
     // round trip through the client - a counter anywhere else resets every turn and caps nothing.
     answers: (ui.answers ?? 0) + (answer ? 1 : 0),
+    /* Carried, because the mention and the removal question sit six questions apart - and the
+       check is spent the moment it is asked, so nobody is questioned about the same answer twice. */
+    ...(state.oldFence ? { oldFence: true } : {}),
+    ...(ui.removalChecked || state.checkRemoval ? { removalChecked: true } : {}),
     // Kept out of the checklist deliberately: it is not one of the trade's fields, nothing is
     // asked about it, and the brief panel must not show a web figure as though it were an answer.
     ...(carriedBudget ? { budget: carriedBudget } : {}),

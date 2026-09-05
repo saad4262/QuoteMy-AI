@@ -272,6 +272,55 @@ describe('a question inside the conversation', () => {
    * reads as two different chats. The apology belongs to a message that landed on nothing, not to
    * one we just answered.
    */
+  /**
+   * "My fence blew over in the storm last night" answers nothing on the checklist, so it landed in
+   * the branch for a message that missed - and somebody who had just explained why they were
+   * calling was told "sorry, I didn't catch that". An acknowledgement is the difference: the model
+   * leaves it empty when it understood nothing, so an ack means it was heard, just not as an
+   * answer.
+   */
+  it('does not apologise to somebody who has just told it their fence blew over', async () => {
+    const inner = new MockAiClient();
+    setAiClient({
+      model: 'sympathetic',
+      async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
+        const base = await inner.callStructured(call);
+        if (call.name !== 'turn' || !call.user.includes('blew over')) return base;
+        const reported = base.data as { checklist: Record<string, unknown> };
+        return {
+          ...base,
+          data: call.schema.parse({
+            ...reported,
+            checklist: { ...reported.checklist, material: null },
+            ack: "No worries, we'll get that sorted for you",
+          }),
+        };
+      },
+    });
+
+    const opener = await runFencingChat(
+      { message: 'I need a fence quote', sessionId: 'storm', place: '', knownChecklist: '' },
+      [],
+      { repo },
+    );
+    const response = await runFencingChat(
+      {
+        message: 'my fence blew over in the storm last night',
+        sessionId: 'storm',
+        place: JSON.stringify({ suburb: 'Berwick', state: 'VIC', latitude: -38.03, longitude: 145.34 }),
+        knownChecklist: JSON.stringify(opener.checklist),
+      },
+      [],
+      { repo },
+    );
+
+    expect(response.message).not.toContain("didn't catch that");
+    expect(response.message).toContain("No worries, we'll get that sorted for you");
+    // Still the question they were on, with its choices under it.
+    expect(response.type).toBe('question');
+    expect(response.options.length).toBeGreaterThan(0);
+  });
+
   it('does not apologise for not catching a question it just answered', async () => {
     const ANSWER = 'Colorbond needs the least upkeep; hardwood is the better timber.';
     // The real model reports no checklist out of a question - the offline one would take the whole

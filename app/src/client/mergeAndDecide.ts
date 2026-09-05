@@ -134,6 +134,10 @@ export interface MergedState {
   placeKey: string;
   pickedAlternative: boolean;
   offListHeight: string | null;
+  /** They have mentioned a fence that is already there, at some point in this conversation. */
+  oldFence: boolean;
+  /** That mention and "nothing to remove" cannot both be true, so the question is put once more. */
+  checkRemoval: boolean;
   saidYes: boolean;
   saidNo: boolean;
   message: string;
@@ -162,6 +166,14 @@ const CHANGE_WORDS = /\b(actually|instead|change|changed|wrong|incorrect|not rig
  * Politeness and glue. Never an answer on their own, so they do not count as something the customer
  * said beyond their question.
  */
+/** Long acknowledgements are cut at a word, never mid-word - "sorted for yo" reads as a fault. */
+function clip(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(' ');
+  return (lastSpace > limit / 2 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:.\-—–]+$/, '');
+}
+
 const COURTESY = new Set([
   'thanks', 'thank', 'thankyou', 'please', 'cheers', 'mate', 'yeah', 'yep', 'ok', 'okay', 'hi', 'hello',
   'hey', 'sorry', 'um', 'uh', 'well', 'so', 'and', 'or', 'the', 'a', 'an', 'is', 'it', 'i', 'my', 'me',
@@ -424,14 +436,18 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      answer the same question: is there anything in this turn the model is entitled to have read a
      value out of? The customer-facing reply is unaffected; the question on screen is simply asked
      again, with their answer above it. */
-  const asking = !!parsed.askedAbout?.trim();
+  /* Asking to be shown is asking. "Show me colorbond" is a request to look at something, and until
+     this counted as a question the words were read as an answer instead - so the fence they wanted
+     to SEE was recorded as the fence they had chosen. */
+  const asking = !!parsed.askedAbout?.trim() || !!parsed.pictureOf?.trim();
   /* Politeness goes too, but only on a turn carrying a question - an ordinary answer is left exactly
      as the customer typed it. "Aluminium thanks, is it any good on a slope?" leaves "aluminium
      thanks", and that one extra word is enough to stop `oneOf` matching the slug outright, which
      drops it into a tie between `aluminium` and `pool_aluminium` and resolves to nothing. */
   const remainder = asking
-    ? withoutTheirQuestion(rawMessage, parsed.askedAbout).replace(/[a-z']+/gi, (word) =>
-        COURTESY.has(word.toLowerCase()) ? ' ' : word,
+    ? withoutTheirQuestion(withoutTheirQuestion(rawMessage, parsed.askedAbout), parsed.pictureOf).replace(
+        /[a-z']+/gi,
+        (word) => (COURTESY.has(word.toLowerCase()) ? ' ' : word),
       )
     : rawMessage;
   const told = slug(remainder)
@@ -440,7 +456,25 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const questionOnly = asking && told.length === 0;
 
   const docFacts = parsed.offTopic ? {} : input.docFacts;
-  const agentChecklist = parsed.offTopic || questionOnly ? {} : (parsed.checklist || {});
+  const agentChecklist: Record<string, unknown> =
+    parsed.offTopic || questionOnly ? {} : { ...(parsed.checklist || {}) };
+
+  /* Looking is not choosing.
+     "Show me colorbond" names a fence and picks nothing - they are deciding, which is the whole
+     point of the photographs - so taking it as their answer chooses for them and moves on to the
+     height while they are still looking at the question they were on. The model was told this
+     plainly, in its own section, with examples, and kept doing it anyway; whether a named thing is
+     a choice is not a judgement call once you know what they asked to be shown, so it is settled
+     here instead.
+     Only when it is the SAME thing: "colorbond, and show me what treated pine looks like" is a
+     choice and a question in one sentence, and both of them stand. */
+  const showing = slug(parsed.pictureOf ?? '');
+  const namedOnlyToBeSeen = (value: unknown): boolean => {
+    if (!showing) return false;
+    const words = slug(labelFor('material', value)).split('-').filter(Boolean);
+    return words.length > 0 && words.every((word) => showing.includes(word));
+  };
+  if (agentChecklist.material && namedOnlyToBeSeen(agentChecklist.material)) delete agentChecklist.material;
   const merged: Record<string, unknown> = {};
   /**
    * A fence type they named that the vocabulary has no slug for, taken as their answer.
@@ -699,6 +733,20 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     }
   }
 
+  /* "My fence blew over in the storm" and then, six questions later, "nothing to remove".
+     Both cannot be true, and the one that gets believed is the one that arrived last - which
+     quietly takes the removal charge out of a quote for a job that starts by pulling a fence down.
+     So the answer is not stored and the question is put once more, saying why. Once: pressed a
+     second time it stops being a check and starts being an argument, and they may well have meant
+     it - a fence that blew over may already have been carted away.
+
+     `removal` by name rather than by field type, because there is nothing in the trade schema that
+     marks a field as one whose "none" contradicts something said earlier. A second trade that
+     needs this should widen it rather than copy it. */
+  const oldFence = ui.oldFence === true || parsed.mentionedOldFence === true;
+  const checkRemoval = oldFence && !ui.removalChecked && merged.removal === 'none';
+  if (checkRemoval) merged.removal = null;
+
   const missing = askedInOrder.filter(isMissing);
   const nextField = missing.length ? missing[0]! : null;
 
@@ -756,7 +804,12 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     sources,
     schema,
     labelFor,
-    ack: typeof parsed.ack === 'string' ? parsed.ack.trim().slice(0, 40) : '',
+    /* Forty characters was the whole of an acknowledgement when an acknowledgement was "Got it".
+       A customer whose fence blew over gets a short reassuring sentence instead, and cut at forty
+       it arrived as "No worries, we'll get that sorted for yo". Cut on a word boundary now, and
+       far enough out that the sentence the prompt allows fits inside it - the cap is still here
+       because nothing stops a model returning a paragraph. */
+    ack: typeof parsed.ack === 'string' ? clip(parsed.ack.trim(), 80) : '',
     suggestedSuburb: typeof parsed.suggestedSuburb === 'string' && parsed.suggestedSuburb.trim() ? parsed.suggestedSuburb.trim() : null,
     suburbChoices: place ? [] : (input.suburbChoices ?? []),
     /* Not on a turn that carried a question. The model read "so can you suggest me which fence is
@@ -773,6 +826,8 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     placeKey: placeKeyOf(place),
     pickedAlternative,
     offListHeight,
+    oldFence,
+    checkRemoval,
     saidYes,
     saidNo,
     message: rawMessage,

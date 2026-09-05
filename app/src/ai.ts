@@ -660,6 +660,8 @@ export class MockAiClient implements AiClient {
       askedAbout: null,
       namedOffList: null,
       askedKind: null,
+      pictureOf: null,
+      mentionedOldFence: false,
     };
   }
 

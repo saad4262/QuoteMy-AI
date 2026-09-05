@@ -65,11 +65,6 @@ export const turnExtractionSchema = z.object({
    */
   askedAbout: z.string().nullable(),
   /**
-   * Which kind, because each is answered differently: 'rates' goes looking for what Australian
-   * sites list and is hedged accordingly, 'looks' comes back as photographs rather than prose, and
-   * 'advice' is everything else about fencing.
-   */
-  /**
    * A fence type the customer named that the trade vocabulary has no slug for - "tubular steel",
    * "bamboo screening", "wrought iron".
    *
@@ -84,7 +79,40 @@ export const turnExtractionSchema = z.object({
    * What code decides is whether it is allowed in - see `mergeAndDecide`.
    */
   namedOffList: z.string().nullable(),
-  askedKind: z.enum(['advice', 'rates', 'looks']).nullable(),
+  /**
+   * What kind of answer IN WORDS they are owed - 'rates' goes looking for what Australian sites
+   * list and is hedged accordingly, 'advice' is everything else about fencing.
+   *
+   * Null when they only asked to be SHOWN something and asked nothing in words, and null when
+   * `askedAbout` is null. Being shown and being told are separate fields because one field kept
+   * having to choose between them: a message asking for both came back as a single kind, and
+   * whichever half lost was dropped without trace. Which half that was depended on how the
+   * sentence happened to be worded, so it failed in both directions.
+   */
+  askedKind: z.enum(['advice', 'rates']).nullable(),
+  /**
+   * What they asked to be SHOWN, in two or three words - "colorbond", "treated pine and colorbond".
+   * Null when they did not ask to see anything, which is most turns.
+   *
+   * Separate from `askedKind` because one message routinely does both: "which is better, treated
+   * pine or Colorbond, I've got a farmhouse - and show me pictures of both" is one question with
+   * two things owed. Read as a kind alone it came back as advice, and the pictures were dropped.
+   *
+   * The subject rather than the sentence, because this is what gets searched: that whole message
+   * handed to an image search is thirty words of context around the two that matter.
+   */
+  pictureOf: z.string().nullable(),
+  /**
+   * They referred to a fence that is already there - "my fence blew over", "the old one is
+   * rotting", "we're replacing the timber one". Not whether they want it taken away, which is a
+   * checklist field they will be asked about; only that one exists.
+   *
+   * Reported rather than read out of the text in code, because it is spread across any phrasing a
+   * person might use. What it is FOR is a contradiction: somebody who says their fence is broken
+   * and later answers "nothing to remove" has said two things that cannot both be true, and taking
+   * the second one silently loses the removal charge out of their quote.
+   */
+  mentionedOldFence: z.boolean(),
 });
 export type TurnExtraction = z.infer<typeof turnExtractionSchema>;
 
@@ -130,6 +158,16 @@ export interface UiState {
    * it changes nothing about which businesses are shown or what they cost.
    */
   budget?: Budget;
+  /**
+   * They have mentioned, at some point in this conversation, a fence that is already there.
+   *
+   * Carried because the mention and the removal question are usually far apart: "my fence blew
+   * over" is how the conversation opens, and what to do with the old one is asked six questions
+   * later. Nothing compares the two unless one of them is still here when the other arrives.
+   */
+  oldFence?: boolean;
+  /** Asked to think again about it once. Twice would be arguing with them. */
+  removalChecked?: boolean;
 }
 
 export interface PlaceHint {
