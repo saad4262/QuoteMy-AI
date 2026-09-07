@@ -1,6 +1,6 @@
 import { logger } from './config.js';
 import { getRepository } from './store.js';
-import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, UNITS, type Trade } from './vocab.js';
+import { TRADE_VOCAB, type Trade } from './vocab.js';
 
 /**
  * The per-trade vocabulary: a fixed core, and an "extra" tier that learns.
@@ -25,28 +25,16 @@ export interface ExtraValue {
 
 export interface TradeVocabulary {
   trade: Trade;
-  core: {
-    materials: readonly string[];
-    gateTypes: readonly string[];
-    conditions: readonly string[];
-    removes: readonly string[];
-    units: readonly string[];
-    tags: readonly string[];
-  };
+  /* Keyed by the trade's own list names - fencing has `gateTypes`, tiling will not. See
+     `TradeVocab` in vocab.ts for why the names belong to the trade rather than to this shape. */
+  core: Record<string, readonly string[]>;
   extras: Record<string, ExtraValue>;
 }
 
 /** `core` is a mirror of vocab.ts, never a second source of truth. */
 export const coreOf = (trade: Trade): TradeVocabulary => ({
   trade,
-  core: {
-    materials: MATERIALS,
-    gateTypes: GATE_TYPES,
-    conditions: CONDITIONS,
-    removes: REMOVES,
-    units: UNITS,
-    tags: TAGS,
-  },
+  core: TRADE_VOCAB[trade].core,
   extras: {},
 });
 

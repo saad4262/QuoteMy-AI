@@ -23,7 +23,7 @@ import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
 import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
-import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
+import { TRADE_VOCAB, TRADES, type Trade } from './vocab.js';
 
 /**
  * The Firestore side of the contract the frontend already ships against:
@@ -325,10 +325,11 @@ export class FirestoreRepository implements BusinessRepository {
   async syncTradeSchema(trade: Trade): Promise<void> {
     const ref = this.vocabRef(trade);
     const compiled = {
-      core: {
-        materials: [...MATERIALS], gateTypes: [...GATE_TYPES], conditions: [...CONDITIONS],
-        removes: [...REMOVES], units: [...UNITS], tags: [...TAGS],
-      },
+      // This trade's lists, under this trade's own names - seeding fencing's materials into
+      // `schema/tiling` would put fence types on a tiler's screen and quote nobody.
+      core: Object.fromEntries(
+        Object.entries(TRADE_VOCAB[trade].core).map(([name, values]) => [name, [...values]]),
+      ) as Record<string, string[]>,
       labels: CUSTOMER_LABEL_GROUPS,
       questions: QUESTIONS,
       fields: FENCING_FIELDS,
@@ -473,7 +474,9 @@ export class FirestoreRepository implements BusinessRepository {
          have already given. */
       const core = ((snap.exists ? snap.get('core') : null) ?? {}) as Record<string, string[]>;
       const labels = ((snap.exists ? snap.get('labels') : null) ?? {}) as Record<string, Record<string, string>>;
-      const materials = Array.isArray(core.materials) ? core.materials : [...MATERIALS];
+      /* Which list extras are promoted INTO is fencing's `materials` today. A trade whose
+         offerings hang off a differently named list says so here when it arrives. */
+      const materials = Array.isArray(core.materials) ? core.materials : [...(TRADE_VOCAB[trade].core.materials ?? [])];
       const promoted = readyForPromotion(extras, materials);
 
       const write: Record<string, unknown> = { trade, extras, updatedAt: FieldValue.serverTimestamp() };

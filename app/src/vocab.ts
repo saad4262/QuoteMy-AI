@@ -63,3 +63,41 @@ export const BOUNDS = {
 
 export const TRADES = ['fencing'] as const; // tiling, decking, retaining_wall follow the Day-9 gate
 export type Trade = (typeof TRADES)[number];
+
+/**
+ * The same vocabulary, reachable by trade.
+ *
+ * Every list above is fencing's. A second trade does not add values to them — it brings its own
+ * lists under its own names, because `gateTypes` is not a concept tiling has and `surfaces` is not
+ * one fencing has. So anything that serves a trade generically — `coreOf`, `syncTradeSchema`, the
+ * chat's fallback vocabulary — reads the lists from here rather than importing fencing's by name.
+ *
+ * A record rather than a fixed shape, deliberately: the LIST NAMES belong to the trade. What may
+ * not vary is that every list stays closed — the model picks a value from it or the line goes to
+ * `unmapped`, never to the nearest guess (`CONTEXT.md` §8). Adding a value to one of these is
+ * still a schema migration, in both the extraction schema and the verifier.
+ *
+ * A trade's own verifier and extraction schema keep importing their own constants directly, the
+ * way `verify.ts` and `schemas.ts` do today. Those files are per-trade already; it is only the
+ * generic callers that need a lookup.
+ */
+export interface TradeVocab {
+  core: Record<string, readonly string[]>;
+  bounds: Record<string, { readonly min: number; readonly max: number }>;
+}
+
+export const FENCING_VOCAB: TradeVocab = {
+  core: {
+    materials: MATERIALS,
+    gateTypes: GATE_TYPES,
+    conditions: CONDITIONS,
+    removes: REMOVES,
+    units: UNITS,
+    tags: TAGS,
+  },
+  bounds: BOUNDS,
+};
+
+export const TRADE_VOCAB: Record<Trade, TradeVocab> = {
+  fencing: FENCING_VOCAB,
+};
