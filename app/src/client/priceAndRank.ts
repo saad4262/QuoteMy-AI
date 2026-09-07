@@ -22,7 +22,10 @@ import type { AlternativeOffer, ChatResponse, Checklist, ComparisonQuote, QuoteR
  * checklist can accept as-is.
  */
 function makeMaterialNaming(schema: TradeSchema) {
-  const materials = schema.labels.materials;
+  /* Fencing's rate table is keyed by material, so its labels are the material ones. A trade whose
+     rates key off something else names that group in its pricing spec (step A6); until then an
+     absent map is an empty one rather than a crash. */
+  const materials = schema.labels.materials ?? {};
   const canonicalMaterial = (value: string): string =>
     Object.keys(materials).find((k) => slug(k) === slug(value)) ?? value;
   const materialLabel = (value: string): string => {

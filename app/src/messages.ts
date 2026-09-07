@@ -1,4 +1,4 @@
-import type { Trade } from './vocab.js';
+import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from './vocab.js';
 
 /**
  * Enum slugs are how the database stores it; nobody wants to read timber_pine on a screen.
@@ -70,6 +70,29 @@ export const CUSTOMER_LABEL_GROUPS = {
   },
 };
 
+/**
+ * What the chat may OFFER, per trade, in the order it offers them.
+ *
+ * Not the same list as `TRADE_VOCAB` even for fencing, and the difference is the point: `removes`
+ * leads with the business-side wildcard `any` because the question is a yes/no one, while the
+ * vocabulary lists it last. A customer-facing order is a customer-facing decision.
+ *
+ * Every value here should also have a label below it; one without is offered as a title-cased slug.
+ */
+export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
+  fencing: {
+    materials: [...MATERIALS],
+    gateTypes: [...GATE_TYPES],
+    conditions: [...CONDITIONS],
+    removes: ['any', ...REMOVES.filter((r) => r !== 'any')],
+  },
+};
+
+/** The same, for the words. Keyed by trade so a second trade brings its own and touches nothing. */
+export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string>>> = {
+  fencing: CUSTOMER_LABEL_GROUPS,
+};
+
 /** Flattened, for the business-side response. Derived - never edited by hand. */
 export const LABELS: Record<string, string> = Object.assign({}, ...Object.values(LABEL_GROUPS));
 
@@ -85,6 +108,11 @@ export const QUESTIONS: Record<string, string> = {
   conditions: 'Anything tricky about the site?',
   gateType: 'Do you need any gates?',
   gateQty: 'How many of those gates?',
+};
+
+/** Per trade, for the same reason as the lists above: fencing's wording is fencing's. */
+export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
+  fencing: QUESTIONS,
 };
 
 export const MESSAGES = {

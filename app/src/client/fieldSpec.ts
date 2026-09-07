@@ -1,4 +1,5 @@
 import { QUESTIONS } from '../messages.js';
+import type { Trade } from '../vocab.js';
 import { HEIGHT_FALLBACK, QUANTITIES } from './vocab.js';
 
 /**
@@ -44,6 +45,18 @@ export interface FieldSpec {
   question?: string;
   /** Dotted path into the trade schema, e.g. `core.materials`. The trade's own vocabulary. */
   source?: string;
+  /**
+   * Which of the trade's label maps turns this field's values into words - `labels.materials` for
+   * fencing's material. Without one the value is title-cased, which is right for a field whose
+   * answers are numbers and wrong for one whose answers are slugs.
+   */
+  labelGroup?: string;
+  /**
+   * How a value with no label map is read back: `{ suffix: 'm' }` gives "20m", and
+   * `{ one: 'gate', many: 'gates' }` gives "1 gate" / "2 gates". A measure that already carries
+   * its unit in the value ("1.8m") needs neither.
+   */
+  labelUnit?: { suffix?: string; one?: string; many?: string };
   /** A literal list, for anything no business publishes rates against: a length, a count. */
   options?: (string | number)[];
   pinned?: PinnedOption;
@@ -89,6 +102,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'material',
     type: 'enum',
+    labelGroup: 'materials',
     title: 'Material',
     question: QUESTIONS.material,
     source: 'core.materials',
@@ -108,6 +122,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'lengthMeters',
     type: 'number',
+    labelUnit: { suffix: 'm' },
     title: 'Length',
     question: QUESTIONS.lengthMeters,
     /* No list. Ten, fifteen, twenty were three guesses at a number the customer already knows, and
@@ -117,6 +132,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'removal',
     type: 'enum',
+    labelGroup: 'removes',
     title: 'Old fence',
     question: QUESTIONS.removal,
     source: 'core.removes',
@@ -129,6 +145,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'conditions',
     type: 'multiEnum',
+    labelGroup: 'conditions',
     title: 'Site conditions',
     question: QUESTIONS.conditions,
     source: 'core.conditions',
@@ -137,6 +154,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'gateType',
     type: 'enum',
+    labelGroup: 'gateTypes',
     title: 'Gate',
     question: QUESTIONS.gateType,
     source: 'core.gateTypes',
@@ -145,6 +163,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'gateQty',
     type: 'count',
+    labelUnit: { one: 'gate', many: 'gates' },
     /* Not "Gates". It sits directly under "Gate" in the brief panel, and two labels one letter
        apart is not a distinction anybody reads - especially greyed out, before either has a value. */
     title: 'Number of gates',
@@ -158,6 +177,15 @@ export const FENCING_FIELDS: FieldSpec[] = [
     asked: false,
   },
 ];
+
+/**
+ * Each trade's checklist, by trade. Read by anything that serves a trade generically - the chat's
+ * fallback schema and the Firestore seed - so that publishing `schema/tiling` cannot seed it with
+ * fencing's questions.
+ */
+export const TRADE_FIELDS: Record<Trade, FieldSpec[]> = {
+  fencing: FENCING_FIELDS,
+};
 
 /** Every spec entry, asked or not. */
 export const specOf = (fields: FieldSpec[], key: string): FieldSpec | undefined => fields.find((f) => f.key === key);

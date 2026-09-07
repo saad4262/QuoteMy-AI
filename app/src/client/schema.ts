@@ -1,9 +1,9 @@
 import { logger } from '../config.js';
-import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from '../messages.js';
+import { CUSTOMER_CORE, CUSTOMER_LABELS, QUESTIONS } from '../messages.js';
 import { getRepository, type BusinessRepository } from '../store.js';
-import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from '../vocab.js';
+import type { Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
-import { FENCING_FIELDS, FIELD_TYPES, specOf, type FieldSpec } from './fieldSpec.js';
+import { FIELD_TYPES, specOf, TRADE_FIELDS, type FieldSpec } from './fieldSpec.js';
 import { type ChecklistField, offListWords } from './vocab.js';
 
 /**
@@ -20,22 +20,21 @@ import { type ChecklistField, offListWords } from './vocab.js';
  * works; one that degrades to an empty list would show a question with no answers.
  */
 
+/**
+ * One of the trade's option lists. Usually flat; a map when the list depends on another answer -
+ * heights that differ by material, for a trade that builds different types to different heights.
+ */
+export type CoreList = string[] | Record<string, string[]>;
+
 export interface TradeSchema {
   trade: Trade;
-  core: {
-    materials: string[];
-    gateTypes: string[];
-    conditions: string[];
-    /** Customer-facing: the business-side wildcard `any` is filtered out here, never offered. */
-    removes: string[];
-    heights: string[] | Record<string, string[]> | null;
-  };
-  labels: {
-    materials: Record<string, string>;
-    gateTypes: Record<string, string>;
-    conditions: Record<string, string>;
-    removes: Record<string, string>;
-  };
+  /**
+   * The trade's own lists, under the trade's own names - `materials` and `gateTypes` for fencing,
+   * something else entirely for the next trade. A field reaches its list by `spec.source`, so
+   * nothing here needs to know what any of them are called.
+   */
+  core: Record<string, CoreList>;
+  labels: Record<string, Record<string, string>>;
   /**
    * Wording PUBLISHED for this trade, and only that - not a copy of the compiled defaults. Keeping
    * the two apart is what lets an override be told from a default: a document that says nothing
@@ -58,36 +57,51 @@ const FALLBACK_QUESTIONS: Record<string, string> = {
 };
 
 function fallbackSchema(trade: Trade, extras: Record<string, ExtraValue> = {}): TradeSchema {
+  /* Copied a level down, never shared: a published document is merged onto this, and writing
+     through into the compiled constant would leak one conversation's schema into the next. */
   return {
     trade,
-    core: {
-      materials: [...MATERIALS],
-      gateTypes: [...GATE_TYPES],
-      conditions: [...CONDITIONS],
-      /* "any" leads, because the question is a yes/no one: "is there an old fence to remove?" is
-         answered yes or no, and which material it is made of is a pricing detail behind that. The
-         two kinds follow on the next page and are still what a typed answer resolves to. */
-      removes: ['any', ...REMOVES.filter((r) => r !== 'any')],
-      heights: null,
-    },
-    labels: {
-      materials: { ...CUSTOMER_LABEL_GROUPS.materials },
-      gateTypes: { ...CUSTOMER_LABEL_GROUPS.gateTypes },
-      conditions: { ...CUSTOMER_LABEL_GROUPS.conditions },
-      removes: { ...CUSTOMER_LABEL_GROUPS.removes },
-    },
+    core: Object.fromEntries(Object.entries(CUSTOMER_CORE[trade]).map(([key, values]) => [key, [...values]])),
+    labels: Object.fromEntries(Object.entries(CUSTOMER_LABELS[trade]).map(([key, table]) => [key, { ...table }])),
     questions: {},
-    fields: [...FENCING_FIELDS],
+    fields: [...TRADE_FIELDS[trade]],
     extras,
     fromFirestore: false,
   };
 }
 
-const list = (value: unknown, fallback: string[]): string[] =>
-  Array.isArray(value) && value.length ? value.filter((v): v is string => typeof v === 'string') : fallback;
+/**
+ * A published list replaces the compiled one WHOLE; an empty or unusable one leaves it standing.
+ *
+ * Per key rather than per document, because these are independent lists: a trade that republishes
+ * its materials has said nothing about its site conditions. Keys the compiled schema has never
+ * heard of are kept - that is a trade the code does not know, which is the point of publishing.
+ */
+const mergeLists = (stored: Record<string, unknown> | undefined, base: Record<string, CoreList>): Record<string, CoreList> => {
+  const merged: Record<string, CoreList> = { ...base };
+  for (const [key, value] of Object.entries(stored ?? {})) {
+    if (Array.isArray(value)) {
+      const strings = value.filter((v): v is string => typeof v === 'string');
+      if (strings.length) merged[key] = strings;
+    } else if (value && typeof value === 'object' && Object.keys(value).length) {
+      merged[key] = value as Record<string, string[]>;
+    }
+  }
+  return merged;
+};
 
-const map = (value: unknown, fallback: Record<string, string>): Record<string, string> =>
-  value && typeof value === 'object' && Object.keys(value).length ? (value as Record<string, string>) : fallback;
+const mergeMaps = (
+  stored: Record<string, unknown> | undefined,
+  base: Record<string, Record<string, string>>,
+): Record<string, Record<string, string>> => {
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(stored ?? {})) {
+    if (value && typeof value === 'object' && Object.keys(value).length) {
+      merged[key] = value as Record<string, string>;
+    }
+  }
+  return merged;
+};
 
 /**
  * Read once per conversation, not per turn.
@@ -161,21 +175,8 @@ export async function loadTradeSchema(trade: Trade, repo: BusinessRepository = g
       const base = fallbackSchema(trade, stored.extras ?? {});
       value = {
         ...base,
-        core: {
-          materials: list(stored.core?.materials, base.core.materials),
-          gateTypes: list(stored.core?.gateTypes, base.core.gateTypes),
-          conditions: list(stored.core?.conditions, base.core.conditions),
-          // `any` is a business-side wildcard - "we'll take away whatever is there". A customer
-          // cannot answer it about their own old fence, so it never becomes a choice.
-          removes: list(stored.core?.removes, base.core.removes),
-          heights: stored.core?.heights ?? null,
-        },
-        labels: {
-          materials: map(stored.labels?.materials, base.labels.materials),
-          gateTypes: map(stored.labels?.gateTypes, base.labels.gateTypes),
-          conditions: map(stored.labels?.conditions, base.labels.conditions),
-          removes: map(stored.labels?.removes, base.labels.removes),
-        },
+        core: mergeLists(stored.core, base.core),
+        labels: mergeMaps(stored.labels, base.labels),
         questions: { ...base.questions, ...(stored.questions ?? {}) },
         fields: structurallyUsable(stored.fields, trade) ?? base.fields,
         fromFirestore: Boolean(stored.core || stored.labels || stored.questions || stored.fields),
@@ -253,13 +254,6 @@ export function sourcesFrom(schema: TradeSchema): Sources {
   return sources;
 }
 
-const GROUPS: Partial<Record<ChecklistField, keyof TradeSchema['labels']>> = {
-  material: 'materials',
-  removal: 'removes',
-  conditions: 'conditions',
-  gateType: 'gateTypes',
-};
-
 const titleCase = (value: unknown): string => {
   const text = String(value).replace(/[_-]+/g, ' ').trim();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
@@ -275,14 +269,21 @@ export function makeLabelFor(schema: TradeSchema) {
     const named = offListWords(value);
     if (named) return titleCase(named);
 
-    const group = GROUPS[field];
-    const table = group ? schema.labels[group] : undefined;
+    const spec = specOf(schema.fields, field);
+
+    const table = spec?.labelGroup ? schema.labels[spec.labelGroup] : undefined;
     if (table?.[String(value)]) return table[String(value)]!;
-    // An extra carries its own label ("Bamboo screening") and is not in labels.materials.
-    if (field === 'material' && schema.extras[String(value)]?.label) return schema.extras[String(value)]!.label;
-    if (field === 'lengthMeters') return value + 'm';
-    if (field === 'gateQty') return value + (Number(value) === 1 ? ' gate' : ' gates');
-    if (field === 'heightKey') return String(value);
+
+    // An extra carries its own label ("Bamboo screening") and is in no label map. Only the field
+    // that recognises a one-business offering looks for one - the same flag `validate` reads.
+    if (spec?.acceptsExtras && schema.extras[String(value)]?.label) return schema.extras[String(value)]!.label;
+
+    const unit = spec?.labelUnit;
+    if (unit?.suffix) return String(value) + unit.suffix;
+    if (unit?.one && unit.many) return String(value) + ' ' + (Number(value) === 1 ? unit.one : unit.many);
+
+    /* Everything else reads back as written, which is what a measure wants: "1.8m" already carries
+       its unit, and title-casing it changes nothing. */
     return titleCase(value);
   };
 }

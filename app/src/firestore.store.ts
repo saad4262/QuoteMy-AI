@@ -18,8 +18,8 @@ import type {
   VoiceSession,
   VoiceTurnRecord,
 } from './store.js';
-import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
-import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
+import { describeFieldDrift, TRADE_FIELDS } from './client/fieldSpec.js';
+import { CUSTOMER_LABELS, TRADE_QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
 import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
@@ -330,9 +330,9 @@ export class FirestoreRepository implements BusinessRepository {
       core: Object.fromEntries(
         Object.entries(TRADE_VOCAB[trade].core).map(([name, values]) => [name, [...values]]),
       ) as Record<string, string[]>,
-      labels: CUSTOMER_LABEL_GROUPS,
-      questions: QUESTIONS,
-      fields: FENCING_FIELDS,
+      labels: CUSTOMER_LABELS[trade],
+      questions: TRADE_QUESTIONS[trade],
+      fields: TRADE_FIELDS[trade],
     };
 
     await db().runTransaction(async (tx) => {
@@ -390,7 +390,7 @@ export class FirestoreRepository implements BusinessRepository {
 
     /* The checklist drifts the same way the vocabulary does, and more quietly: a question dropped
        from the published spec raises no error anywhere, it is simply never asked again. */
-    const drift = describeFieldDrift(FENCING_FIELDS, snap.get('fields'));
+    const drift = describeFieldDrift(TRADE_FIELDS[trade], snap.get('fields'));
     if (drift) {
       if (drift.unknownTypes.length) {
         logger.error(
