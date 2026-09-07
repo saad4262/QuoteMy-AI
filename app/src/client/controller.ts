@@ -255,6 +255,26 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
 }
 
 /**
+ * What the customer can be offered, for a frontend building a trade picker.
+ *
+ * Read from what is PUBLISHED rather than from the compiled `TRADES`, so a trade the code can serve
+ * but nobody has onboarded into yet is never put on screen - offering it would match nobody.
+ *
+ * Deliberately a list rather than a question in the chat. Asking "which trade?" when a request does
+ * not name one would change the answer for every client that has never sent one, including the
+ * deployed frontend and every golden conversation, all of which correctly get fencing today. Which
+ * trade a customer is in is the entry point's decision, and this is what that decision reads.
+ */
+export async function clientTrades(_req: Request, res: Response): Promise<void> {
+  const repo = getRepository();
+  const trades = await repo.listPublishedTrades();
+  res.status(200).json({
+    ok: true,
+    data: trades.map((trade) => ({ trade, label: TRADE_WORDS[trade].trade })),
+  });
+}
+
+/**
  * Every failure a turn can produce leaves here in the chat's own shape, never the `{ ok, error }`
  * envelope the rest of the API uses - see `errors.ts` for why.
  */

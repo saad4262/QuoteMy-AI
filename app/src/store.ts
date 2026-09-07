@@ -1,6 +1,6 @@
 import type { AnswerImage } from './client/schemas.js';
 import { resolveExisting, type ExtraValue } from './vocabulary.js';
-import type { Trade } from './vocab.js';
+import { TRADES, type Trade } from './vocab.js';
 import type {
   AnyVerifiedCapabilities,
   AnyVerifiedOffering,
@@ -166,6 +166,14 @@ export interface BusinessRepository {
    * reaches the chat without a redeploy. Null when the document does not exist yet.
    */
   getTradeSchema(trade: Trade): Promise<StoredTradeSchema | null>;
+  /**
+   * Which trades are actually published and can be quoted.
+   *
+   * `TRADES` is what the CODE knows how to serve; this is what is live. A trade whose schema has
+   * never been synced would be offered to a customer and then match nobody, so a picker built off
+   * the compiled list is a promise the product cannot keep.
+   */
+  listPublishedTrades(): Promise<Trade[]>;
   /** Merge, never overwrite: two submissions in flight must both be counted. */
   mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void>;
   /** Publish core, labels and questions so the customer side can read the whole vocabulary. */
@@ -495,6 +503,11 @@ export class MemoryRepository implements BusinessRepository {
   async getTradeSchema(trade: Trade): Promise<StoredTradeSchema | null> {
     const extras = this.extras.get(trade);
     return extras ? { extras } : null;
+  }
+
+  async listPublishedTrades(): Promise<Trade[]> {
+    // In memory every compiled trade is serveable - there is no document to be missing.
+    return [...TRADES];
   }
 
   async mergeTradeExtras(trade: Trade, seen: { slug: string; label: string }[]): Promise<void> {

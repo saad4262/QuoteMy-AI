@@ -78,46 +78,100 @@ is the whole design, and it is what makes tiling cheap on your side.
 
 ---
 
-## 2. Waiting on the tiling SOP
+## 2. Settled since the SOP arrived
 
-The client is sending their tiling SOP. It decides what a tiler must publish, and therefore what a
-customer is asked and what the confirm screen shows. These are the three open questions — they are
-not ours to guess:
+The tiling SOP (`SOPS/Paky Tiles Master Business Knowledge Base.pdf`) answered the three open
+questions, and tiling is now live on both sides.
 
-1. **How area is asked.** Room length × width with the server computing m², a single m² field, or
-   size presets.
-2. **Labour-only vs supply-and-install.** Fencing is always supply-and-install. Tiling routinely is
-   not, and if the SOP wants both it becomes an ordinary question in the chat.
-3. **What keys a rate.** Tile type × surface, possibly with a size band.
+### 2.0 What a tiling conversation asks
 
-### 2.1 The business confirm screen is the real work
+Eight questions, the same count as fencing, and **you do not need to know any of them** — they come
+down the wire like fencing's do (§1.5). Listed here only so the screens make sense:
+
+```
+suburb → jobType → tileType → areaSqm → supply → removal → waterproofing → conditions
+```
+
+- **`jobType` leads**, because in this trade the room is the job: a bathroom is floor and wall and
+  waterproofing at once, and tilers publish one price for it.
+- **`areaSqm` is still asked** after it, because plenty of businesses publish only per-m² rates and
+  quote that same bathroom by the metre.
+- **`supply`** is "who is buying the tiles" — both models are real and the labour rate is the same
+  either way.
+
+### 2.1 Which trades to put on the picker
+
+```
+GET /api/v1/client/trades   →  { "ok": true, "data": [ { "trade": "fencing", "label": "fencing" },
+                                                       { "trade": "tiling",  "label": "tiling"  } ] }
+```
+
+Read this rather than hardcoding a list: it returns what is actually **published**, so a trade the
+backend can serve but nobody has onboarded into yet is never offered to a customer who would then
+match nobody.
+
+The chat does **not** ask which trade when a request does not name one — it answers as fencing,
+exactly as it always has, so nothing that has not been updated breaks. Picking the trade is the
+entry point's job, and the endpoint above is what that decision reads.
+
+### 2.2 The business confirm screen — the real remaining work
 
 Today's screen renders fencing's shape: material × height × $/m, gates as items, removal per metre.
-Tiling's verified shape is genuinely different — rates per m², surface prep, waterproofing — so this
-screen has to become per trade, or be driven from the response's own structure.
+Tiling's verified shape is genuinely different, and now exists:
 
-Two ways to do it, to decide together once the SOP lands:
+```jsonc
+{
+  "supplyModels": ["supply_and_install", "labour_only"],
+  "enabledJobTypes": ["floor_only", "bathroom"],
+  // keyed by job; a row's tileType is null when the price covers any tile
+  "rates": { "floor_only": [ { "tileType": null,        "price": 65,   "unit": "per_sqm" },
+                             { "tileType": "porcelain", "price": 72,   "unit": "per_sqm" } ],
+             "bathroom":   [ { "tileType": null,        "price": 4850, "unit": "per_job" } ] },
+  "tileSupply":    [ { "label": "Urban Grey Porcelain 600x600", "pricePerSqm": 45 } ],
+  "prep":          [ { "type": "floor_levelling", "price": 650, "unit": "per_job" } ],
+  "removals":      [ { "removes": "ceramic", "pricePerSqm": 45 } ],
+  "waterproofing": [ { "area": "bathroom", "price": 950 } ],
+  "siteConditions":[ { "condition": "second_storey", "extraPerSqm": null, "extraPercent": 10 } ],
+  "minimumCharge": 350, "callOutFee": 95, "travelFee": 75
+}
+```
 
-- **Per-trade renderers.** Simple, honest, and one more component per trade.
-- **Server-described sections.** The response describes what to render; the frontend has one
-  renderer for ever. More work up front on both sides, and nothing to do per trade after.
+**Read `unit` on every rate row.** It is `per_sqm` or `per_job`, and the same table holds both — a
+$4,850 bathroom package is one price, not a price per square metre.
+
+Two ways to build it, still to decide together:
+
+- **Per-trade renderers.** Simple, honest, one more component per trade.
+- **Server-described sections.** The response describes what to render; one renderer for ever.
 
 **No price goes live without this screen.** A business explicitly confirming its figures is a
 non-negotiable (`CLAUDE.md`), so this cannot be skipped for tiling to launch.
 
-### 2.2 The unit on result cards
+### 2.3 `labels` is flat, and for tiling that is lossy
+
+The response's `labels` map is now per trade — a tiler gets tiling's words, which was a bug fixed
+while building this. One thing to know: tiling's slugs **repeat across groups**. `bathroom` is both
+a job and a wet area; `ceramic` is both a tile and something being taken up. Flattened, the factual
+naming wins, so `bathroom` reads "Bathroom".
+
+If you build per-trade renderers, prefer rendering each section from its own group in
+`schema/{trade}.labels` rather than from the flat map.
+
+### 2.4 The unit on result cards
 
 Fencing shows `$/m`. Tiling shows `$/m²`. The wire field names stay `ratePerMeter` and
 `avgRatePerMeter` — they are what you already read, and renaming them would break the shipped app to
 improve a name — but for tiling they carry a **per square metre** figure.
 
-Open decision, to make with the tiling wire contract:
+Still open, and worth deciding when you build the picker:
 
 - the server adds a `unit` field to the response (`"m" | "m2" | "item"`), and you render whatever it
   says — **recommended**; or
 - the frontend maps trade → unit itself, which is one small duplicated fact.
 
-Until that is decided, do not print a hardcoded "per metre" anywhere you would show tiling.
+It was not added yet because it puts a new field on every response, including fencing's, and that
+belongs in a change you are ready to consume. Until then, do not print a hardcoded "per metre"
+anywhere you would show tiling.
 
 ---
 

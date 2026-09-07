@@ -419,6 +419,25 @@ export class FirestoreRepository implements BusinessRepository {
    * entire vocabulary - which is what lets a business-side change reach a customer's multiple
    * choice without touching the chat's code.
    */
+  /**
+   * Read rather than assumed: `schema/{trade}` exists once `syncTradeSchema` has run for it, which
+   * happens the first time a business in that trade is processed. A trade the code can serve but
+   * nobody has published yet is not one to offer a customer.
+   */
+  async listPublishedTrades(): Promise<Trade[]> {
+    const live: Trade[] = [];
+    for (const trade of TRADES) {
+      try {
+        const snap = await this.vocabRef(trade).get();
+        if (snap.exists) live.push(trade);
+      } catch (err) {
+        logger.warn({ err, trade }, 'could not check whether this trade is published');
+      }
+    }
+    // Never an empty list: a Firestore outage must not make the product look like it sells nothing.
+    return live.length ? live : [...TRADES];
+  }
+
   async getTradeSchema(trade: Trade): Promise<StoredTradeSchema | null> {
     const snap = await this.vocabRef(trade).get();
     if (!snap.exists) return null;

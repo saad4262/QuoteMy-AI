@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { business } from './controller.js';
-import { clientChat } from './client/controller.js';
+import { clientChat, clientTrades } from './client/controller.js';
 import { createVoiceCall, voiceSession, voiceTurn, voiceTurnBody } from './client/voice/controller.js';
 import { chatBody } from './client/schemas.js';
 import { chatIpLimiter, chatLimiter, voiceCallLimiter } from './client/limits.js';
@@ -71,6 +71,9 @@ for (const path of ['/client/chat', '/client/fencing-chat']) {
     clientChat,
   );
 }
+
+/** Which trades are live, for a frontend deciding what to put on its picker. */
+routes.get('/client/trades', clientTrades);
 
 /**
  * The customer side again, spoken. One turn per call, same pipeline, same guards - the only thing

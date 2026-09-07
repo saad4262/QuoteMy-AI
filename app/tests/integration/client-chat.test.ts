@@ -98,6 +98,13 @@ describe('both chat paths', () => {
     expect(res.body.message).toBeTruthy();
   });
 
+  it('lists the trades a picker may offer', async () => {
+    const res = await request(app).get('/api/v1/client/trades');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((t: { trade: string }) => t.trade).sort()).toEqual(['fencing', 'tiling']);
+  });
+
   it('answers for the trade the body names', async () => {
     const res = await request(app)
       .post('/api/v1/client/chat')
