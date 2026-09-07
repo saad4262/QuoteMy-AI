@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { budgetTapValue, perMetreRange, readBudgetTap } from '../../src/client/budget.js';
+import { budgetTapValue, budgetText, guideRange, readBudgetTap } from '../../src/client/budget.js';
 import { runChat } from '../../src/client/controller.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { setAiClient } from '../../src/ai.js';
@@ -17,24 +17,46 @@ import { BERWICK, seedBusiness } from '../golden/conversations.js';
 
 describe('reading a figure', () => {
   it('reads a range, a single price, and a comma', () => {
-    expect(perMetreRange('$84 to $115 a metre installed')).toEqual({ min: 84, max: 115 });
-    expect(perMetreRange('$85 a metre')).toEqual({ min: 85, max: 85 });
-    expect(perMetreRange('$1,200 per metre')).toEqual({ min: 1200, max: 1200 });
+    expect(guideRange('$84 to $115 a metre installed', 'm')).toEqual({ min: 84, max: 115 });
+    expect(guideRange('$85 a metre', 'm')).toEqual({ min: 85, max: 85 });
+    expect(guideRange('$1,200 per metre', 'm')).toEqual({ min: 1200, max: 1200 });
   });
 
   /* A total for the whole job is the one figure that would do real damage here: shown as a rate it
      is off by the length of the fence, and the customer reads it as what a metre costs. */
   it('is not fooled by a total, a percentage or a figure with no unit', () => {
-    expect(perMetreRange('$4,500 for a 30 metre fence')).toBeNull();
-    expect(perMetreRange('about 15% more than treated pine')).toBeNull();
-    expect(perMetreRange('$85')).toBeNull();
-    expect(perMetreRange(null)).toBeNull();
+    expect(guideRange('$4,500 for a 30 metre fence', 'm')).toBeNull();
+    expect(guideRange('about 15% more than treated pine', 'm')).toBeNull();
+    expect(guideRange('$85', 'm')).toBeNull();
+    expect(guideRange(null, 'm')).toBeNull();
   });
 
   // Bounds, not judgement: $2 a metre is a typo and $9,000 a metre is a misread total.
   it('drops a figure outside what fencing costs', () => {
-    expect(perMetreRange('$2 a metre')).toBeNull();
-    expect(perMetreRange('$9,000 a metre')).toBeNull();
+    expect(guideRange('$2 a metre', 'm')).toBeNull();
+    expect(guideRange('$9,000 a metre', 'm')).toBeNull();
+  });
+
+  /* A square-metre trade is the reason this takes a unit at all. "Per square metre" CONTAINS
+     "metre", so a metre pattern reads a tiler's $65/m2 as $65 a linear metre and then compares it
+     against fencing quotes - a guide figure off by the width of the room, shown as though somebody
+     had quoted it. */
+  it('will not read a square-metre figure as a linear-metre one', () => {
+    expect(guideRange('$65 per square metre', 'm')).toBeNull();
+    expect(guideRange('$65 per m2', 'm')).toBeNull();
+    expect(guideRange('$65 per m²', 'm')).toBeNull();
+
+    expect(guideRange('$65 per square metre', 'm2')).toEqual({ min: 65, max: 65 });
+    expect(guideRange('$55 to $90 per m2 laid', 'm2')).toEqual({ min: 55, max: 90 });
+    expect(guideRange('$65 per m²', 'm2')).toEqual({ min: 65, max: 65 });
+
+    // And the other way: a linear-metre figure is not a square-metre one.
+    expect(guideRange('$85 a metre', 'm2')).toBeNull();
+  });
+
+  it('says the unit it read the figure in', () => {
+    expect(budgetText({ perMetreMin: 85, perMetreMax: 85 }, 'm')).toBe('$85 a metre');
+    expect(budgetText({ perMetreMin: 65, perMetreMax: 90 }, 'm2')).toBe('$65 to $90 a square metre');
   });
 
   it('reads back only its own chips', () => {

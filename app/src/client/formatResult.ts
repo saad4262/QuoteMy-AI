@@ -4,6 +4,7 @@ import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
 import { slug } from './fuzzyMatch.js';
 import { budgetText } from './budget.js';
+import { TRADE_PRICING } from './pricing/spec.js';
 import type { Answer, Budget, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
 
@@ -333,7 +334,7 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
      again. This one line is the whole of what the customer gets back for it, until the results
      screen - and it is careful not to promise a price, because the figure is a stranger's guide
      and their real quotes are still being collected. */
-  if (budget) message = "Noted — I'll show you how the quotes compare to " + budgetText(budget) + '.\n\n' + message;
+  if (budget) message = "Noted — I'll show you how the quotes compare to " + budgetText(budget, TRADE_PRICING[state.trade].unit) + '.\n\n' + message;
 
   const suburbHint = rejects(carriedHint) ? null : carriedHint;
   const expectsSuburb = options.length === 0 && (askingSuburbAgain || (!place && /\bsuburbs?\b|\bpost ?code\b|\bsuggestions\b/i.test(message)));

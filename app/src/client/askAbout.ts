@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { getAiClient, WEB_SEARCH_CALL_USD, type AiClient, type Citation } from '../ai.js';
 import { env, logger } from '../config.js';
 import type { BusinessRepository } from '../store.js';
-import { budgetTapValue, perMetreRange } from './budget.js';
+import type { Trade } from '../vocab.js';
+import { budgetTapValue, guideRange } from './budget.js';
+import { TRADE_PRICING } from './pricing/spec.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
 import type { Answer, AnswerSource } from './schemas.js';
 
@@ -136,6 +138,8 @@ export interface AskedAbout {
 }
 
 export interface AskContext {
+  /** Whose unit a guide figure off a web page is read in - metres of fence, square metres of floor. */
+  trade: Trade;
   /** Where they are, when it is known - "Colorbond in Pakenham" beats "Colorbond". */
   suburb: string | null;
   state: string | null;
@@ -261,7 +265,7 @@ export async function answerQuestion(asked: AskedAbout, context: AskContext, dep
         const figure = source.figure ? tidyProse(source.figure) : null;
         /* The same figure as numbers, so the customer can tap one and see it beside the real
            quotes at the end. Read here in code and never asked of the model - see `budget.ts`. */
-        const range = perMetreRange(figure);
+        const range = guideRange(figure, TRADE_PRICING[context.trade].unit);
         return {
           name,
           figure,

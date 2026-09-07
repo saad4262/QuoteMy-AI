@@ -413,9 +413,9 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
   const rates = top.map((quote) => quote.ratePerMeter);
   const guideLine = guide
     ? ' The sites you looked at said ' +
-      budgetText(guide) +
+      budgetText(guide, spec.unit) +
       '; these work out at ' +
-      budgetText({ perMetreMin: Math.min(...rates), perMetreMax: Math.max(...rates) }) +
+      budgetText({ perMetreMin: Math.min(...rates), perMetreMax: Math.max(...rates) }, spec.unit) +
       '.'
     : '';
 

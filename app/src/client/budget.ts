@@ -1,3 +1,4 @@
+import { UNIT_WORDS, type QuantityUnit } from './pricing/spec.js';
 import type { Budget } from './schemas.js';
 
 /**
@@ -19,18 +20,29 @@ import type { Budget } from './schemas.js';
  * page said, code reads the numbers out of it (`CONTEXT.md` §4).
  */
 
-/** Below and above this, a "per metre" figure is a typo or a total that mentioned metres. */
+/** Below and above this, a per-unit figure is a typo or a total that mentioned the unit. */
 const PLAUSIBLE = { min: 5, max: 2000 };
 
-/** Only a rate. A total for the job says "$4,500" and is not something to compare a rate against. */
-const PER_METRE = /\b(?:per|a|each|\/)\s*(?:lineal\s+|linear\s+|running\s+)?(?:m\b|met(?:re|er)s?)/i;
+/**
+ * Only a rate. A total for the job says "$4,500" and is not something to compare a rate against.
+ *
+ * One pattern per unit, because they overlap in the wrong direction: "per square metre" contains
+ * "metre", so a metre pattern would read a tiler's $65/m2 as $65 a linear metre and compare it
+ * against fencing quotes. The m2 pattern is tried on its own terms and the m pattern refuses
+ * anything that says square.
+ */
+const PER_UNIT: Record<QuantityUnit, RegExp> = {
+  m: /\b(?:per|a|each|\/)\s*(?:lineal\s+|linear\s+|running\s+)?(?:m\b|met(?:re|er)s?)(?!\s*(?:2|²|sq))/i,
+  m2: /\b(?:per|a|each|\/)\s*(?:sq(?:uare)?\.?\s*)?(?:m\s*(?:2|²)|met(?:re|er)s?\s*(?:2|²)|square\s+met(?:re|er)s?)/i,
+  item: /\b(?:per|a|each|\/)\s*(?:item|unit|panel|job|each)\b/i,
+};
 
 /**
  * The numbers inside one site's figure, as the site wrote them. A single price is a range of one -
  * "$85 a metre" is as usable a benchmark as "$75 to $120 a metre".
  */
-export function perMetreRange(figure: string | null | undefined): { min: number; max: number } | null {
-  if (!figure || !PER_METRE.test(figure)) return null;
+export function guideRange(figure: string | null | undefined, unit: QuantityUnit): { min: number; max: number } | null {
+  if (!figure || !PER_UNIT[unit].test(figure)) return null;
 
   const found = [...figure.matchAll(/\$\s?(\d[\d,]*(?:\.\d+)?)/g)]
     .map((match) => Number(match[1]!.replace(/,/g, '')))
@@ -62,10 +74,17 @@ export function readBudgetTap(message: string): Budget | null {
   return { perMetreMin: min, perMetreMax: max, source: match[3]!.trim() || null };
 }
 
-/** "$75 to $120 a metre", or "$85 a metre" when a site published one number. */
-export function budgetText(budget: { perMetreMin: number; perMetreMax: number }): string {
+/**
+ * "$75 to $120 a metre", or "$85 a square metre" when a site published one number.
+ *
+ * The `perMetre*` field names are the wire contract the frontend already reads, so they stay as
+ * they are and mean "per the trade's unit". Renaming them would break a shipped client to make a
+ * comment unnecessary.
+ */
+export function budgetText(budget: { perMetreMin: number; perMetreMax: number }, unit: QuantityUnit): string {
   const money = (value: number) => '$' + value.toLocaleString();
+  const per = ' ' + UNIT_WORDS[unit].long;
   return budget.perMetreMin === budget.perMetreMax
-    ? money(budget.perMetreMin) + ' a metre'
-    : money(budget.perMetreMin) + ' to ' + money(budget.perMetreMax) + ' a metre';
+    ? money(budget.perMetreMin) + per
+    : money(budget.perMetreMin) + ' to ' + money(budget.perMetreMax) + per;
 }

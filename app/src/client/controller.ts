@@ -94,6 +94,7 @@ async function answerIfAsked(
 
   const material = typeof known.material === 'string' ? known.material : null;
   const context = {
+    trade: schema.trade,
     suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
     state: place?.state ?? null,
     material,
