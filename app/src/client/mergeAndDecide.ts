@@ -1,3 +1,4 @@
+import type { Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, numbersIn, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
@@ -106,7 +107,7 @@ export interface MergeAndDecideInput {
 
 export interface MergedState {
   sessionId: string;
-  trade: 'fencing';
+  trade: Trade;
   place: Place | null;
   checklist: Checklist;
   missing: ChecklistField[];
@@ -791,7 +792,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
 
   return {
     sessionId: input.sessionId,
-    trade: 'fencing',
+    trade: input.schema.trade,
     place,
     checklist: merged as unknown as Checklist,
     missing,

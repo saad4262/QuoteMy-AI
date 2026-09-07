@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { business } from './controller.js';
-import { fencingChat } from './client/controller.js';
+import { clientChat } from './client/controller.js';
 import { createVoiceCall, voiceSession, voiceTurn, voiceTurnBody } from './client/voice/controller.js';
 import { chatBody } from './client/schemas.js';
 import { chatIpLimiter, chatLimiter, voiceCallLimiter } from './client/limits.js';
@@ -50,7 +50,7 @@ routes.get('/health', (req, res) =>
 routes.post('/business', submitLimiter, upload.array('files', LIMITS.count), validateBody(businessBody), business);
 
 /**
- * The customer side: one turn of the fencing quote chat per call. No `action` switch here - every
+ * The customer side: one turn of the quote chat per call, for whichever trade the body names. No `action` switch here - every
  * request is the same conversation, one message further along. `sessionId` plus the client-echoed
  * `knownChecklist` (see `client/schemas.ts`) is the whole of the session state; nothing is kept
  * server-side between calls.
@@ -58,15 +58,19 @@ routes.post('/business', submitLimiter, upload.array('files', LIMITS.count), val
  * Send it as JSON, or as multipart/form-data with the same fields plus an optional attached PDF or
  * photo of an existing quote.
  */
-routes.post(
-  '/client/fencing-chat',
-  upload.array('files', LIMITS.count),
-  validateBody(chatBody),
-  // Order matters: both limiters key off the parsed body, so they run after multer and validation.
-  chatIpLimiter,
-  chatLimiter,
-  fencingChat,
-);
+/* Two paths, one handler. `/client/fencing-chat` is what the deployed frontend calls and keeps
+   working for ever - a rename that breaks a shipped client is not a rename, it is an outage. */
+for (const path of ['/client/chat', '/client/fencing-chat']) {
+  routes.post(
+    path,
+    upload.array('files', LIMITS.count),
+    validateBody(chatBody),
+    // Order matters: both limiters key off the parsed body, so they run after multer and validation.
+    chatIpLimiter,
+    chatLimiter,
+    clientChat,
+  );
+}
 
 /**
  * The customer side again, spoken. One turn per call, same pipeline, same guards - the only thing

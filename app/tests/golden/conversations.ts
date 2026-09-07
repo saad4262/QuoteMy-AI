@@ -1,6 +1,6 @@
 import { MockAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
 import { SAID_NOTHING } from '../../src/client/agent.js';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import type { ChatResponse, Checklist, Place, TurnExtraction } from '../../src/client/schemas.js';
 import { MemoryRepository, type CapabilitiesDoc, type PricingDoc } from '../../src/store.js';
 
@@ -164,7 +164,7 @@ export async function runScript(conversation: Conversation, repo: MemoryReposito
   for (const [index, turn] of conversation.turns.entries()) {
     if (turn.place) place = turn.place;
 
-    const response: ChatResponse = await runFencingChat(
+    const response: ChatResponse = await runChat(
       {
         message: turn.say,
         sessionId: 'golden',

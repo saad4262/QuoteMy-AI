@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MockAiClient, setAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
 import { answerQuestion, clearAnswerCache, tidyProse } from '../../src/client/askAbout.js';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { resetChatSpend } from '../../src/client/spend.js';
 import { setRepository } from '../../src/store.js';
@@ -180,12 +180,12 @@ describe('a question inside the conversation', () => {
 
     /* Two turns, because the first one is the opener and the question worth protecting is the one
        after it - a real question, with real choices, that the answer must not have swallowed. */
-    const opener = await runFencingChat(
+    const opener = await runChat(
       { message: 'I need a fence quote', sessionId: 's1', place: '', knownChecklist: '' },
       [],
       { repo },
     );
-    const response = await runFencingChat(
+    const response = await runChat(
       {
         message: 'is colorbond better than timber?',
         sessionId: 's1',
@@ -214,7 +214,7 @@ describe('a question inside the conversation', () => {
     let answered = 0;
     // Seven questions asked; the seventh must not be searched.
     for (let turn = 0; turn < 7; turn += 1) {
-      const response = await runFencingChat(
+      const response = await runChat(
         { message: 'what about colorbond', sessionId: 's2', place: '', knownChecklist: checklist },
         [],
         { repo },
@@ -241,12 +241,12 @@ describe('a question inside the conversation', () => {
   it('does not choose a fence for somebody who was only asking about one', async () => {
     setAiClient(askingAi('is colorbond better than treated pine', 'advice', 'Colorbond needs less upkeep.'));
 
-    const opener = await runFencingChat(
+    const opener = await runChat(
       { message: 'I need a fence quote', sessionId: 'q1', place: '', knownChecklist: '' },
       [],
       { repo },
     );
-    const response = await runFencingChat(
+    const response = await runChat(
       {
         message: 'is colorbond better than treated pine',
         sessionId: 'q1',
@@ -298,12 +298,12 @@ describe('a question inside the conversation', () => {
       },
     });
 
-    const opener = await runFencingChat(
+    const opener = await runChat(
       { message: 'I need a fence quote', sessionId: 'storm', place: '', knownChecklist: '' },
       [],
       { repo },
     );
-    const response = await runFencingChat(
+    const response = await runChat(
       {
         message: 'my fence blew over in the storm last night',
         sessionId: 'storm',
@@ -343,16 +343,16 @@ describe('a question inside the conversation', () => {
     });
 
     const place = JSON.stringify({ suburb: 'Pakenham', state: 'VIC', latitude: -38.07, longitude: 145.48 });
-    const opener = await runFencingChat({ message: 'I need a fence quote', sessionId: 'a1', place, knownChecklist: '' }, [], { repo });
+    const opener = await runChat({ message: 'I need a fence quote', sessionId: 'a1', place, knownChecklist: '' }, [], { repo });
     // The turn that puts the material question on screen, so the next one is asking it again.
-    const asked = await runFencingChat(
+    const asked = await runChat(
       { message: 'yes go ahead', sessionId: 'a1', place, knownChecklist: JSON.stringify(opener.checklist) },
       [],
       { repo },
     );
     expect(asked.type).toBe('question');
 
-    const response = await runFencingChat(
+    const response = await runChat(
       { message: 'please tell me first which type is better', sessionId: 'a1', place, knownChecklist: JSON.stringify(asked.checklist) },
       [],
       { repo },
@@ -400,13 +400,13 @@ describe('a question inside the conversation', () => {
     });
 
     const place = JSON.stringify({ suburb: 'Berwick', state: 'VIC', latitude: -38.03, longitude: 145.34 });
-    const opener = await runFencingChat({ message: 'I need a fence quote', sessionId: 'f1', place, knownChecklist: '' }, [], { repo });
-    const asking = await runFencingChat(
+    const opener = await runChat({ message: 'I need a fence quote', sessionId: 'f1', place, knownChecklist: '' }, [], { repo });
+    const asking = await runChat(
       { message: 'yes go ahead', sessionId: 'f1', place, knownChecklist: JSON.stringify(opener.checklist) },
       [],
       { repo },
     );
-    await runFencingChat(
+    await runChat(
       {
         message: 'basically i have farmhouse in australia .. so can you suggest me which fence is better for me?',
         sessionId: 'f1',
@@ -454,13 +454,13 @@ describe('a question inside the conversation', () => {
     });
 
     const place = JSON.stringify({ suburb: 'Berwick', state: 'VIC', latitude: -38.03, longitude: 145.34 });
-    const opener = await runFencingChat({ message: 'I need a fence quote', sessionId: 'f2', place, knownChecklist: '' }, [], { repo });
-    const asking = await runFencingChat(
+    const opener = await runChat({ message: 'I need a fence quote', sessionId: 'f2', place, knownChecklist: '' }, [], { repo });
+    const asking = await runChat(
       { message: 'yes go ahead', sessionId: 'f2', place, knownChecklist: JSON.stringify(opener.checklist) },
       [],
       { repo },
     );
-    const answered = await runFencingChat(
+    const answered = await runChat(
       { message: 'i have a farmhouse, which is better?', sessionId: 'f2', place, knownChecklist: JSON.stringify(asking.checklist) },
       [],
       { repo },
@@ -475,7 +475,7 @@ describe('a question inside the conversation', () => {
       askingAi('what does colorbond cost', 'rates', 'hipages says $85 a metre. ([hipages.com.au](https://hipages.com.au/x))'),
     );
 
-    const response = await runFencingChat(
+    const response = await runChat(
       { message: 'what does colorbond cost', sessionId: 's3', place: '', knownChecklist: '' },
       [],
       { repo },

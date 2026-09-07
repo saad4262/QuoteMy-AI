@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { budgetTapValue, perMetreRange, readBudgetTap } from '../../src/client/budget.js';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { setAiClient } from '../../src/ai.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
@@ -59,11 +59,11 @@ describe('tapping one inside the conversation', () => {
   async function say(script: { text: string; place?: Place }[]) {
     let checklist: Checklist | null = null;
     let place: Place | null = null;
-    let response = null as Awaited<ReturnType<typeof runFencingChat>> | null;
+    let response = null as Awaited<ReturnType<typeof runChat>> | null;
 
     for (const turn of script) {
       if (turn.place) place = turn.place;
-      response = await runFencingChat(
+      response = await runChat(
         {
           message: turn.text,
           sessionId: 'budget',

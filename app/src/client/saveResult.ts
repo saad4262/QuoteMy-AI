@@ -11,7 +11,7 @@ import type { ChatResponse } from './schemas.js';
  * result has to land somewhere a page can watch. Same arrangement the business side already has
  * with `description/lastaireview`.
  *
- * Called from the route rather than from `runFencingChat`, deliberately. Persistence is a transport
+ * Called from the route rather than from `runChat`, deliberately. Persistence is a transport
  * concern; keeping it out of the orchestration means the pipeline stays a pure function of its
  * input, which is what lets the golden conversations drive it turn after turn with nothing to
  * clean up between them.

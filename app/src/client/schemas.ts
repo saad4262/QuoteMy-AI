@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TRADES, type Trade } from '../vocab.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -10,6 +11,11 @@ import type { ChecklistField } from './vocab.js';
  * once, in `controller.ts`.
  */
 export const chatBody = z.object({
+  /* Optional, not defaulted, so every existing caller keeps working: the deployed frontend does not
+     send one yet and gets fencing, which is what it has always got. `controller.ts` decides the
+     fallback - one place, and the place step A9 replaces when trades are detected rather than
+     assumed. */
+  trade: z.enum(TRADES).optional(),
   message: z.string().default(''),
   sessionId: z.string().trim().min(1),
   place: z.string().default(''),
@@ -363,7 +369,7 @@ export interface AlternativeOffer {
 
 export interface ChatResponse {
   sessionId: string | null;
-  trade: 'fencing';
+  trade: Trade;
   /** A customer already holding a quote turns the results page into a comparison against it. */
   intent: 'new_quote' | 'compare_quote';
   place: Place | null;

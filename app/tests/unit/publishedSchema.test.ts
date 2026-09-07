@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import { describeFieldDrift, FENCING_FIELDS } from '../../src/client/fieldSpec.js';
 import { clearSchemaCache, loadTradeSchema } from '../../src/client/schema.js';
 import { MemoryRepository, type StoredTradeSchema } from '../../src/store.js';
@@ -37,13 +37,13 @@ describe('a published field spec', () => {
     fields[1]!.question = 'Which fence takes your fancy?';
 
     const repo = withFields(fields);
-    let response = await runFencingChat({ message: 'I need a fence', sessionId: 't', place: '', knownChecklist: '' }, [], { repo });
-    response = await runFencingChat(
+    let response = await runChat({ message: 'I need a fence', sessionId: 't', place: '', knownChecklist: '' }, [], { repo });
+    response = await runChat(
       { message: 'yes', sessionId: 't', place: '', knownChecklist: JSON.stringify(response.checklist) },
       [],
       { repo },
     );
-    response = await runFencingChat(
+    response = await runChat(
       {
         message: 'Berwick',
         sessionId: 't',

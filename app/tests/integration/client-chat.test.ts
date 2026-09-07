@@ -86,6 +86,28 @@ const chatTurn = (message: string, sessionId: string, place: unknown, knownCheck
       knownChecklist: knownChecklist ? JSON.stringify(knownChecklist) : '',
     });
 
+describe('both chat paths', () => {
+  /* The route was renamed to /client/chat when the chat stopped being fencing-only. The old path
+     is what the deployed frontend calls, and a rename that breaks a shipped client is an outage,
+     not a rename - so both paths stay, on one handler. */
+  it.each(['/api/v1/client/chat', '/api/v1/client/fencing-chat'])('answers on %s', async (path) => {
+    const res = await request(app).post(path).send({ message: 'I need a fence quote', sessionId: 'paths', place: '', knownChecklist: '' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.trade).toBe('fencing');
+    expect(res.body.message).toBeTruthy();
+  });
+
+  it('answers for the trade the body names', async () => {
+    const res = await request(app)
+      .post('/api/v1/client/chat')
+      .send({ trade: 'fencing', message: 'I need a fence quote', sessionId: 'named', place: '', knownChecklist: '' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.trade).toBe('fencing');
+  });
+});
+
 describe('POST /client/fencing-chat', () => {
   it('walks a full conversation from opener to a priced result', async () => {
     seedBusiness('biz-1', 'Southeast Fencing & Gates');

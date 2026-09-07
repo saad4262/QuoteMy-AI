@@ -5,7 +5,7 @@ import { env, logger } from '../../config.js';
 import { AppError } from '../../http.js';
 import { getRepository, type BusinessRepository } from '../../store.js';
 import { asObject } from '../errors.js';
-import { runFencingChat } from '../controller.js';
+import { runChat } from '../controller.js';
 import { saveChatResult } from '../saveResult.js';
 import type { ChatOption, ChatResponse, Checklist, Place, UiState } from '../schemas.js';
 import { matchSpokenToOption } from './matchSpoken.js';
@@ -126,7 +126,7 @@ export async function runVoiceTurn(
   /* The field the last turn asked about, so what they just answered can be named. */
   const asked = ((session?.checklist as Checklist | undefined)?._ui as UiState | undefined)?.lastAsked ?? null;
 
-  const response: ChatResponse = await runFencingChat(
+  const response: ChatResponse = await runChat(
     {
       message,
       sessionId,

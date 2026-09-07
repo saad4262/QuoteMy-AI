@@ -5,7 +5,7 @@ import type { ChatOption } from '../schemas.js';
  * What the customer said, resolved back to one of the choices they were just read - or nothing.
  *
  * The point of this function is the zero-model turn. When the value it returns is one the last turn
- * offered, `runFencingChat` recognises it in code and never calls the model at all
+ * offered, `runChat` recognises it in code and never calls the model at all
  * (`controller.ts:68`), which is about three seconds a customer does not spend listening to
  * silence. That is the commonest turn in the conversation, so it is worth getting right.
  *
@@ -67,7 +67,7 @@ const NUMBER_WORD = /^(?:point|hundred|thousand|zero|one|two|three|four|five|six
  *
  * The shortcut below exists to skip the model on a short reply. Handed a whole briefing - "I want a
  * fence in Pakenham, colorbond, 1.5 metres, 50 metres long" - it found `colorbond` inside the
- * sentence, returned it, and `runFencingChat` then skipped the model precisely BECAUSE the answer
+ * sentence, returned it, and `runChat` then skipped the model precisely BECAUSE the answer
  * was recognised. The suburb, the height and the length were never read by anything. The caller
  * heard "got it" and was then asked all three again, one at a time, which is the single worst thing
  * this product does on a phone call.

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MockAiClient, setAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
 import { env } from '../../src/config.js';
 import { clearAnswerCache } from '../../src/client/askAbout.js';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import { clearPictureCache, findPictures, imageQuery, PICTURES_LINE } from '../../src/client/pictures.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { resetChatSpend } from '../../src/client/spend.js';
@@ -198,11 +198,11 @@ describe('inside the conversation', () => {
   async function say(script: { text: string; place?: Place }[]) {
     let checklist: Checklist | null = null;
     let place: Place | null = null;
-    let response = null as Awaited<ReturnType<typeof runFencingChat>> | null;
+    let response = null as Awaited<ReturnType<typeof runChat>> | null;
 
     for (const turn of script) {
       if (turn.place) place = turn.place;
-      response = await runFencingChat(
+      response = await runChat(
         {
           message: turn.text,
           sessionId: 'pictures',

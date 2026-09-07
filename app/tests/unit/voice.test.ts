@@ -44,7 +44,7 @@ describe('matchSpokenToOption', () => {
   });
 
   it('hands a whole briefing to the model instead of keeping one word of it', () => {
-    /* A recognised option makes `runFencingChat` skip the model entirely, so anything else in the
+    /* A recognised option makes `runChat` skip the model entirely, so anything else in the
        sentence is never read by anything. Said in one breath, four answers became one and the
        caller was asked the other three again one at a time. */
     expect(matchSpokenToOption('I want a fence in Pakenham, colorbond, 1.5 metres, 50 metres long', MATERIALS)).toBe(null);

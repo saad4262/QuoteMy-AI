@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { chatSpendToday, resetChatSpend } from '../../src/client/spend.js';
 import { AppError } from '../../src/http.js';
@@ -104,7 +104,7 @@ describe('a tapped option costs nothing', () => {
     let checklist = '';
 
     const say = async (message: string) => {
-      const r = await runFencingChat({ message, sessionId: 'tap', place: PLACE, knownChecklist: checklist }, [], { ai });
+      const r = await runChat({ message, sessionId: 'tap', place: PLACE, knownChecklist: checklist }, [], { ai });
       checklist = JSON.stringify(r.checklist);
       return r;
     };
@@ -124,7 +124,7 @@ describe('a tapped option costs nothing', () => {
     const { ai, state } = stubAi();
     let checklist = '';
     const say = async (message: string) => {
-      const r = await runFencingChat({ message, sessionId: 'tap2', place: PLACE, knownChecklist: checklist }, [], { ai });
+      const r = await runChat({ message, sessionId: 'tap2', place: PLACE, knownChecklist: checklist }, [], { ai });
       checklist = JSON.stringify(r.checklist);
     };
 
@@ -142,7 +142,7 @@ describe('the daily spend ceiling', () => {
     const { ai } = stubAi();
     expect(chatSpendToday().spentUsd).toBe(0);
 
-    await runFencingChat({ message: 'i need a fence', sessionId: 's', place: '', knownChecklist: '' }, [], { ai });
+    await runChat({ message: 'i need a fence', sessionId: 's', place: '', knownChecklist: '' }, [], { ai });
 
     expect(chatSpendToday().spentUsd).toBeCloseTo(0.0003, 6);
   });

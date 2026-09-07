@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MockAiClient, setAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
-import { runFencingChat } from '../../src/client/controller.js';
+import { runChat } from '../../src/client/controller.js';
 import { mergeAndDecide } from '../../src/client/mergeAndDecide.js';
 import { clearSchemaCache, loadTradeSchema, type TradeSchema } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
@@ -607,11 +607,11 @@ describe('a fence they said was already there', () => {
   async function upToRemoval(script: string[]) {
     let checklist: Checklist | null = null;
     let place: Place | null = null;
-    let response = null as Awaited<ReturnType<typeof runFencingChat>> | null;
+    let response = null as Awaited<ReturnType<typeof runChat>> | null;
 
     for (const text of script) {
       if (text === 'Berwick') place = BERWICK;
-      response = await runFencingChat(
+      response = await runChat(
         {
           message: text,
           sessionId: 'oldfence',
@@ -693,11 +693,11 @@ describe('taking the old fence away without saying what it is', () => {
 
     let checklist: Checklist | null = null;
     let place: Place | null = null;
-    let response = null as Awaited<ReturnType<typeof runFencingChat>> | null;
+    let response = null as Awaited<ReturnType<typeof runChat>> | null;
 
     for (const text of ['I need a fence quote', 'yes go ahead', 'Berwick', 'colorbond', '1.8m', '20', removal, 'none', 'none', 'yes']) {
       if (text === 'Berwick') place = BERWICK;
-      response = await runFencingChat(
+      response = await runChat(
         {
           message: text,
           sessionId: 'removal-' + removal,

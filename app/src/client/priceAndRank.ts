@@ -202,10 +202,10 @@ function quoteFor(
   };
 }
 
-function fail(base: Pick<ChatResponse, 'sessionId' | 'place' | 'checklist' | 'checklistDisplay' | 'checklistAnswered' | 'checklistPending'>, message: string, reason: string): ChatResponse {
+function fail(base: Pick<ChatResponse, 'sessionId' | 'trade' | 'place' | 'checklist' | 'checklistDisplay' | 'checklistAnswered' | 'checklistPending'>, message: string, reason: string): ChatResponse {
   return {
     sessionId: base.sessionId,
-    trade: 'fencing',
+    trade: base.trade,
     intent: Number(base.checklist.existingPrice) > 0 ? 'compare_quote' : 'new_quote',
     place: base.place,
     type: 'result',
@@ -230,7 +230,7 @@ const withAnswer = (gate: ChatResponse, message: string): string =>
 export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: TradeSchema): ChatResponse {
   const { canonicalMaterial, materialLabel } = makeMaterialNaming(schema);
   const checklist = gate.checklist as Checklist;
-  const base = { sessionId: gate.sessionId, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending };
+  const base = { sessionId: gate.sessionId, trade: schema.trade, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending };
 
   if (!matcher.matched) {
     return fail(base, 'No fencing business covers that suburb yet. Try a nearby suburb?', matcher.noMatchReason || 'area');
@@ -357,7 +357,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
       return {
         sessionId: gate.sessionId,
-        trade: 'fencing',
+        trade: schema.trade,
         intent: existingPrice !== null ? 'compare_quote' : 'new_quote',
         place: gate.place,
         type: 'question',
@@ -445,7 +445,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
   return {
     sessionId: gate.sessionId,
-    trade: 'fencing',
+    trade: schema.trade,
     intent: existingPrice !== null ? 'compare_quote' : 'new_quote',
     place: gate.place,
     type: 'result',

@@ -138,7 +138,7 @@ export interface FencingChatDeps {
  * conversation by calling this directly turn after turn, feeding each response's `checklist`
  * straight back in as the next turn's `knownChecklist` - exactly what the real client does.
  */
-export async function runFencingChat(input: ChatBody, files: UploadedFile[] = [], deps: FencingChatDeps = {}): Promise<ChatResponse> {
+export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps: FencingChatDeps = {}): Promise<ChatResponse> {
   const repo = deps.repo ?? getRepository();
 
   const place = asObject<Place>(input.place);
@@ -158,7 +158,10 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
   // (process-cached, 5-minute TTL) rather than per turn - this is what makes the chat pick up a
   // business-side vocabulary change without a redeploy, and what will make a second trade a new
   // document rather than a new code path.
-  const schema = await loadTradeSchema('fencing', repo);
+  /* The trade the request names, or fencing for a caller that names none - which is every caller
+     today, including the deployed frontend. Step A9 replaces the fallback with asking. */
+  const trade = input.trade ?? 'fencing';
+  const schema = await loadTradeSchema(trade, repo);
 
   /* A guide figure tapped off a rates answer. It is not an answer to anything we asked, so the
      rest of the turn must not see it: the message is emptied out, which leaves the question on
@@ -232,7 +235,7 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
      document is read per candidate. The per-request and per-model-call logs already cover
      everything else, so request ms minus model ms minus this is Firestore and cold start. */
   const matchStarted = Date.now();
-  const matcher = state.needsMatcher ? await matchBusinesses('fencing', state.place, suburb, repo) : null;
+  const matcher = state.needsMatcher ? await matchBusinesses(trade, state.place, suburb, repo) : null;
   if (state.needsMatcher) {
     logger.info(
       { requestId: input.sessionId, ms: Date.now() - matchStarted, candidates: matcher?.diagnostics.candidates ?? 0, matched: matcher?.totalCovering ?? 0 },
@@ -248,11 +251,11 @@ export async function runFencingChat(input: ChatBody, files: UploadedFile[] = []
  * Every failure a turn can produce leaves here in the chat's own shape, never the `{ ok, error }`
  * envelope the rest of the API uses - see `errors.ts` for why.
  */
-export async function fencingChat(req: Request, res: Response): Promise<void> {
+export async function clientChat(req: Request, res: Response): Promise<void> {
   try {
-    const response = await runFencingChat(req.body as ChatBody, filesOf(req));
+    const response = await runChat(req.body as ChatBody, filesOf(req));
     /* Written from the route rather than from the pipeline: persistence is a transport concern, and
-       keeping it out means `runFencingChat` stays a pure function of its input - which is what lets
+       keeping it out means `runChat` stays a pure function of its input - which is what lets
        the golden conversations drive it turn after turn with nothing to clean up in between. */
     const resultId = await saveChatResult(response);
     res.status(200).json(resultId ? { ...response, resultId } : response);

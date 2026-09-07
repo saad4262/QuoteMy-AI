@@ -393,7 +393,7 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
 
   return {
     sessionId,
-    trade: 'fencing',
+    trade: state.trade,
     // Derived from the brief, not from a classifier that could flip mid-conversation: a quote the
     // customer already holds turns the results page into a comparison.
     intent: Number(checklist.existingPrice) > 0 ? 'compare_quote' : 'new_quote',
