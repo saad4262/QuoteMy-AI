@@ -59,7 +59,15 @@ export const CUSTOMER_LABEL_GROUPS = {
   materials: LABEL_GROUPS.materials,
   gateTypes: LABEL_GROUPS.gateTypes,
   conditions: LABEL_GROUPS.conditions,
-  removes: { timber: LABEL_GROUPS.removes.timber, metal: LABEL_GROUPS.removes.metal },
+  /* "Yes" first, and the two kinds behind it. Somebody being asked "is there an old fence to
+     remove?" is answering yes or no; which material it is made of is our pricing problem, not a
+     question they should have to think about to say yes. Both are still here and still valid -
+     they are on the next page, and a typed "the old one's timber" prices exactly. */
+  removes: {
+    any: 'Yes, take it away',
+    timber: LABEL_GROUPS.removes.timber,
+    metal: LABEL_GROUPS.removes.metal,
+  },
 };
 
 /** Flattened, for the business-side response. Derived - never edited by hand. */

@@ -1,5 +1,5 @@
 import { QUESTIONS } from '../messages.js';
-import { HEIGHT_FALLBACK, LENGTHS, QUANTITIES } from './vocab.js';
+import { HEIGHT_FALLBACK, QUANTITIES } from './vocab.js';
 
 /**
  * What a trade's checklist is made of: which fields exist, what order they are asked in, where each
@@ -110,7 +110,9 @@ export const FENCING_FIELDS: FieldSpec[] = [
     type: 'number',
     title: 'Length',
     question: QUESTIONS.lengthMeters,
-    options: [...LENGTHS],
+    /* No list. Ten, fifteen, twenty were three guesses at a number the customer already knows, and
+       a fence is whatever length the boundary is - nobody's is 10m because we offered 10m. They
+       type it, which is one action either way, and it is right rather than near. */
   },
   {
     key: 'removal',
@@ -119,6 +121,10 @@ export const FENCING_FIELDS: FieldSpec[] = [
     question: QUESTIONS.removal,
     source: 'core.removes',
     pinned: { label: 'Nothing to remove', value: 'none' },
+    /* Two slots, and the pinned "Nothing to remove" is one of them - so the question reads the way
+       it is written: yes against no, and nothing else. Timber and metal follow on the next page for
+       anyone who wants to be exact, and a typed "the old one is timber" still resolves to them. */
+    pageSize: 2,
   },
   {
     key: 'conditions',

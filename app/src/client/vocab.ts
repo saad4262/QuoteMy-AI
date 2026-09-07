@@ -8,8 +8,10 @@
  * its way to the trade's own schema document.
  */
 
-/** Not a vocabulary: a length is a measurement and a quantity is a count. Same "3 + Other" paging. */
-export const LENGTHS = [10, 15, 20, 25, 30, 40, 50, 60, 80, 100] as const;
+/** Not a vocabulary: a quantity is a count. Same "3 + Other" paging as an option list.
+    A length used to sit beside this and no longer does - it is whatever the boundary measures, and
+    offering 10, 15, 20 was three guesses at a number the customer already knows, which only invited
+    them to round it. They type it. */
 export const QUANTITIES = [1, 2, 3, 4, 5, 6] as const;
 
 /**

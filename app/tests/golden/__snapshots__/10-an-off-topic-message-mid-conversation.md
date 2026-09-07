@@ -544,18 +544,6 @@ customer: "1.8m"
   "message": "How long is the fence?",
   "options": [
     {
-      "label": "10m",
-      "value": 10
-    },
-    {
-      "label": "15m",
-      "value": 15
-    },
-    {
-      "label": "20m",
-      "value": 20
-    },
-    {
       "label": "Other",
       "value": "__other__"
     }
@@ -581,9 +569,6 @@ customer: "1.8m"
       "lastAsked": "lengthMeters",
       "lastQuestion": "How long is the fence?",
       "lastValues": [
-        10,
-        15,
-        20,
         "__other__"
       ],
       "lastType": "question",
@@ -681,12 +666,8 @@ customer: "20"
   "message": "Is there an old fence to remove?",
   "options": [
     {
-      "label": "Timber fence",
-      "value": "timber"
-    },
-    {
-      "label": "Metal fence",
-      "value": "metal"
+      "label": "Yes, take it away",
+      "value": "any"
     },
     {
       "label": "Nothing to remove",
@@ -719,8 +700,7 @@ customer: "20"
       "lastAsked": "removal",
       "lastQuestion": "Is there an old fence to remove?",
       "lastValues": [
-        "timber",
-        "metal",
+        "any",
         "none",
         "__other__"
       ],

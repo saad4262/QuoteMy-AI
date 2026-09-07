@@ -64,7 +64,10 @@ function fallbackSchema(trade: Trade, extras: Record<string, ExtraValue> = {}): 
       materials: [...MATERIALS],
       gateTypes: [...GATE_TYPES],
       conditions: [...CONDITIONS],
-      removes: REMOVES.filter((r) => r !== 'any'),
+      /* "any" leads, because the question is a yes/no one: "is there an old fence to remove?" is
+         answered yes or no, and which material it is made of is a pricing detail behind that. The
+         two kinds follow on the next page and are still what a typed answer resolves to. */
+      removes: ['any', ...REMOVES.filter((r) => r !== 'any')],
       heights: null,
     },
     labels: {
@@ -164,7 +167,7 @@ export async function loadTradeSchema(trade: Trade, repo: BusinessRepository = g
           conditions: list(stored.core?.conditions, base.core.conditions),
           // `any` is a business-side wildcard - "we'll take away whatever is there". A customer
           // cannot answer it about their own old fence, so it never becomes a choice.
-          removes: list(stored.core?.removes, base.core.removes).filter((r) => r !== 'any'),
+          removes: list(stored.core?.removes, base.core.removes),
           heights: stored.core?.heights ?? null,
         },
         labels: {

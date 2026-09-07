@@ -446,12 +446,8 @@ customer: "1.8m"
   "message": "Is there an old fence to remove?",
   "options": [
     {
-      "label": "Timber fence",
-      "value": "timber"
-    },
-    {
-      "label": "Metal fence",
-      "value": "metal"
+      "label": "Yes, take it away",
+      "value": "any"
     },
     {
       "label": "Nothing to remove",
@@ -483,8 +479,7 @@ customer: "1.8m"
       "lastAsked": "removal",
       "lastQuestion": "Is there an old fence to remove?",
       "lastValues": [
-        "timber",
-        "metal",
+        "any",
         "none",
         "__other__"
       ],

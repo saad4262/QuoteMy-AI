@@ -4,7 +4,7 @@ import { runFencingChat } from '../../src/client/controller.js';
 import { mergeAndDecide } from '../../src/client/mergeAndDecide.js';
 import { clearSchemaCache, loadTradeSchema, type TradeSchema } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
-import { BERWICK } from '../golden/conversations.js';
+import { BERWICK, seedBusiness } from '../golden/conversations.js';
 import type { Checklist, Place, TurnExtraction, UiState } from '../../src/client/schemas.js';
 
 /**
@@ -668,5 +668,77 @@ describe('a fence they said was already there', () => {
 
     expect(response.message).not.toContain("there's a fence there already");
     expect(response.checklist.removal).toBe('none');
+  });
+});
+
+/**
+ * "Yes, take it away" is a fence that is there, said without saying what it is made of.
+ *
+ * Which is the right question to ask a customer and the wrong one to price from: a business that
+ * publishes timber and metal separately, and no wildcard row, matched nothing and disappeared out
+ * of somebody's results for pricing removals in more detail than the business beside it.
+ */
+describe('taking the old fence away without saying what it is', () => {
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    setAiClient(new MockAiClient());
+  });
+
+  async function quote(removal: string, removals: { removes: string; pricePerMetre: number }[]) {
+    seedBusiness(repo, 'biz-r1', 'Southeast Fencing', { removals } as never);
+
+    let checklist: Checklist | null = null;
+    let place: Place | null = null;
+    let response = null as Awaited<ReturnType<typeof runFencingChat>> | null;
+
+    for (const text of ['I need a fence quote', 'yes go ahead', 'Berwick', 'colorbond', '1.8m', '20', removal, 'none', 'none', 'yes']) {
+      if (text === 'Berwick') place = BERWICK;
+      response = await runFencingChat(
+        {
+          message: text,
+          sessionId: 'removal-' + removal,
+          place: place ? JSON.stringify(place) : '',
+          knownChecklist: checklist ? JSON.stringify(checklist) : '',
+        },
+        [],
+        { repo },
+      );
+      checklist = response.checklist;
+      place = response.place ?? null;
+    }
+    return response!;
+  }
+
+  /* Dearest, not cheapest: the one number nobody may be shown is a total below what they will
+     actually be charged. */
+  it('prices it at the dearest removal the business publishes', async () => {
+    const response = await quote('any', [
+      { removes: 'timber', pricePerMetre: 25 },
+      { removes: 'metal', pricePerMetre: 40 },
+    ]);
+
+    expect(response.results.length).toBe(1);
+    // 20m at $110 plus $40 a metre of removal.
+    expect(response.results[0]!.estimatedTotal).toBe(3000);
+  });
+
+  it('still prices a named kind exactly', async () => {
+    const response = await quote('timber', [
+      { removes: 'timber', pricePerMetre: 25 },
+      { removes: 'metal', pricePerMetre: 40 },
+    ]);
+
+    expect(response.results[0]!.estimatedTotal).toBe(2700);
+  });
+
+  /* Nothing published at all is a different thing from publishing the wrong kind: that business
+     does not do removals, and the customer needs one. It is still blocked. */
+  it('does not invent a rate for a business that publishes no removals', async () => {
+    const response = await quote('any', []);
+    expect(response.results.length).toBe(0);
   });
 });

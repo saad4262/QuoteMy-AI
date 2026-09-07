@@ -117,7 +117,18 @@ function quoteFor(
   // Removal is priced by what the OLD fence is made of, routinely not what the new one will be.
   let removalPerMetre = 0;
   if (brief.removal) {
-    const entry = pricing.removals.find((row) => slug(row.removes) === brief.removal) ?? pricing.removals.find((row) => slug(row.removes) === 'any');
+    /* "Yes, take it away" says a fence is there without saying what it is made of, which is the
+       right question to ask a customer and the wrong one to price from. A business that publishes
+       timber and metal separately and no wildcard row would match nothing and be hidden - dropped
+       out of somebody's results for pricing removals in more detail than the next business.
+       So the dearest of what they do publish stands in. Dearest and not cheapest, because the one
+       number nobody may be shown is a total lower than what they will actually be charged. */
+    const published = pricing.removals.find((row) => slug(row.removes) === brief.removal) ?? pricing.removals.find((row) => slug(row.removes) === 'any');
+    const dearest =
+      brief.removal === 'any' && pricing.removals.length
+        ? pricing.removals.reduce((worst, row) => (row.pricePerMetre > worst.pricePerMetre ? row : worst))
+        : undefined;
+    const entry = published ?? dearest;
     // They cannot take the old fence away, so they cannot do this job.
     if (!entry) return { blocked: 'removal' };
     removalPerMetre = entry.pricePerMetre;

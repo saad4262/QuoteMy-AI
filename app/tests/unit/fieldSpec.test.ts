@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { QUESTIONS } from '../../src/messages.js';
 import { askedFields, FENCING_FIELDS, FIELD_TYPES, specOf } from '../../src/client/fieldSpec.js';
-import { HEIGHT_FALLBACK, LENGTHS, QUANTITIES } from '../../src/client/vocab.js';
+import { HEIGHT_FALLBACK, QUANTITIES } from '../../src/client/vocab.js';
 
 /**
  * `FENCING_FIELDS` is a restatement of constants that still live in three other files, and the
@@ -43,7 +43,9 @@ describe('FENCING_FIELDS', () => {
   });
 
   it('carries the same literal option lists', () => {
-    expect(specOf(FENCING_FIELDS, 'lengthMeters')?.options).toEqual([...LENGTHS]);
+    // A length has no list at all: it is whatever the boundary measures, and three guesses at a
+    // number the customer already knows only invited them to round it.
+    expect(specOf(FENCING_FIELDS, 'lengthMeters')?.options).toBeUndefined();
     expect(specOf(FENCING_FIELDS, 'gateQty')?.options).toEqual([...QUANTITIES]);
     expect(specOf(FENCING_FIELDS, 'heightKey')?.options).toEqual([...HEIGHT_FALLBACK]);
   });

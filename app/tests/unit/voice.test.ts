@@ -495,7 +495,10 @@ describe('the end of a call', () => {
     let recap = '';
     for (let i = 0; i < 14 && !turn.isDone; i += 1) {
       if (turn.speakText.includes('find you some quotes')) recap = turn.speakText;
-      turn = await runVoiceTurn('call-6', { spokenText: recap ? 'yes' : 'option C' }, { repo });
+      /* A length has no choices to read out any more - it is whatever the boundary measures, and
+         nobody's is 10m because we offered 10m - so that one is answered the way a caller would. */
+      const answer = turn.speakText.includes('How long') ? '20 metres' : 'option A';
+      turn = await runVoiceTurn('call-6', { spokenText: recap ? 'yes' : answer }, { repo });
     }
 
     // The recap was spoken and answered out loud, and the call did not end there.
