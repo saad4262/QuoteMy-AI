@@ -1,5 +1,22 @@
 import { z } from 'zod';
-import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
+import {
+  CONDITIONS,
+  GATE_TYPES,
+  MATERIALS,
+  REMOVES,
+  TAGS,
+  TILE_CONDITIONS,
+  TILE_JOB_TYPES,
+  TILE_PREP,
+  TILE_REMOVES,
+  TILE_SUPPLY,
+  TILE_TAGS,
+  TILE_TYPES,
+  TILE_WATERPROOF,
+  TRADES,
+  UNITS,
+  type Trade,
+} from './vocab.js';
 
 /**
  * Everything the business side sends arrives on ONE route, and `action` says what to do with it.
@@ -208,13 +225,141 @@ export const extractionSchema = z.object({
 export type Extraction = z.infer<typeof extractionSchema>;
 
 /**
+ * Stage 2's output for TILING. Same discipline throughout - every number carries the sentence it
+ * came from, every enum comes from vocab.ts, everything is `.nullable()` rather than `.optional()`.
+ * What differs is the shape, and it differs because a tiling price list is a different document.
+ */
+export const tilingExtractionSchema = z.object({
+  businessName: z.string().nullable(),
+  gstIncluded: z.boolean().nullable(),
+  gstSourceQuote: z.string().nullable(),
+
+  serviceArea: z.object({
+    baseLocation: z.string().nullable(),
+    radiusKm: z.number().nullable(),
+    radiusSourceQuote: z.string().nullable(),
+    excludedAreas: z.string().array(),
+  }),
+
+  minimumCharge: z.number().nullable(),
+  minimumChargeSourceQuote: z.string().nullable(),
+  /** An inspection or call-out fee, which tilers charge and fencers generally do not. */
+  callOutFee: z.number().nullable(),
+  callOutFeeSourceQuote: z.string().nullable(),
+  travelFee: z.number().nullable(),
+  travelFeeSourceQuote: z.string().nullable(),
+
+  /**
+   * The core rates, and the one place tiling genuinely differs from fencing in kind.
+   *
+   * `tileType` is NULLABLE, exactly like `material` on a fencing gate and for the same reason: a
+   * price list says "Standard floor tiling $65/m²" and then "Porcelain floor tiling $72/m²", and
+   * those are a general rate and a specific one, not two rates for two different things. Null means
+   * "whatever tile they use"; a named type beats it at quoting time.
+   *
+   * `unit` is what lets a room price and a square-metre price live in one table. "Standard floor
+   * tiling $65/m²" is per_sqm; "Complete bathroom package $4,850" is per_job. Both are core rates,
+   * both are quoted through the same formula, and the unit is the only thing that differs.
+   */
+  rates: z
+    .object({
+      jobType: z.enum(TILE_JOB_TYPES),
+      tileType: z.enum(TILE_TYPES).nullable(),
+      price: z.number(),
+      unit: z.enum(['per_sqm', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Tiles they SELL, when they supply as well as install. Never a figure off a website. */
+  tileSupply: z
+    .object({
+      label: z.string(),
+      tileType: z.enum(TILE_TYPES).nullable(),
+      pricePerSqm: z.number(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Which of the two models they work under. Empty means they never said. */
+  supplyModels: z.enum(TILE_SUPPLY).array(),
+
+  /** Getting the surface ready, priced per square metre, per job or per hour. */
+  prep: z
+    .object({
+      type: z.enum(TILE_PREP),
+      price: z.number(),
+      unit: z.enum(['per_sqm', 'per_job', 'per_hour']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Taking up what is there, priced by what it is - not by what is going down. */
+  removals: z
+    .object({ removes: z.enum(TILE_REMOVES), pricePerSqm: z.number(), sourceQuote: z.string() })
+    .array(),
+
+  /** Priced per wet area, never per square metre. */
+  waterproofing: z
+    .object({ area: z.enum(TILE_WATERPROOF), price: z.number(), sourceQuote: z.string() })
+    .array(),
+
+  /** Same rule as fencing's surcharges: a rate or a percentage, never both. */
+  siteConditions: z
+    .object({
+      condition: z.enum(TILE_CONDITIONS),
+      extraPerSqm: z.number().nullable(),
+      extraPercent: z.number().nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  extras: z
+    .object({
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      isFromPrice: z.boolean(),
+      sourceQuote: z.string().nullable(),
+    })
+    .array(),
+
+  /**
+   * No `specs` equivalent. Fencing asks how it is built because a post depth is a real published
+   * specification; a tiler's method is adhesive, trowel and levelling system, which is not
+   * something businesses publish and not something customers compare on.
+   */
+  warranty: z.object({ text: z.string().nullable(), sourceQuote: z.string().nullable() }),
+
+  inclusions: z.string().array(),
+  exclusions: z.string().array(),
+  tags: z.enum(TILE_TAGS).array(),
+
+  otherOfferings: z
+    .object({
+      slug: z.string().nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  couldNotUse: z.string().array(),
+});
+export type TilingExtraction = z.infer<typeof tilingExtractionSchema>;
+
+/** Whatever the extraction stage returns, for the code between the model and the verifier. */
+export type AnyExtraction = Extraction | TilingExtraction;
+
+/**
  * One trade per extraction call (`CLAUDE.md` non-negotiable #5), so the schema is chosen by trade
  * rather than made to cover several. A fencing rate is a material at a height per linear metre; a
  * tiling rate is not that shape, and widening one schema to hold both would hand the model a set of
  * fields where most are wrong for whatever it is reading - which is how a number ends up in the
  * nearest field that would take it.
  */
-export const TRADE_EXTRACTION: Record<Trade, z.ZodType<Extraction>> = {
+export const TRADE_EXTRACTION: Record<Trade, z.ZodType<AnyExtraction>> = {
   fencing: extractionSchema,
 };
 
