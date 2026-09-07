@@ -5,7 +5,7 @@ import { AppError, unprocessable } from './http.js';
 import { assertSomethingArrived, readSource, stripProvenance, type UploadedFile } from './ingest.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { reviewSchema, TRADE_EXTRACTION, type BusinessBody } from './schemas.js';
-import { LABELS, MESSAGES, WHAT_TO_SEND } from './messages.js';
+import { MESSAGES, TRADE_LABELS, WHAT_TO_SEND } from './messages.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository, type ReviewDoc } from './store.js';
 import { verifyExtraction } from './verify/index.js';
 import { extrasForPrompt, extrasPromptBlock, loadVocabulary, recordExtras } from './vocabulary.js';
@@ -334,7 +334,7 @@ export async function runOnboarding(
         alsoWorthAdding: review.data.alsoWorthAdding ?? [],
         // Slug -> human label, so the screen shows "Treated pine" and never keeps its own copy
         // of a list that would drift from vocab.ts.
-        labels: LABELS,
+        labels: TRADE_LABELS[input.trade],
         // What we read, and how. `readBy: "model"` means a figure was read off a document rather
         // than taken from the bytes - worth the business glancing at.
         source: { documents: source.documents },

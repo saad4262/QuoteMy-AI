@@ -43,6 +43,7 @@ interface Submission {
   file: string;
   /** Why this fixture is in the net - what a later refactor could silently drop. */
   why: string;
+  trade?: 'fencing' | 'tiling';
 }
 
 const SUBMISSIONS: Submission[] = [
@@ -61,6 +62,12 @@ const SUBMISSIONS: Submission[] = [
     file: 'description-BAD-daves-fencing.txt',
     why: 'ranges, POA and "from" on core rates are all caught, while "from $1,450" on a gate motor is NOT - that carve-out is the false rejection this fixture produced once, and rule 4a exists because of it',
   },
+  {
+    name: '04 a complete tiling price list, approved and extracted',
+    file: 'description-COMPLETE-tiling.txt',
+    trade: 'tiling',
+    why: 'the second trade end to end - per-m2 rates and a per-job bathroom package surviving in one table, tiling\'s own couldNotUse wording, and no fencing field anywhere in the response',
+  },
 ];
 
 /**
@@ -73,7 +80,7 @@ async function runSubmission(submission: Submission, repo: MemoryRepository): Pr
   const input: BusinessBody = {
     action: 'submit',
     businessUid: 'golden-business',
-    trade: 'fencing',
+    trade: submission.trade ?? 'fencing',
     text,
   };
 

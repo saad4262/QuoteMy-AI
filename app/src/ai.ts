@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { env, logger } from './config.js';
 import { TRADE_FIELDS } from './client/fieldSpec.js';
+import type { Trade } from './vocab.js';
 import { AppError } from './http.js';
 import { toStrictJsonSchema } from './schemas.js';
 import type { Material } from './vocab.js';
@@ -477,14 +478,17 @@ export class MockAiClient implements AiClient {
 
   async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
     const text = call.user;
+    /* `wrapDescription` puts "Trade: x" at the top of every business-side call, so the mock can
+       tell which shape it is being asked for without the model API growing a field for it. */
+    const trade: Trade = /^Trade:\s*tiling\b/im.test(text) ? 'tiling' : 'fencing';
     const rates = readRates(text);
 
     let data: unknown;
     if (call.name === 'transcribe') data = this.transcribe(call.files ?? []);
-    else if (call.name === 'review') data = this.review(text, rates);
+    else if (call.name === 'review') data = trade === 'tiling' ? this.reviewTiling(text) : this.review(text, rates);
     else if (call.name === 'turn') data = this.turn(text);
     else if (call.name === 'answer') data = this.answer();
-    else data = this.extraction(text, rates);
+    else data = trade === 'tiling' ? this.extractionTiling(text) : this.extraction(text, rates);
 
     const usage = {
       name: call.name,
@@ -512,6 +516,140 @@ export class MockAiClient implements AiClient {
           ? { label: file.name, text: decoded.trim(), unreadable: false }
           : { label: file.name, text: '', unreadable: true };
       }),
+    };
+  }
+
+  /**
+   * Tiling, as far as a regex can see it. Crude on purpose, exactly like the fencing one above it:
+   * the mock exists to catch regressions in the PIPELINE, not to reproduce the model's judgement.
+   *
+   * The blocking list is T1-T9 from sop/tiling/rules.md, in the same order, so an offline run and a
+   * real one are at least asking the same questions.
+   */
+  private reviewTiling(text: string) {
+    const stated = (re: RegExp) => re.test(text);
+    const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
+
+    const perSqm = [...text.matchAll(/\$\s?([0-9,]+)\s*(?:per\s*(?:m2|m²|square\s*metre)|\/\s*(?:m2|m²))/gi)];
+    if (!perSqm.length) {
+      fixes.push({ kind: 'missing', what: 'Add your tiling rates per square metre, floor and wall separately.', example: 'Standard floor tiling $65 per m2' });
+    }
+    if (!stated(/prep|level|screed|grind|primer/i)) {
+      fixes.push({ kind: 'missing', what: 'Say what you charge for preparation, or that it is quoted on site.', example: 'Floor levelling $650' });
+    }
+    if (!stated(/waterproof/i)) {
+      fixes.push({ kind: 'missing', what: 'Add your waterproofing prices per wet area, or say you do not do it.', example: 'Bathroom waterproofing $950' });
+    }
+    if (!stated(/supply|customer.{0,20}tile|tiles you buy|labour only/i)) {
+      fixes.push({ kind: 'missing', what: 'Say whether you supply the tiles, lay the customer\'s own, or both.', example: null });
+    }
+    if (!stated(/minimum/i)) {
+      fixes.push({ kind: 'missing', what: 'Add the smallest job you will take on and what you charge for it.', example: 'Minimum job $350' });
+    }
+    if (!stated(/gst/i)) {
+      fixes.push({ kind: 'missing', what: 'Say whether your prices include GST.', example: 'All prices include GST' });
+    }
+    if (/\bpoa\b|call (?:us|for pricing)|\$\d+\s*(?:to|-)\s*\$?\d/i.test(text)) {
+      fixes.push({ kind: 'unclear', what: 'Give one set price per square metre for each tile type - some of what you sent is a range or a "call us".', example: null });
+    }
+
+    return {
+      outcome: perSqm.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      fixes: perSqm.length ? fixes : [],
+      alsoWorthAdding: [],
+    };
+  }
+
+  /**
+   * Tiling rates, read off the page the way the fencing mock reads its own: the number and its
+   * unit, filed under whichever job the line names. It cannot tell porcelain from ceramic, so every
+   * rate comes back with a null tileType - which is a real value here, not a gap.
+   */
+  private extractionTiling(text: string) {
+    const gstLine = sentenceWith(text, /gst/i);
+    const minLine = sentenceWith(text, /minimum/i);
+    const radiusLine = sentenceWith(text, /\b\d+\s*km\b/i);
+
+    const JOBS: [RegExp, string][] = [
+      [/splashback/i, 'kitchen_splashback'],
+      [/bathroom/i, 'bathroom'],
+      [/ensuite/i, 'ensuite'],
+      [/laundry/i, 'laundry'],
+      [/balcony/i, 'balcony'],
+      [/outdoor|external/i, 'outdoor'],
+      [/wall/i, 'wall_only'],
+      [/floor|tiling/i, 'floor_only'],
+    ];
+
+    const rates: unknown[] = [];
+    const seen = new Set<string>();
+    for (const line of text.split('\n')) {
+      const money = /\$\s?([0-9,]+)/.exec(line);
+      if (!money) continue;
+      /* Preparation, removal and the fees are their own fields. Without this the mock filed
+         "Surface preparation $350. Floor grinding $420" as a floor_only rate, because the line has
+         the word floor in it - which the verifier then correctly reported as the same job priced
+         twice. Crude is fine; wrong in a way that looks right is not. */
+      if (/removal|remove|waterproof|minimum|inspection|travel|grout|silicone|preparation|levelling|screeding|primer|grinding|rubbish|crack/i.test(line)) continue;
+
+      const perSqm = /per\s*(?:m2|m²|square\s*metre)|\/\s*(?:m2|m²)/i.test(line);
+      const job = JOBS.find(([re]) => re.test(line))?.[1];
+      if (!job || seen.has(job + perSqm)) continue;
+
+      seen.add(job + perSqm);
+      rates.push({
+        jobType: job,
+        tileType: null,
+        price: Number(money[1]!.replace(/,/g, '')),
+        unit: perSqm ? 'per_sqm' : 'per_job',
+        sourceQuote: line.trim(),
+      });
+    }
+
+    const removalLine = sentenceWith(text, /tile removal|ceramic tile removal/i) ?? sentenceWith(text, /removal.*per\s*m2/i);
+    const removalMoney = removalLine ? /\$\s?([0-9,]+)/.exec(removalLine) : null;
+    const waterLine = sentenceWith(text, /waterproof/i);
+    const waterMoney = waterLine ? /\$\s?([0-9,]+)/.exec(waterLine) : null;
+
+    return {
+      // Past the wrapper's own preamble, to the business's first real line.
+      businessName: text.split('<<<DESCRIPTION>>>')[1]?.split('\n').find((l) => l.trim())?.split('\u2014')[0]?.trim() ?? null,
+      gstIncluded: gstLine ? /include/i.test(gstLine) : null,
+      gstSourceQuote: gstLine,
+      serviceArea: {
+        baseLocation: /based in ([A-Z][a-zA-Z ]+)/i.exec(text)?.[1]?.trim() ?? null,
+        radiusKm: radiusLine ? Number(/(\d+)\s*km/i.exec(radiusLine)?.[1] ?? 0) || null : null,
+        radiusSourceQuote: radiusLine,
+        excludedAreas: [],
+      },
+      minimumCharge: minLine ? Number(/\$\s?([0-9,]+)/.exec(minLine)?.[1]?.replace(/,/g, '') ?? 0) || null : null,
+      minimumChargeSourceQuote: minLine,
+      callOutFee: null,
+      callOutFeeSourceQuote: null,
+      travelFee: null,
+      travelFeeSourceQuote: null,
+      rates,
+      tileSupply: [],
+      supplyModels: /customer.{0,20}tile|tiles you buy|labour only|supply/i.test(text) ? ['labour_only'] : [],
+      prep: [],
+      removals:
+        removalMoney && removalLine
+          ? [{ removes: 'any', pricePerSqm: Number(removalMoney[1]!.replace(/,/g, '')), sourceQuote: removalLine }]
+          : [],
+      waterproofing:
+        waterMoney && waterLine
+          ? [{ area: 'bathroom', price: Number(waterMoney[1]!.replace(/,/g, '')), sourceQuote: waterLine }]
+          : [],
+      siteConditions: [],
+      extras: [],
+      warranty: { text: null, sourceQuote: null },
+      inclusions: [],
+      exclusions: [],
+      tags: [],
+      otherOfferings: [],
+      couldNotUse: [
+        'Read by the offline mock reader - tile types, preparation and tile supply are not extracted in mock mode.',
+      ],
     };
   }
 

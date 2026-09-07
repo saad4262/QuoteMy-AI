@@ -195,6 +195,31 @@ export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string
 export const LABELS: Record<string, string> = Object.assign({}, ...Object.values(LABEL_GROUPS));
 
 /**
+ * The same, per trade, and this one matters: the response tells a business's own screen how to
+ * read its slugs. Handing a tiler fencing's map means `porcelain` and `bathroom` render as raw
+ * slugs while `timber_pine` renders beautifully - on a screen no fencing word belongs on.
+ */
+export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
+  fencing: LABELS,
+  /* Order matters here in a way it does not for fencing, because tiling's slugs REPEAT across
+     groups: `bathroom` is both a job and a wet area, `ceramic` is both a tile and something being
+     taken up. Flattening loses that, so the factual naming wins and the customer-chat phrasing goes
+     first to be overwritten - a business screen should read "Bathroom", never "Yes, the bathroom".
+     The lasting fix is a screen that renders each section from its own group; see
+     docs/TILING-FRONTEND.md §2.1. */
+  tiling: Object.assign(
+    {},
+    TILING_LABEL_GROUPS.waterproof,
+    TILING_LABEL_GROUPS.removes,
+    TILING_LABEL_GROUPS.supply,
+    TILING_LABEL_GROUPS.conditions,
+    TILING_LABEL_GROUPS.tileTypes,
+    TILING_LABEL_GROUPS.jobTypes,
+    LABEL_GROUPS.units,
+  ) as Record<string, string>,
+};
+
+/**
  * The question the customer chat asks for each field it has to fill. Here rather than in the chat
  * so the wording changes in one place, and so a new trade brings its own questions with it.
  */
