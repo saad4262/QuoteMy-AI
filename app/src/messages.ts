@@ -1,4 +1,16 @@
-import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, type Trade } from './vocab.js';
+import {
+  CONDITIONS,
+  GATE_TYPES,
+  MATERIALS,
+  REMOVES,
+  TILE_CONDITIONS,
+  TILE_JOB_TYPES,
+  TILE_REMOVES,
+  TILE_SUPPLY,
+  TILE_TYPES,
+  TILE_WATERPROOF,
+  type Trade,
+} from './vocab.js';
 
 /**
  * Enum slugs are how the database stores it; nobody wants to read timber_pine on a screen.
@@ -71,6 +83,71 @@ export const CUSTOMER_LABEL_GROUPS = {
 };
 
 /**
+ * Tiling's words. Same job as `LABEL_GROUPS` above, for the second trade.
+ *
+ * The large-format sizes keep their millimetre names because that is what a customer is shown in a
+ * tile shop and what is printed on the box - "Large format" alone would make four different prices
+ * look like one choice.
+ */
+export const TILING_LABEL_GROUPS = {
+  jobTypes: {
+    bathroom: 'Bathroom',
+    ensuite: 'Ensuite',
+    laundry: 'Laundry',
+    kitchen_splashback: 'Kitchen splashback',
+    floor_only: 'Floor only',
+    wall_only: 'Wall only',
+    balcony: 'Balcony',
+    outdoor: 'Outdoor area',
+  },
+  tileTypes: {
+    ceramic: 'Ceramic',
+    porcelain: 'Porcelain',
+    large_format_600x1200: 'Large format 600×1200',
+    large_format_900x900: 'Large format 900×900',
+    large_format_1200x1200: 'Large format 1200×1200',
+    large_format_1200x2400: 'Large format 1200×2400',
+    subway: 'Subway',
+    mosaic: 'Mosaic',
+    glass_mosaic: 'Glass mosaic',
+    feature_mosaic: 'Feature mosaic',
+    natural_stone: 'Natural stone',
+    terrazzo: 'Terrazzo',
+    outdoor_porcelain: 'Outdoor porcelain',
+    herringbone: 'Herringbone pattern',
+  },
+  supply: {
+    labour_only: "I'm buying the tiles",
+    supply_and_install: 'They supply the tiles',
+  },
+  removes: {
+    any: 'Yes, take them up',
+    ceramic: 'Ceramic tiles',
+    porcelain: 'Porcelain tiles',
+    stone: 'Stone tiles',
+    mosaic: 'Mosaic tiles',
+    adhesive: 'Adhesive only',
+  },
+  /* Answers to "does any of it need waterproofing?", so they read as answers rather than as a list
+     of rooms. "Just the shower" is a real and common one - a shower is waterproofed when the rest
+     of the bathroom floor is not. */
+  waterproof: {
+    bathroom: 'Yes, the bathroom',
+    shower: 'Just the shower',
+    ensuite: 'Yes, the ensuite',
+    laundry: 'Yes, the laundry',
+    balcony: 'Yes, the balcony',
+  },
+  conditions: {
+    restricted_access: 'Hard to get to',
+    second_storey: 'Upstairs',
+    stairs: 'Stairs involved',
+    small_room: 'Small room',
+    uneven_substrate: 'Uneven floor',
+  },
+} as const;
+
+/**
  * What the chat may OFFER, per trade, in the order it offers them.
  *
  * Not the same list as `TRADE_VOCAB` even for fencing, and the difference is the point: `removes`
@@ -86,11 +163,23 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
     conditions: [...CONDITIONS],
     removes: ['any', ...REMOVES.filter((r) => r !== 'any')],
   },
+  tiling: {
+    jobTypes: [...TILE_JOB_TYPES],
+    tileTypes: [...TILE_TYPES],
+    supply: [...TILE_SUPPLY],
+    /* Same shape as fencing's: "yes, take them up" first, and the kinds behind it for anyone who
+       knows which they have. `adhesive` is left off - it is a business-side line, not something a
+       customer looking at a tiled floor would ever pick. */
+    removes: ['any', ...TILE_REMOVES.filter((r) => r !== 'any' && r !== 'adhesive')],
+    waterproof: [...TILE_WATERPROOF],
+    conditions: [...TILE_CONDITIONS],
+  },
 };
 
 /** The same, for the words. Keyed by trade so a second trade brings its own and touches nothing. */
 export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string>>> = {
   fencing: CUSTOMER_LABEL_GROUPS,
+  tiling: TILING_LABEL_GROUPS,
 };
 
 /** Flattened, for the business-side response. Derived - never edited by hand. */
@@ -110,9 +199,22 @@ export const QUESTIONS: Record<string, string> = {
   gateQty: 'How many of those gates?',
 };
 
+export const TILING_QUESTIONS: Record<string, string> = {
+  jobType: 'What are you having tiled?',
+  tileType: 'What tile are you using?',
+  /* "Roughly" on purpose. A customer who has not measured will otherwise stall on a question they
+     cannot answer exactly, and every quote in this trade is confirmed on site anyway. */
+  areaSqm: 'Roughly how many square metres?',
+  supply: "Who's buying the tiles?",
+  removal: 'Are there old tiles to take up?',
+  waterproofing: 'Does any of it need waterproofing?',
+  conditions: 'Anything tricky about the site?',
+};
+
 /** Per trade, for the same reason as the lists above: fencing's wording is fencing's. */
 export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
   fencing: QUESTIONS,
+  tiling: TILING_QUESTIONS,
 };
 
 export const MESSAGES = {
@@ -189,6 +291,53 @@ export const WHAT_TO_SEND: Record<Trade, { need: string[]; helpful: string[]; ex
       '',
       'All prices include GST. Based in Berwick, we travel 30km. Minimum charge $850.',
       'Council permits are the customer\'s responsibility. Workmanship warranted 7 years.',
+    ].join('\n'),
+  },
+
+  /* Taken from the blocking rules T1-T9 in prompts/sop/tiling/rules.md, in the same order, so a
+     business reading this and a reviewer judging it are working from one list. */
+  tiling: {
+    need: [
+      'Each tile type you lay and your price per square metre - floor and wall separately',
+      'Large format by size and mosaic on their own lines (or say you do not do them)',
+      'Preparation priced separately - surface prep, levelling, screeding, adhesive removal (or say it is quoted on site)',
+      'What you charge per square metre to take up existing tiles, by what is being removed',
+      'Waterproofing, priced per wet area - bathroom, ensuite, shower (or say you do not do it)',
+      'Whether you supply the tiles, install the customer\'s own, or both - and your tile prices per m2 if you supply',
+      'Your minimum job charge, any call-out or inspection fee, and any travel charge',
+      'The suburb or postcode you work out from, and how far you travel',
+      'Whether your prices include GST',
+    ],
+    helpful: [
+      'What a standard quote includes - adhesive, grout, silicone, standard cutting, clean-up',
+      'What it does not - plumbing, electrical, shower screens, asbestos, structural repairs',
+      'How you handle variations when the substrate turns out worse than it looked',
+      'Your workmanship warranty, in your own words',
+    ],
+    example: [
+      'FLOOR TILING (per m2)',
+      'Standard - $65    Porcelain - $72    Natural stone - $125',
+      '600x1200 - $88    900x900 - $95     1200x1200 - $110',
+      '',
+      'WALL TILING (per m2)',
+      'Standard - $68    Subway - $78      Mosaic - $120',
+      '',
+      'PREPARATION',
+      'Surface preparation $350. Floor levelling $650. Screeding $480.',
+      'Adhesive removal $380. Extra substrate repair $95 per hour.',
+      '',
+      'TILE REMOVAL (per m2)',
+      'Ceramic $45. Porcelain $55. Stone $75.',
+      '',
+      'WATERPROOFING',
+      'Bathroom $950. Ensuite $850. Shower only $550. Laundry $650.',
+      '',
+      'We supply tiles or lay tiles you buy yourself - the labour rate is the same either way.',
+      'Our tiles run $32 to $125 per m2 depending on the range.',
+      '',
+      'All prices include GST. Based in Pakenham, we travel 25km.',
+      'Minimum job $350. Site inspection $95. Travel outside our area $75.',
+      'Workmanship warranty as per contract.',
     ].join('\n'),
   },
 };

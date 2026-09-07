@@ -1,4 +1,4 @@
-import { QUESTIONS } from '../messages.js';
+import { QUESTIONS, TILING_QUESTIONS } from '../messages.js';
 import type { Trade } from '../vocab.js';
 import { HEIGHT_FALLBACK, QUANTITIES } from './vocab.js';
 
@@ -179,12 +179,104 @@ export const FENCING_FIELDS: FieldSpec[] = [
 ];
 
 /**
+ * Tiling, from the client's SOP.
+ *
+ * Eight asked fields, the same count as fencing, and the SOP's own §26 list of what its assistant
+ * must ask is what they are: measurements, tile type, who supplies the tile, whether demolition is
+ * needed, substrate condition, waterproofing, access.
+ *
+ * `jobType` leads because in this trade the room IS the job - a bathroom is floor and wall and
+ * waterproofing at once, and tilers publish one price for one. `areaSqm` is still asked after it,
+ * because plenty of businesses publish only per-square-metre rates and quote the same bathroom by
+ * the metre; which way a given business is quoted is decided by the unit on its own rate row.
+ */
+export const TILING_FIELDS: FieldSpec[] = [
+  {
+    key: 'suburb',
+    type: 'place',
+    title: 'Suburb',
+    question: 'Which suburb is the job in? A postcode works too.',
+  },
+  {
+    key: 'jobType',
+    type: 'enum',
+    title: 'Job',
+    question: TILING_QUESTIONS.jobType,
+    source: 'core.jobTypes',
+    labelGroup: 'jobTypes',
+  },
+  {
+    key: 'tileType',
+    type: 'enum',
+    title: 'Tile',
+    question: TILING_QUESTIONS.tileType,
+    source: 'core.tileTypes',
+    labelGroup: 'tileTypes',
+    acceptsExtras: true,
+  },
+  {
+    key: 'areaSqm',
+    type: 'number',
+    title: 'Area',
+    question: TILING_QUESTIONS.areaSqm,
+    labelUnit: { suffix: 'm²' },
+    /* No list, for the same reason fencing's length has none: it is a number the customer's own
+       room already has, and offering 10, 20, 30 would only invite them to round it. */
+  },
+  {
+    key: 'supply',
+    type: 'enum',
+    title: 'Tiles',
+    question: TILING_QUESTIONS.supply,
+    source: 'core.supply',
+    labelGroup: 'supply',
+    /* Two real answers and no "none" - somebody is buying the tiles either way. */
+    pageSize: 2,
+  },
+  {
+    key: 'removal',
+    type: 'enum',
+    title: 'Old tiles',
+    question: TILING_QUESTIONS.removal,
+    source: 'core.removes',
+    labelGroup: 'removes',
+    pinned: { label: 'Nothing to take up', value: 'none' },
+    // Yes against no, the same two-slot layout the fencing removal question uses.
+    pageSize: 2,
+  },
+  {
+    key: 'waterproofing',
+    type: 'enum',
+    title: 'Waterproofing',
+    question: TILING_QUESTIONS.waterproofing,
+    source: 'core.waterproof',
+    labelGroup: 'waterproof',
+    pinned: { label: 'Not needed', value: 'none' },
+  },
+  {
+    key: 'conditions',
+    type: 'multiEnum',
+    title: 'Site conditions',
+    question: TILING_QUESTIONS.conditions,
+    source: 'core.conditions',
+    labelGroup: 'conditions',
+    pinned: { label: 'Nothing tricky', value: 'none' },
+  },
+  {
+    key: 'existingPrice',
+    type: 'money',
+    asked: false,
+  },
+];
+
+/**
  * Each trade's checklist, by trade. Read by anything that serves a trade generically - the chat's
  * fallback schema and the Firestore seed - so that publishing `schema/tiling` cannot seed it with
  * fencing's questions.
  */
 export const TRADE_FIELDS: Record<Trade, FieldSpec[]> = {
   fencing: FENCING_FIELDS,
+  tiling: TILING_FIELDS,
 };
 
 /** Every spec entry, asked or not. */

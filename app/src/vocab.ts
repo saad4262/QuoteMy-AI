@@ -130,8 +130,15 @@ export const TILE_PREP = [
   'crack_treatment',
 ] as const;
 
-/** What is being taken up, which is what removal is priced against - not what is going down. */
-export const TILE_REMOVES = ['ceramic', 'porcelain', 'stone', 'mosaic', 'adhesive'] as const;
+/**
+ * What is being taken up, which is what removal is priced against - not what is going down.
+ *
+ * `any` is the business-side wildcard, exactly as it is in fencing's `REMOVES`: a customer looking
+ * at their own bathroom floor knows there are tiles on it and very often cannot tell ceramic from
+ * porcelain. They answer "yes, take them up"; which kind it is stays our pricing problem, and
+ * `priceAndRank` falls back to the dearest rate a business published rather than hiding them.
+ */
+export const TILE_REMOVES = ['ceramic', 'porcelain', 'stone', 'mosaic', 'adhesive', 'any'] as const;
 
 /** Priced per wet area, not per square metre. Regulated work, never an upsell. */
 export const TILE_WATERPROOF = ['bathroom', 'ensuite', 'laundry', 'shower', 'balcony'] as const;
@@ -181,7 +188,7 @@ export const TILING_BOUNDS = {
   radiusKm: { min: 0, max: 500 },
 } as const;
 
-export const TRADES = ['fencing'] as const; // tiling, decking, retaining_wall follow the Day-9 gate
+export const TRADES = ['fencing', 'tiling'] as const; // decking and retaining_wall follow
 export type Trade = (typeof TRADES)[number];
 
 /**
@@ -236,4 +243,5 @@ export const TILING_VOCAB: TradeVocab = {
 
 export const TRADE_VOCAB: Record<Trade, TradeVocab> = {
   fencing: FENCING_VOCAB,
+  tiling: TILING_VOCAB,
 };

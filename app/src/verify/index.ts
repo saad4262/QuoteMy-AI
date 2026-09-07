@@ -36,10 +36,9 @@ export function verifyExtraction(
   switch (trade) {
     case 'fencing':
       return verifyFencing(x as Extraction, sourceText, trade, knownSlugs);
+    case 'tiling':
+      return verifyTiling(x as TilingExtraction, sourceText, trade, knownSlugs);
   }
-  /* `case 'tiling'` joins this switch in the same commit that adds 'tiling' to TRADES - the
-     exhaustiveness that makes a missing verifier a compile error also means the arm cannot exist
-     before the trade does. `verifyTiling` is written and exported; only the wiring waits. */
 }
 
 /**

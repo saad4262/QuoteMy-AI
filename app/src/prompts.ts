@@ -41,10 +41,12 @@ const generalSop = read('sop', '_general.md');
 /** Two files per trade: the publish rules to judge against, and how to read that trade's list. */
 const tradeRules: Record<Trade, string> = {
   fencing: read('sop', 'fencing', 'rules.md'),
+  tiling: read('sop', 'tiling', 'rules.md'),
 };
 
 const tradeExtraction: Record<Trade, string> = {
   fencing: read('extraction.fencing.md'),
+  tiling: read('extraction.tiling.md'),
 };
 
 /** Rough, deliberately pessimistic: ~3.6 chars per token for English prose. */

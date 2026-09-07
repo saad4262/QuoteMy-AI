@@ -47,4 +47,13 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
     rateKeys: ['material', 'heightKey'],
     minimumCharge: true,
   },
+  tiling: {
+    quantityField: 'areaSqm',
+    unit: 'm2',
+    /* pricing.rates is { jobType: [ { tileType, price, unit } ] }. The second key is nullable on a
+       row - a rate published for any tile - so the lookup prefers a named tile and falls back to
+       the general one, the same way a fencing gate prefers its own material's price. */
+    rateKeys: ['jobType', 'tileType'],
+    minimumCharge: true,
+  },
 };

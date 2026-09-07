@@ -361,6 +361,7 @@ export type AnyExtraction = Extraction | TilingExtraction;
  */
 export const TRADE_EXTRACTION: Record<Trade, z.ZodType<AnyExtraction>> = {
   fencing: extractionSchema,
+  tiling: tilingExtractionSchema,
 };
 
 /**
