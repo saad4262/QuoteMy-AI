@@ -2,6 +2,8 @@ import type { ServiceExtract } from '../store.js';
 import { budgetText } from './budget.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
+import { quoteTotal } from './pricing/total.js';
+import { TRADE_PRICING, type PricingSpec } from './pricing/spec.js';
 import { titleCase, type TradeSchema } from './schema.js';
 import type { AlternativeOffer, ChatResponse, Checklist, ComparisonQuote, QuoteResult, UiState } from './schemas.js';
 
@@ -44,10 +46,6 @@ const asText = (value: unknown): string | null => (typeof value === 'string' && 
 const asTextList = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 
-const GST_MULTIPLIER = 1.1;
-/** Every figure shown or compared is what the customer would actually pay - an exclusive rate looks 10% cheaper than it is. */
-const payable = (amount: number, gstIncluded: boolean): number => (gstIncluded ? Math.round(amount) : Math.round(amount * GST_MULTIPLIER));
-
 interface Quote {
   uid: string;
   businessName: string;
@@ -89,6 +87,7 @@ function quoteFor(
   heightMetres: number,
   heightLabel: string,
   brief: Brief,
+  spec: PricingSpec,
 ): Quote | { blocked: Blocked } {
   const pricing = extract.pricing!;
   const capabilities = extract.capabilities;
@@ -161,12 +160,18 @@ function quoteFor(
   }
 
   const gstIncluded = pricing.gstIncluded === true;
-  // The percentage surcharge is a loading on the work done along the fence line, so it applies to
-  // the install and the removal and not to a gate, which is a fixed item either way.
-  const perMetre = (rate + removalPerMetre + conditionPerMetre) * (1 + conditionPercent / 100);
-  const subtotal = perMetre * brief.lengthMetres + gatesTotal;
-  const minimumCharge = payable(pricing.minimumCharge ?? 0, gstIncluded);
-  const total = Math.max(payable(subtotal, gstIncluded), minimumCharge);
+  /* The lookups above are fencing's shape - which removal row, which surcharge, which gate. What
+     they add up to is not: `quoteTotal` is the one formula every trade prices with, and the only
+     thing tiling changes about this call is that the quantity is square metres. */
+  const { perUnit: perMetre, total } = quoteTotal({
+    rate,
+    perUnitExtras: removalPerMetre + conditionPerMetre,
+    percentExtras: conditionPercent,
+    quantity: brief.lengthMetres,
+    fixedItems: gatesTotal,
+    minimumCharge: spec.minimumCharge ? pricing.minimumCharge : null,
+    gstIncluded,
+  });
 
   const badges: string[] = [];
   badges.push(gstIncluded ? 'incl. GST' : 'incl. GST (added)');
@@ -186,7 +191,7 @@ function quoteFor(
     distanceKm: business.distanceKm,
     material: materialSlug,
     heightKey: priced,
-    ratePerMeter: payable(perMetre, gstIncluded),
+    ratePerMeter: perMetre,
     autoAcceptsAi: business.autoAcceptsAi,
     currency: 'AUD',
     projectTotalMin: total,
@@ -236,12 +241,14 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
   const removal = asText(checklist.removal);
   const gateType = asText(checklist.gateType);
 
+  const spec = TRADE_PRICING[schema.trade];
   const wantedMaterial = slug(material);
   const wantedHeight = Number.parseFloat(String(heightKey ?? ''));
   const brief: Brief = {
     material: wantedMaterial,
     heightMetres: wantedHeight,
-    lengthMetres: asNumber(checklist.lengthMeters) ?? 0,
+    // Named by the trade's pricing spec: metres of fence, square metres of floor.
+    lengthMetres: asNumber(checklist[spec.quantityField]) ?? 0,
     conditions: asTextList(checklist.conditions),
     removal: removal && removal !== 'none' ? slug(removal) : null,
     gateType: gateType && gateType !== 'none' ? slug(gateType) : null,
@@ -255,7 +262,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     const business = matcher.businesses[i]!;
     const extract = matcher.pricing[i]!;
     if (!extract.pricing) continue;
-    const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief);
+    const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief, spec);
     if ('blocked' in quote) {
       blocked[quote.blocked] += 1;
       continue;
@@ -303,7 +310,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
           const metres = Number.parseFloat(heightKey);
           if (!Number.isFinite(metres) || metres <= 0) continue;
           if (material === wantedMaterial && Math.abs(metres - wantedHeight) < 0.001) continue;
-          const quote = quoteFor(business, extract, material, metres, heightKey, brief);
+          const quote = quoteFor(business, extract, material, metres, heightKey, brief, spec);
           if ('blocked' in quote) continue;
           if (existingPrice !== null && quote.projectTotalMin >= existingPrice) continue;
           alternatives.push({
