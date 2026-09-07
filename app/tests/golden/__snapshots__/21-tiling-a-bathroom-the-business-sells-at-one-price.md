@@ -1167,7 +1167,7 @@ customer: "none"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "confirmation",
-  "message": "Got it — Berwick, VIC 3806, Undefined, removing the old yes, take them up. All correct?",
+  "message": "Got it — Berwick, VIC 3806, Bathroom, Porcelain, 8m², I'm buying the tiles, removing the old tiles, waterproofing the bathroom. All correct?",
   "options": [
     {
       "label": "Yes, that's all correct",
@@ -1201,7 +1201,7 @@ customer: "none"
         "conditions": 0
       },
       "lastAsked": null,
-      "lastQuestion": "Got it — Berwick, VIC 3806, Undefined, removing the old yes, take them up. All correct?",
+      "lastQuestion": "Got it — Berwick, VIC 3806, Bathroom, Porcelain, 8m², I'm buying the tiles, removing the old tiles, waterproofing the bathroom. All correct?",
       "lastValues": [
         "yes",
         "no"

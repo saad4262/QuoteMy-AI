@@ -1167,7 +1167,7 @@ customer: "none"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "confirmation",
-  "message": "Got it — Berwick, VIC 3806, Undefined. All correct?",
+  "message": "Got it — Berwick, VIC 3806, Floor only, Porcelain, 20m², I'm buying the tiles. All correct?",
   "options": [
     {
       "label": "Yes, that's all correct",
@@ -1201,7 +1201,7 @@ customer: "none"
         "conditions": 0
       },
       "lastAsked": null,
-      "lastQuestion": "Got it — Berwick, VIC 3806, Undefined. All correct?",
+      "lastQuestion": "Got it — Berwick, VIC 3806, Floor only, Porcelain, 20m², I'm buying the tiles. All correct?",
       "lastValues": [
         "yes",
         "no"
@@ -1629,7 +1629,7 @@ customer: "ceramic"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "confirmation",
-  "message": "Got it — Berwick, VIC 3806, Undefined. All correct?",
+  "message": "Got it — Berwick, VIC 3806, Floor only, Ceramic, 20m², I'm buying the tiles. All correct?",
   "options": [
     {
       "label": "Yes, that's all correct",
@@ -1663,7 +1663,7 @@ customer: "ceramic"
         "conditions": 0
       },
       "lastAsked": null,
-      "lastQuestion": "Got it — Berwick, VIC 3806, Undefined. All correct?",
+      "lastQuestion": "Got it — Berwick, VIC 3806, Floor only, Ceramic, 20m², I'm buying the tiles. All correct?",
       "lastValues": [
         "yes",
         "no"

@@ -29,6 +29,25 @@ export interface PinnedOption {
   value: string;
 }
 
+/**
+ * The difference between an answer and a phrase.
+ *
+ * "Yes, take it away" is the right thing to offer somebody being asked whether there is an old
+ * fence, and the wrong thing to read back: "removing the old yes, take it away". So the recap can
+ * substitute a word for an answer whose label is phrased as an answer, and can put words in front
+ * of it or count it by another field.
+ */
+export interface RecapPhrasing {
+  /** Words in front: "removing the old timber fence". */
+  prefix?: string;
+  /** Another field's answer as a multiplier: "2 x single pedestrian gate". */
+  countedBy?: string;
+  /** Lower-cased, so it reads inside a sentence rather than as a heading. */
+  lower?: boolean;
+  /** A word to use instead of that answer's own label, per value. */
+  words?: Record<string, string>;
+}
+
 /** Only ask this field when the dependency holds - the data form of "no gates means no quantity". */
 export interface DependsOn {
   field: string;
@@ -69,6 +88,13 @@ export interface FieldSpec {
    * writes, and a false match empties a field they never mentioned.
    */
   aliases?: string[];
+  /**
+   * How this field reads inside the one-line recap of the whole job, before the customer confirms.
+   * `false` keeps it out entirely - a gate quantity is already inside the gate's own phrase.
+   *
+   * Absent means "the label, as it is": "Colorbond", "1.8m", "20m".
+   */
+  recap?: false | RecapPhrasing;
   /** A literal list, for anything no business publishes rates against: a length, a count. */
   options?: (string | number)[];
   pinned?: PinnedOption;
@@ -151,6 +177,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'removal',
+    recap: { prefix: 'removing the old ', lower: true, words: { any: 'fence' } },
     namedBy: /\b(removals?|remove|removing|old fence)\b/i,
     aliases: ['removal', 'removing'],
     type: 'enum',
@@ -166,6 +193,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'conditions',
+    recap: { lower: true },
     namedBy: /\b(conditions?|site|ground|slope|sloped|access)\b/i,
     aliases: ['conditions'],
     type: 'multiEnum',
@@ -177,6 +205,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'gateType',
+    recap: { countedBy: 'gateQty', lower: true },
     namedBy: /\b(gate type|type of gate|kind of gate|which gate)\b/i,
     type: 'enum',
     labelGroup: 'gateTypes',
@@ -187,6 +216,9 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'gateQty',
+    /* Already inside the gate's own phrase - "2 x single pedestrian gate" - so saying it twice
+       would read as two separate answers. */
+    recap: false,
     namedBy: /\b(how many gates|number of gates|gate count)\b/i,
     type: 'count',
     labelUnit: { one: 'gate', many: 'gates' },
@@ -271,6 +303,7 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'removal',
+    recap: { prefix: 'removing the old ', lower: true, words: { any: 'tiles' } },
     namedBy: /\b(removals?|remove|removing|old tiles?|existing tiles?)\b/i,
     aliases: ['removal', 'removing'],
     type: 'enum',
@@ -284,6 +317,13 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'waterproofing',
+    /* The labels are answers - "Yes, the bathroom" - which is right on screen and wrong read back.
+       These are the same rooms as nouns. */
+    recap: {
+      prefix: 'waterproofing ',
+      lower: true,
+      words: { bathroom: 'the bathroom', shower: 'the shower', ensuite: 'the ensuite', laundry: 'the laundry', balcony: 'the balcony' },
+    },
     namedBy: /\b(waterproof(?:ing)?|membrane|tanking)\b/i,
     aliases: ['waterproofing'],
     type: 'enum',
@@ -295,6 +335,9 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'conditions',
+    namedBy: /\b(conditions?|site|access|substrate|floor)\b/i,
+    aliases: ['conditions'],
+    recap: { lower: true },
     type: 'multiEnum',
     title: 'Site conditions',
     question: TILING_QUESTIONS.conditions,

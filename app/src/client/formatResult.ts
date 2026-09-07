@@ -300,19 +300,30 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
   } else if (!lastWasConfirmation || budget) {
     // Everything is known. One recap, then the handoff - built from the checklist's own values,
     // never from a sentence the model wrote, so it can never mention a value that isn't stored.
-    const recap = [
-      checklist.suburb,
-      labelFor('material', checklist.material),
-      checklist.heightKey,
-      checklist.lengthMeters ? checklist.lengthMeters + 'm' : null,
-      checklist.removal && checklist.removal !== 'none' ? 'removing the old ' + labelFor('removal', checklist.removal).toLowerCase() : null,
-      Array.isArray(checklist.conditions) && checklist.conditions.length
-        ? checklist.conditions.map((value) => labelFor('conditions', value).toLowerCase()).join(', ')
-        : null,
-      checklist.gateType && checklist.gateType !== 'none'
-        ? (checklist.gateQty || 1) + ' x ' + labelFor('gateType', checklist.gateType).toLowerCase()
-        : null,
-    ]
+    /* Walked from the trade's own fields, in the order they were asked, rather than written out by
+       name. Written out it was fencing's - `checklist.material` on a tiling job is undefined, and
+       the recap read "Got it - Berwick, Undefined". How each answer READS is the field's business
+       (`spec.recap`), because a label that is right on screen can be wrong in a sentence: "Yes,
+       take it away" belongs on a chip and never after the words "removing the old". */
+    const recap = askedFields(fields)
+      .map((spec): string | null => {
+        if (spec.recap === false) return null;
+        const value = checklist[spec.key];
+
+        const values = Array.isArray(value) ? value : value === null || value === undefined || value === '' ? [] : [value];
+        // A pinned answer is "there is none of this", which is not something to read back.
+        const said = values.filter((entry) => String(entry) !== spec.pinned?.value);
+        if (!said.length) return null;
+
+        const phrasing = spec.recap ?? {};
+        const words = said
+          .map((entry) => phrasing.words?.[String(entry)] ?? labelFor(spec.key, entry))
+          .map((word) => (phrasing.lower ? word.toLowerCase() : word))
+          .join(', ');
+
+        const counted = phrasing.countedBy ? (checklist[phrasing.countedBy] || 1) + ' x ' + words : words;
+        return (phrasing.prefix ?? '') + counted;
+      })
       .filter(Boolean)
       .join(', ');
     message = 'Got it — ' + recap + '. All correct?';
