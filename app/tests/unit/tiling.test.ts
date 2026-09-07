@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { runChat } from '../../src/client/controller.js';
 import { clearSchemaCache, loadTradeSchema } from '../../src/client/schema.js';
 import { TRADE_PRICING } from '../../src/client/pricing/spec.js';
-import { extractionPrompt, reviewPrompt } from '../../src/prompts.js';
+import { TRADE_FIELDS } from '../../src/client/fieldSpec.js';
+import { turnSchemaFor } from '../../src/client/schemas.js';
+import { chatPrompt, extractionPrompt, reviewPrompt } from '../../src/prompts.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
 import { verifyExtraction } from '../../src/verify/index.js';
 import type { TilingExtraction } from '../../src/schemas.js';
@@ -69,6 +71,50 @@ describe('the tiling trade is wired up', () => {
 
     expect(extractionPrompt('tiling')).toContain('RATES CARRY THEIR OWN UNIT');
     expect(extractionPrompt('tiling')).not.toContain('timber_pine');
+  });
+
+  /**
+   * The model's own contract, per trade.
+   *
+   * Before this the turn schema was hand-written as fencing's, so a tiling conversation asked the
+   * model for a fence material and gave it nowhere to put a tile. Deriving it from the field spec
+   * is only safe if fencing's contract came out unchanged - these two assertions are what say so.
+   */
+  it('gives the model exactly the fields that trade is asking about', () => {
+    const keysOf = (fields: Parameters<typeof turnSchemaFor>[0]) =>
+      Object.keys((turnSchemaFor(fields) as unknown as { shape: { checklist: { shape: object } } }).shape.checklist.shape);
+
+    expect(keysOf(TRADE_FIELDS.fencing)).toEqual([
+      'material',
+      'heightKey',
+      'lengthMeters',
+      'removal',
+      'conditions',
+      'gateType',
+      'gateQty',
+      'existingPrice',
+    ]);
+
+    expect(keysOf(TRADE_FIELDS.tiling)).toEqual([
+      'jobType',
+      'tileType',
+      'areaSqm',
+      'supply',
+      'removal',
+      'waterproofing',
+      'conditions',
+      'existingPrice',
+    ]);
+
+    // A suburb is never the model's to fill - it is real only once picked off the Google list.
+    expect(keysOf(TRADE_FIELDS.tiling)).not.toContain('suburb');
+  });
+
+  it('briefs the model in its own trade\'s words', () => {
+    expect(chatPrompt('tiling')).toContain('tiling quote conversation');
+    expect(chatPrompt('tiling')).toContain('tileType');
+    expect(chatPrompt('tiling')).not.toContain('gateQty');
+    expect(chatPrompt('fencing')).toContain('fencing quote conversation');
   });
 
   it('keeps its closed lists separate from fencing\'s', () => {

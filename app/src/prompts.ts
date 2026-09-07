@@ -44,6 +44,20 @@ const tradeRules: Record<Trade, string> = {
   tiling: read('sop', 'tiling', 'rules.md'),
 };
 
+/**
+ * The customer-chat agent's briefing, per trade. Lives here with every other prompt rather than as
+ * a template literal inside `client/agent.ts`, because it is data: a trade's is written from its
+ * own field spec and nothing about it is code.
+ */
+const tradeChat: Record<Trade, string> = {
+  fencing: read('chat', 'fencing.md'),
+  tiling: read('chat', 'tiling.md'),
+};
+
+export function chatPrompt(trade: Trade): string {
+  return tradeChat[trade];
+}
+
 const tradeExtraction: Record<Trade, string> = {
   fencing: read('extraction.fencing.md'),
   tiling: read('extraction.tiling.md'),

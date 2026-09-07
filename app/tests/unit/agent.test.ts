@@ -29,7 +29,7 @@ describe('an empty send costs nothing and breaks nothing', () => {
   it('does not call the model when there is no message and no attachment', async () => {
     // The provider rejects an empty `input` outright, so pressing send on an empty box used to
     // come back as "the model service is unavailable" - a 502 for doing nothing wrong.
-    const result = await runTurn(input(), { ai: neverCalled });
+    const result = await runTurn(input(), 'fencing', { ai: neverCalled });
 
     expect(result.data.checklist.material).toBeNull();
     expect(result.data.clearFields).toEqual([]);
@@ -39,7 +39,7 @@ describe('an empty send costs nothing and breaks nothing', () => {
   });
 
   it('claims nothing on the customer\'s behalf when they said nothing', async () => {
-    const result = await runTurn(input({ known: { material: 'colorbond', lengthMeters: 30 } }), { ai: neverCalled });
+    const result = await runTurn(input({ known: { material: 'colorbond', lengthMeters: 30 } }), 'fencing', { ai: neverCalled });
 
     // Every field null: the merge step keeps whatever was already known, and a turn that read
     // nothing must not appear to have answered anything.
@@ -65,7 +65,7 @@ describe('an empty send costs nothing and breaks nothing', () => {
       },
     };
 
-    await runTurn(input({ extractedText: 'Quote total $4,180' }), { ai });
+    await runTurn(input({ extractedText: 'Quote total $4,180' }), 'fencing', { ai });
     expect(called).toBe(true);
   });
 });

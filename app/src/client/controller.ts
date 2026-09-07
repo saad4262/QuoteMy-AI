@@ -192,6 +192,7 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
     await assertWithinDailyBudget(repo);
     turnResult = await runTurn(
       { message, extractedText, docFacts, docSuburbHint, known, ui },
+      trade,
       { ai: deps.ai },
     );
     await recordSpend(turnResult.usage.costUsd, repo);

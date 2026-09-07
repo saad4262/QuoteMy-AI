@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { TRADES, type Trade } from '../vocab.js';
+import { FENCING_FIELDS, type FieldSpec, type FieldType } from './fieldSpec.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -31,22 +32,46 @@ export type ChatBody = z.infer<typeof chatBody>;
  * rather than `.optional()` (strict json_schema requires every key in `required`), matching the
  * convention in `../schemas.ts`.
  */
-const turnChecklistSchema = z.object({
-  material: z.string().nullable(),
-  heightKey: z.string().nullable(),
-  lengthMeters: z.number().nullable(),
-  removal: z.string().nullable(),
-  /** `null` = not addressed this turn. `[]` = the customer said there's nothing tricky. */
-  conditions: z.array(z.string()).nullable(),
-  gateType: z.string().nullable(),
-  gateQty: z.number().nullable(),
-  existingPrice: z.number().nullable(),
-});
+/**
+ * What the model may fill, built from the trade's own field spec.
+ *
+ * Hand-written it was fencing's - material, heightKey, gateType - which meant a tiling conversation
+ * asked the model for a fence material and had nowhere to put a tile. Deriving it means the fields
+ * the model is offered and the questions the customer is asked cannot disagree, because they come
+ * from one list.
+ *
+ * `place` fields are left out on purpose, and that is not an omission: a suburb only becomes real
+ * when the customer picks it off the Google list, so the model must never have a slot for one.
+ *
+ * `null` on any field = not addressed this turn. For a multiEnum, `[]` = they said there is none.
+ */
+const CHECKLIST_FIELD_TYPES: Record<FieldType, z.ZodType | null> = {
+  place: null,
+  enum: z.string().nullable(),
+  multiEnum: z.array(z.string()).nullable(),
+  measure: z.string().nullable(),
+  number: z.number().nullable(),
+  count: z.number().nullable(),
+  money: z.number().nullable(),
+};
 
-export const turnExtractionSchema = z.object({
+function turnChecklistFor(fields: FieldSpec[]): z.ZodType<Record<string, unknown>> {
+  const shape: Record<string, z.ZodType> = {};
+  for (const spec of fields) {
+    const type = CHECKLIST_FIELD_TYPES[spec.type];
+    if (type) shape[spec.key] = type;
+  }
+  /* A record rather than the exact keys, and that is the honest type now: which fields exist is the
+     trade's business, and the one consumer (`mergeAndDecide`) already spreads it and validates each
+     value against that field's own spec rather than reading fencing's names off it. */
+  return z.object(shape) as unknown as z.ZodType<Record<string, unknown>>;
+}
+
+const turnExtractionShape = {
   /** 2-4 words, casual, never a question or a value. Empty string when there's nothing to acknowledge. */
   ack: z.string(),
-  checklist: turnChecklistSchema,
+  /** Replaced per trade by `turnSchemaFor`; this is the placeholder the shape is spread from. */
+  checklist: z.object({}) as z.ZodType,
   /** Field names the customer is explicitly correcting - only honoured while `fixing` mode is on. */
   clearFields: z.string().array(),
   /** Raw place text mentioned in passing - a head start for the picker, NEVER checklist.suburb. */
@@ -119,6 +144,21 @@ export const turnExtractionSchema = z.object({
    * the second one silently loses the removal charge out of their quote.
    */
   mentionedOldFence: z.boolean(),
+};
+
+/**
+ * The whole turn contract for one trade: everything above, with that trade's own checklist.
+ *
+ * Built per trade rather than once, so the model is never offered a field the customer is not being
+ * asked about. `turnExtractionSchema` stays as fencing's, because that is what the compiled types
+ * and every existing test are written against.
+ */
+export const turnSchemaFor = (fields: FieldSpec[]) =>
+  z.object({ ...turnExtractionShape, checklist: turnChecklistFor(fields) });
+
+export const turnExtractionSchema = z.object({
+  ...turnExtractionShape,
+  checklist: turnChecklistFor(FENCING_FIELDS),
 });
 export type TurnExtraction = z.infer<typeof turnExtractionSchema>;
 

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { env, logger } from './config.js';
+import { TRADE_FIELDS } from './client/fieldSpec.js';
 import { AppError } from './http.js';
 import { toStrictJsonSchema } from './schemas.js';
 import type { Material } from './vocab.js';
@@ -622,25 +623,26 @@ export class MockAiClient implements AiClient {
     const lastAskedMatch = context.match(/--- The question you asked last turn ---\nfield: (\w+)/);
     const lastAsked = lastAskedMatch?.[1] ?? null;
 
-    const checklist: Record<string, unknown> = {
-      material: null,
-      heightKey: null,
-      lengthMeters: null,
-      removal: null,
-      conditions: null,
-      gateType: null,
-      gateQty: null,
-      existingPrice: null,
-    };
+    /* Every trade's fields, all null. The turn schema is built per trade and every key in it is
+       required, so a checklist carrying only fencing's names fails to parse for any other trade -
+       and extra keys are stripped, so carrying them all is free. What this mock can actually READ
+       is still only the one field it was just asked about. */
+    const checklist: Record<string, unknown> = Object.fromEntries(
+      Object.values(TRADE_FIELDS)
+        .flat()
+        .filter((field) => field.type !== 'place')
+        .map((field) => [field.key, null]),
+    );
 
-    if (lastAsked && lastAsked in checklist) {
-      if (lastAsked === 'lengthMeters' || lastAsked === 'gateQty') {
+    const asked = lastAsked ? Object.values(TRADE_FIELDS).flat().find((f) => f.key === lastAsked) : undefined;
+    if (asked) {
+      if (asked.type === 'number' || asked.type === 'count' || asked.type === 'money') {
         const n = Number(rawMessage.replace(/[^\d.]/g, ''));
-        if (Number.isFinite(n) && n > 0) checklist[lastAsked] = n;
-      } else if (lastAsked === 'conditions') {
-        checklist.conditions = /^\s*(none|nothing|no\b|nil)/i.test(rawMessage) ? [] : [rawMessage];
+        if (Number.isFinite(n) && n > 0) checklist[asked.key] = n;
+      } else if (asked.type === 'multiEnum') {
+        checklist[asked.key] = /^\s*(none|nothing|no\b|nil)/i.test(rawMessage) ? [] : [rawMessage];
       } else if (rawMessage) {
-        checklist[lastAsked] = rawMessage;
+        checklist[asked.key] = rawMessage;
       }
     }
 
