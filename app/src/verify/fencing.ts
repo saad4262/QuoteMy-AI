@@ -16,7 +16,7 @@ import {
 import type { Extraction } from '../schemas.js';
 import { slugify } from '../vocabulary.js';
 import type { ResolvedLocation } from '../geocode.js';
-import { makeChecks, MAX_ENTRIES } from './shared.js';
+import { makeChecks, MAX_ENTRIES, type VerifiedServiceArea } from './shared.js';
 
 /**
  * Fencing's shape, and the vocabulary gate that goes with it.
@@ -34,13 +34,7 @@ export interface VerifiedPricing {
   removals: { removes: Removes; pricePerMetre: number }[];
   gates: { gateType: GateType; material: Material | null; price: number; isFromPrice: boolean }[];
   siteConditions: { condition: Condition; extraPerMetre: number | null; extraPercent: number | null }[];
-  serviceArea: {
-    baseLocation: string | null;
-    /** Filled in after verification by src/geocode.ts. Null when it could not be resolved. */
-    resolved: ResolvedLocation | null;
-    radiusKm: number | null;
-    excludedAreas: string[];
-  };
+  serviceArea: VerifiedServiceArea;
   minimumCharge: number | null;
 }
 

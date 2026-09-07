@@ -1,3 +1,5 @@
+import type { ResolvedLocation } from '../geocode.js';
+
 /**
  * The gates every trade's verifier runs, and the only part of verification that is not about one
  * trade's shape.
@@ -17,6 +19,21 @@
  * `unmapped` is passed in rather than returned: a business is told about every figure that was
  * dropped and why, and `take` has to be able to add to that list from inside a loop it is capping.
  */
+
+/**
+ * Where a business works out of and how far it travels.
+ *
+ * Identical for every trade, and shared rather than repeated: the matcher reads it off whatever
+ * pricing document it finds, and two structurally identical copies in a union make that read
+ * ambiguous for no reason. A suburb and a radius mean the same thing to a fencer and a tiler.
+ */
+export interface VerifiedServiceArea {
+  baseLocation: string | null;
+  /** Filled in after verification by src/geocode.ts. Null when it could not be resolved. */
+  resolved: ResolvedLocation | null;
+  radiusKm: number | null;
+  excludedAreas: string[];
+}
 
 export interface Checks {
   /** The sentence the model says a number came from, found in what the business actually wrote. */

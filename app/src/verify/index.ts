@@ -1,6 +1,13 @@
-import type { AnyExtraction, Extraction } from '../schemas.js';
+import type { AnyExtraction, Extraction, TilingExtraction } from '../schemas.js';
 import type { Trade } from '../vocab.js';
-import { verifyFencing, type VerifiedResult } from './fencing.js';
+import { verifyFencing, type VerifiedResult as FencingResult } from './fencing.js';
+import { verifyTiling, type TilingVerifiedResult } from './tiling.js';
+import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './fencing.js';
+import type {
+  TilingVerifiedCapabilities,
+  TilingVerifiedOffering,
+  TilingVerifiedPricing,
+} from './tiling.js';
 
 /**
  * Verification, by trade.
@@ -30,12 +37,48 @@ export function verifyExtraction(
     case 'fencing':
       return verifyFencing(x as Extraction, sourceText, trade, knownSlugs);
   }
+  /* `case 'tiling'` joins this switch in the same commit that adds 'tiling' to TRADES - the
+     exhaustiveness that makes a missing verifier a compile error also means the arm cannot exist
+     before the trade does. `verifyTiling` is written and exported; only the wiring waits. */
 }
+
+/**
+ * What a verified submission looks like, whatever trade produced it.
+ *
+ * A union rather than a common interface, because the shapes genuinely differ and pretending
+ * otherwise is how a tiling rate ends up being read as a fencing one. Anything reading these
+ * narrows on `trade` first - `isFencingPricing` and `isTilingPricing` below are the honest way to
+ * do that at a boundary where the value came out of Firestore.
+ */
+export type AnyVerifiedPricing = VerifiedPricing | TilingVerifiedPricing;
+export type AnyVerifiedCapabilities = VerifiedCapabilities | TilingVerifiedCapabilities;
+export type AnyVerifiedOffering = VerifiedOffering | TilingVerifiedOffering;
+export type VerifiedResult = FencingResult | TilingVerifiedResult;
+
+/**
+ * Which shape this is, decided by a field only one of them has.
+ *
+ * Keyed on `enabledMaterials` / `enabledJobTypes` rather than on a stored `trade` field, because
+ * these are read back out of Firestore where a document can be older than the code. A missing
+ * discriminant would silently pick a branch; a missing list cannot.
+ */
+export const isFencingPricing = (p: AnyVerifiedPricing): p is VerifiedPricing =>
+  Array.isArray((p as VerifiedPricing).enabledMaterials);
+
+export const isTilingPricing = (p: AnyVerifiedPricing): p is TilingVerifiedPricing =>
+  Array.isArray((p as TilingVerifiedPricing).enabledJobTypes);
 
 export type {
   VerifiedCapabilities,
   VerifiedOffering,
   VerifiedPricing,
-  VerifiedResult,
   VerifiedSpec,
 } from './fencing.js';
+
+export type {
+  TileRate,
+  TilingVerifiedCapabilities,
+  TilingVerifiedOffering,
+  TilingVerifiedPricing,
+  TilingVerifiedResult,
+} from './tiling.js';

@@ -1,4 +1,10 @@
 import type { ServiceExtract } from '../store.js';
+import {
+  isFencingPricing,
+  type VerifiedCapabilities,
+  type VerifiedOffering,
+  type VerifiedPricing,
+} from '../verify/index.js';
 import { budgetText } from './budget.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
@@ -76,20 +82,32 @@ interface Brief {
 }
 
 /**
+ * Fencing's pricing document, already narrowed by the caller.
+ *
+ * Not a `ServiceExtract` any more, because a stored document is now one of several trades' shapes
+ * and this function only knows one of them. Narrowing once, where the businesses are iterated,
+ * puts the check at the boundary instead of inside every lookup.
+ */
+type FencingExtract = {
+  pricing: VerifiedPricing;
+  capabilities: (VerifiedCapabilities & { otherOfferings: VerifiedOffering[] }) | null;
+};
+
+/**
  * One business, one fence. Everything except the material and the height is the customer's brief
  * unchanged - length, removal, site conditions and gate all still apply - which is what makes an
  * "alternative" an alternative rather than a different job.
  */
 function quoteFor(
   business: MatchedBusiness,
-  extract: ServiceExtract,
+  extract: FencingExtract,
   materialSlug: string,
   heightMetres: number,
   heightLabel: string,
   brief: Brief,
   spec: PricingSpec,
 ): Quote | { blocked: Blocked } {
-  const pricing = extract.pricing!;
+  const pricing = extract.pricing;
   const capabilities = extract.capabilities;
   const enabled = pricing.enabledMaterials.map(slug);
 
@@ -223,6 +241,21 @@ function fail(base: Pick<ChatResponse, 'sessionId' | 'trade' | 'place' | 'checkl
   };
 }
 
+/**
+ * A stored document, as this trade's pricing - or null when it is another trade's shape entirely.
+ *
+ * That cannot normally happen: the matcher asks for businesses in one trade and reads that trade's
+ * document. It is checked anyway because the document comes back out of Firestore, where a record
+ * can be older or stranger than the code reading it, and quoting a tiling rate as a fence would be
+ * silent rather than loud.
+ */
+function asFencing(extract: ServiceExtract): FencingExtract | null {
+  const pricing = extract.pricing;
+  if (!pricing || !isFencingPricing(pricing)) return null;
+  // Both halves are written by the same submission, so the pricing shape settles the capabilities.
+  return { pricing, capabilities: extract.capabilities as FencingExtract['capabilities'] };
+}
+
 /** Same rule as `formatResult`: an answer to their own question goes in front, never instead. */
 const withAnswer = (gate: ChatResponse, message: string): string =>
   gate.answer ? gate.answer.text + '\n\n' + message : message;
@@ -260,8 +293,8 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
   for (let i = 0; i < matcher.businesses.length; i += 1) {
     const business = matcher.businesses[i]!;
-    const extract = matcher.pricing[i]!;
-    if (!extract.pricing) continue;
+    const extract = asFencing(matcher.pricing[i]!);
+    if (!extract) continue;
     const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief, spec);
     if ('blocked' in quote) {
       blocked[quote.blocked] += 1;
@@ -300,8 +333,8 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     const alternatives: (Quote & { distanceFromBrief: number })[] = [];
     for (let i = 0; i < matcher.businesses.length; i += 1) {
       const business = matcher.businesses[i]!;
-      const extract = matcher.pricing[i]!;
-      if (!extract.pricing) continue;
+      const extract = asFencing(matcher.pricing[i]!);
+      if (!extract) continue;
       const enabled = extract.pricing.enabledMaterials.map(slug);
       for (const rateKey of Object.keys(extract.pricing.rates)) {
         const material = slug(rateKey);

@@ -1,7 +1,11 @@
 import type { AnswerImage } from './client/schemas.js';
 import { resolveExisting, type ExtraValue } from './vocabulary.js';
 import type { Trade } from './vocab.js';
-import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
+import type {
+  AnyVerifiedCapabilities,
+  AnyVerifiedOffering,
+  AnyVerifiedPricing,
+} from './verify/index.js';
 
 /**
  * Status lifecycle (CONTEXT.md §7.3 — no price goes live without a human confirming it):
@@ -16,7 +20,11 @@ import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './
  */
 export type PricingStatus = 'pending' | 'unverified' | 'verified' | 'confirmed';
 
-export interface PricingDoc extends VerifiedPricing {
+/**
+ * What every stored price document carries, whatever trade wrote it. The pricing itself is that
+ * trade's own shape - an intersection with a union, so `trade` narrows it at the point of reading.
+ */
+interface StoredDocFields {
   trade: Trade;
   status: PricingStatus;
   schemaVersion: number;
@@ -25,14 +33,16 @@ export interface PricingDoc extends VerifiedPricing {
   ratesSaved?: number;
 }
 
-export interface CapabilitiesDoc extends VerifiedCapabilities {
+export type PricingDoc = AnyVerifiedPricing & StoredDocFields;
+
+export type CapabilitiesDoc = AnyVerifiedCapabilities & {
   trade: Trade;
   /** The long tail: what they offer that has no core value. Searched by text, not by exact match. */
-  otherOfferings: VerifiedOffering[];
+  otherOfferings: AnyVerifiedOffering[];
   couldNotUse: string[];
   schemaVersion: number;
   updatedAt: string;
-}
+};
 
 export interface SubmissionRecord {
   id: string;
@@ -355,8 +365,8 @@ export interface BusinessCandidate {
  */
 export interface ServiceExtract {
   status: PricingStatus | null;
-  pricing: VerifiedPricing | null;
-  capabilities: (VerifiedCapabilities & { otherOfferings: VerifiedOffering[] }) | null;
+  pricing: AnyVerifiedPricing | null;
+  capabilities: (AnyVerifiedCapabilities & { otherOfferings: AnyVerifiedOffering[] }) | null;
 }
 
 /**
