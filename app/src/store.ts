@@ -1,7 +1,7 @@
 import type { AnswerImage } from './client/schemas.js';
 import { resolveExisting, type ExtraValue } from './vocabulary.js';
 import type { Trade } from './vocab.js';
-import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
+import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
 
 /**
  * Status lifecycle (CONTEXT.md §7.3 — no price goes live without a human confirming it):

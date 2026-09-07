@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { verifyExtraction } from '../../src/verify.js';
+import { verifyExtraction } from '../../src/verify/index.js';
 import type { Extraction } from '../../src/schemas.js';
 
 const empty: Extraction = {

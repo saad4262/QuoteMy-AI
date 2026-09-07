@@ -7,7 +7,7 @@ import { assertSubmittable, runOnboarding, sanitizeText } from './pipeline.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
 import { getRepository } from './store.js';
-import { verifyExtraction } from './verify.js';
+import { verifyExtraction } from './verify/index.js';
 import { processSubmission } from './worker.js';
 
 /**

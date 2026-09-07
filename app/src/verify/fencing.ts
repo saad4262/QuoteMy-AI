@@ -12,20 +12,19 @@ import {
   type Removes,
   type Trade,
   type Unit,
-} from './vocab.js';
-import type { Extraction } from './schemas.js';
-import { slugify } from './vocabulary.js';
-import type { ResolvedLocation } from './geocode.js';
+} from '../vocab.js';
+import type { Extraction } from '../schemas.js';
+import { slugify } from '../vocabulary.js';
+import type { ResolvedLocation } from '../geocode.js';
+import { makeChecks, MAX_ENTRIES } from './shared.js';
 
 /**
- * Ported from the n8n `Format Extraction` Code node, near-verbatim, because it was tested.
+ * Fencing's shape, and the vocabulary gate that goes with it.
  *
- * Three gates, all of them still needed even with strict `json_schema`:
- *   1. vocabulary  — strict schema should make drift impossible; this is the belt to its braces,
- *                    because vocabulary drift is the one failure here that is silent and permanent
- *   2. quote match — every number must carry the exact sentence it came from, and that sentence
- *                    must really appear in the business's text. No match means it was invented
- *   3. bounds      — testing caught an $8500/m rate whose source sentence genuinely existed
+ * What a fencing price list IS: a rate per linear metre for a material at a height, gates as fixed
+ * items, removal and site conditions priced along the same line. A trade that sells by the square
+ * metre does not bend into this - it brings its own file next to this one. The quote and bounds
+ * gates are the same for both and live in `shared.ts`.
  */
 
 export interface VerifiedPricing {
@@ -94,33 +93,14 @@ export interface VerifiedResult {
   coverage: Record<string, number>;
 }
 
-const MAX_ENTRIES = 200;
-
-export function verifyExtraction(
+export function verifyFencing(
   x: Extraction,
   sourceText: string,
   trade: Trade,
   knownSlugs: readonly string[] = [],
 ): VerifiedResult {
-  const rawText = sourceText.toLowerCase();
   const unmapped = [...x.couldNotUse];
-
-  const quoted = (q: string | null | undefined) => {
-    const s = String(q ?? '').trim();
-    return s ? rawText.includes(s.toLowerCase()) : false;
-  };
-  const num = (n: unknown, max: number): n is number =>
-    typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= max;
-  const str = (s: unknown) => (typeof s === 'string' && s.trim() ? s.trim() : null);
-
-  function take<T>(list: T[], cap: number): T[] {
-    if (list.length > cap) {
-      unmapped.push(
-        `Only the first ${cap} entries were read from one section - your description may list more than we can store.`,
-      );
-    }
-    return list.slice(0, cap);
-  }
+  const { quoted, num, str, take, strList } = makeChecks(sourceText, unmapped);
 
   // ---- core rates -> the nested { material: { "1.8m": price } } shape ----
   const rates: Record<string, Record<string, number>> = {};
@@ -335,8 +315,6 @@ export function verifyExtraction(
     );
   }
   const specs = [...byMaterial.values()];
-
-  const strList = (v: string[], cap: number) => v.map(str).filter((s): s is string => Boolean(s)).slice(0, cap);
 
   // A price list with no surviving core rate is not something to mark verified, even though the
   // review step approved it — it would show an empty pricing screen and quote nobody.

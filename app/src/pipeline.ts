@@ -7,7 +7,7 @@ import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
 import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
 import { LABELS, MESSAGES, WHAT_TO_SEND } from './messages.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository, type ReviewDoc } from './store.js';
-import { verifyExtraction } from './verify.js';
+import { verifyExtraction } from './verify/index.js';
 import { extrasForPrompt, extrasPromptBlock, loadVocabulary, recordExtras } from './vocabulary.js';
 import { geocode } from './geocode.js';
 

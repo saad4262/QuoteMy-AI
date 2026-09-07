@@ -21,7 +21,7 @@ import type {
 import { describeFieldDrift, FENCING_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_LABEL_GROUPS, QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
-import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify.js';
+import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
 import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
 import { TRADE_VOCAB, TRADES, type Trade } from './vocab.js';
 
