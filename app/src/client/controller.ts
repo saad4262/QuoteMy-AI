@@ -9,6 +9,8 @@ import { readBudgetTap } from './budget.js';
 import { findPictures, PICTURES_LINE } from './pictures.js';
 import { asObject, chatError } from './errors.js';
 import { specOf } from './fieldSpec.js';
+import { TRADE_PRICING } from './pricing/spec.js';
+import { TRADE_WORDS } from '../messages.js';
 import { loadTradeSchema, makeLabelFor, optionsFor, type TradeSchema } from './schema.js';
 import { assertWithinDailyBudget, recordSpend } from './spend.js';
 import { runTurn, SAID_NOTHING } from './agent.js';
@@ -92,7 +94,10 @@ async function answerIfAsked(
       )
     : [];
 
-  const material = typeof known.material === 'string' ? known.material : null;
+  /* What they have already chosen, whichever field that is for this trade - the fence, or the tile.
+     It fills in for "it" when they ask "what does it look like" three questions later. */
+  const headline = TRADE_PRICING[schema.trade].headlineField;
+  const material = typeof known[headline] === 'string' ? (known[headline] as string) : null;
   const context = {
     trade: schema.trade,
     suburb: typeof known.suburb === 'string' ? known.suburb : (place?.suburb ?? null),
@@ -114,7 +119,7 @@ async function answerIfAsked(
      already chosen fills in for "it"; the label rather than the slug, because "Treated pine" is
      what Google knows and `timber_pine` is ours. */
   const [images, written] = await Promise.all([
-    showing ? findPictures(showing, material ? labelFor('material', material) : null, repo) : [],
+    showing ? findPictures(showing, material ? labelFor(headline, material) : null, TRADE_WORDS[schema.trade], repo) : [],
     /* No words asked for, none written: a cent and three seconds for a paragraph nobody wanted.
        Which half runs is now each field's own business, so neither can cancel the other. */
     asking && parsed.askedKind ? answerQuestion({ question: asking, kind: parsed.askedKind }, context, { repo }) : null,

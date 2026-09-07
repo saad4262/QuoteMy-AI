@@ -57,6 +57,18 @@ export interface FieldSpec {
    * its unit in the value ("1.8m") needs neither.
    */
   labelUnit?: { suffix?: string; one?: string; many?: string };
+  /**
+   * How a customer NAMES this field when they say which answer is wrong - "no, the height's wrong",
+   * "can I redo the length". Phrases, matched as written.
+   */
+  namedBy?: RegExp;
+  /**
+   * The same thing in single words, matched with the typo tolerance everything else the customer
+   * types gets: "lenght" was the one that sent somebody back to an unchanged recap with no way
+   * forward. Only unmistakable words belong here - "fence" and "type" are in half of what anyone
+   * writes, and a false match empties a field they never mentioned.
+   */
+  aliases?: string[];
   /** A literal list, for anything no business publishes rates against: a length, a count. */
   options?: (string | number)[];
   pinned?: PinnedOption;
@@ -95,12 +107,16 @@ export const DEFAULT_PAGE_SIZE = 3;
 export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'suburb',
+    namedBy: /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i,
+    aliases: ['suburb', 'location', 'postcode'],
     type: 'place',
     title: 'Suburb',
     question: 'Which suburb is the fence going in? A postcode works too.',
   },
   {
     key: 'material',
+    namedBy: /\b(materials?|fence type|type of fence|kind of fence|fencing type)\b/i,
+    aliases: ['material'],
     type: 'enum',
     labelGroup: 'materials',
     title: 'Material',
@@ -110,6 +126,8 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'heightKey',
+    namedBy: /\b(heights?|tall|high)\b/i,
+    aliases: ['height'],
     type: 'measure',
     title: 'Height',
     question: QUESTIONS.heightKey,
@@ -121,6 +139,8 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'lengthMeters',
+    namedBy: /\b(lengths?|long|met(?:re|er)s?)\b/i,
+    aliases: ['length', 'metres', 'meters'],
     type: 'number',
     labelUnit: { suffix: 'm' },
     title: 'Length',
@@ -131,6 +151,8 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'removal',
+    namedBy: /\b(removals?|remove|removing|old fence)\b/i,
+    aliases: ['removal', 'removing'],
     type: 'enum',
     labelGroup: 'removes',
     title: 'Old fence',
@@ -144,6 +166,8 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'conditions',
+    namedBy: /\b(conditions?|site|ground|slope|sloped|access)\b/i,
+    aliases: ['conditions'],
     type: 'multiEnum',
     labelGroup: 'conditions',
     title: 'Site conditions',
@@ -153,6 +177,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'gateType',
+    namedBy: /\b(gate type|type of gate|kind of gate|which gate)\b/i,
     type: 'enum',
     labelGroup: 'gateTypes',
     title: 'Gate',
@@ -162,6 +187,7 @@ export const FENCING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'gateQty',
+    namedBy: /\b(how many gates|number of gates|gate count)\b/i,
     type: 'count',
     labelUnit: { one: 'gate', many: 'gates' },
     /* Not "Gates". It sits directly under "Gate" in the brief panel, and two labels one letter
@@ -193,12 +219,16 @@ export const FENCING_FIELDS: FieldSpec[] = [
 export const TILING_FIELDS: FieldSpec[] = [
   {
     key: 'suburb',
+    namedBy: /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i,
+    aliases: ['suburb', 'location', 'postcode'],
     type: 'place',
     title: 'Suburb',
     question: 'Which suburb is the job in? A postcode works too.',
   },
   {
     key: 'jobType',
+    namedBy: /\b(jobs?|rooms?|bathrooms?|splashbacks?|what.{0,12}tiled)\b/i,
+    aliases: ['job', 'room'],
     type: 'enum',
     title: 'Job',
     question: TILING_QUESTIONS.jobType,
@@ -207,6 +237,8 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'tileType',
+    namedBy: /\b(tiles?|tile type|type of tile|kind of tile)\b/i,
+    aliases: ['tile'],
     type: 'enum',
     title: 'Tile',
     question: TILING_QUESTIONS.tileType,
@@ -216,6 +248,8 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'areaSqm',
+    namedBy: /\b(areas?|square met(?:re|er)s?|sqm|m2|size)\b/i,
+    aliases: ['area', 'sqm', 'metres', 'meters'],
     type: 'number',
     title: 'Area',
     question: TILING_QUESTIONS.areaSqm,
@@ -225,6 +259,8 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'supply',
+    namedBy: /\b(supply|supplied|who.{0,12}buying|who.{0,12}supplies)\b/i,
+    aliases: ['supply'],
     type: 'enum',
     title: 'Tiles',
     question: TILING_QUESTIONS.supply,
@@ -235,6 +271,8 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'removal',
+    namedBy: /\b(removals?|remove|removing|old tiles?|existing tiles?)\b/i,
+    aliases: ['removal', 'removing'],
     type: 'enum',
     title: 'Old tiles',
     question: TILING_QUESTIONS.removal,
@@ -246,6 +284,8 @@ export const TILING_FIELDS: FieldSpec[] = [
   },
   {
     key: 'waterproofing',
+    namedBy: /\b(waterproof(?:ing)?|membrane|tanking)\b/i,
+    aliases: ['waterproofing'],
     type: 'enum',
     title: 'Waterproofing',
     question: TILING_QUESTIONS.waterproofing,

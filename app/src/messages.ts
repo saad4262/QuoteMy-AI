@@ -262,6 +262,21 @@ export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
  * onto which reason is that trade's business - tiling has no gates, and its `height` is the job it
  * could not price.
  */
+/**
+ * The trade in a sentence: what the work is called, and what one job of it is.
+ *
+ * Small, and it earns its place three times over - an image search that appends the wrong noun
+ * returns pictures of the wrong trade, a spoken unit read as metres understates a floor by the
+ * width of the room, and an opening line that says fencing to a tiling customer is simply wrong.
+ */
+export const TRADE_WORDS: Record<Trade, { trade: string; noun: string; mentions: RegExp }> = {
+  /* `mentions` is spelled out rather than derived from `noun`. Stemming "fence" and "tiles" to
+     something that matches both the noun and the trade word lands on "fenc" and "til" - and "til"
+     matches "until". An explicit pattern per trade is two lines and cannot surprise anyone. */
+  fencing: { trade: 'fencing', noun: 'fence', mentions: /fenc/i },
+  tiling: { trade: 'tiling', noun: 'tiles', mentions: /tile|tiling/i },
+};
+
 export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
   fencing: {
     area: 'No fencing business covers that suburb yet. Try a nearby suburb?',

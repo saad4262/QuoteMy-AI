@@ -1,4 +1,6 @@
 import { env, logger } from '../config.js';
+import { TRADE_WORDS } from '../messages.js';
+import type { Trade } from '../vocab.js';
 import type { BusinessRepository } from '../store.js';
 import { recordSpend } from './spend.js';
 import type { AnswerImage } from './schemas.js';
@@ -87,7 +89,7 @@ const ASKING = new Set([
  * chosen is added only when they did not name one themselves, so "what does it look like" three
  * questions in searches for the right thing instead of the word "it".
  */
-export function imageQuery(question: string, material: string | null): string {
+export function imageQuery(question: string, material: string | null, words = TRADE_WORDS.fencing): string {
   const asked = normalise(question);
   const chosen = normalise(material ?? '');
   const named = chosen && chosen.split(' ').every((word) => asked.includes(word));
@@ -98,7 +100,10 @@ export function imageQuery(question: string, material: string | null): string {
   const stripped = asked.split(' ').filter((word) => word && !ASKING.has(word)).join(' ');
   const subject = stripped || (chosen ? '' : asked);
 
-  return [subject, named || !chosen ? '' : chosen, /fenc/i.test(subject) ? '' : 'fence', 'australia']
+  /* The trade's own noun, added only when the customer's words do not already carry it - otherwise
+     "show me the herringbone tiles" searches for tiles twice. Without it a tiling question goes to
+     an image search with the word `fence` on the end and comes back with photographs of fences. */
+  return [subject, named || !chosen ? '' : chosen, words.mentions.test(subject) ? '' : words.noun, 'australia']
     .filter(Boolean)
     .join(' ');
 }
@@ -139,9 +144,10 @@ function spread(images: AnswerImage[]): AnswerImage[] {
 export async function findPictures(
   question: string,
   material: string | null,
+  words: (typeof TRADE_WORDS)[Trade],
   repo?: BusinessRepository,
 ): Promise<AnswerImage[]> {
-  const query = imageQuery(question, material);
+  const query = imageQuery(question, material, words);
   if (!query.trim() || !env.SERPER_API_KEY) return [];
 
   const key = normalise(query);

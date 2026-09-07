@@ -2,7 +2,7 @@ import type { Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, numbersIn, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
-import { askedFields, specOf } from './fieldSpec.js';
+import { askedFields, specOf, type FieldSpec } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, PlaceHint, TurnExtraction, UiState } from './schemas.js';
 import { OFF_LIST, offListValue, type ChecklistField } from './vocab.js';
@@ -259,52 +259,25 @@ function namesAnotherChoice(
  * The misspellings are real ones customers type, not padding - "subrub" came straight off a
  * screenshot of this failing.
  */
-const FIELD_WORDS: [ChecklistField, RegExp][] = [
-  ['suburb', /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i],
-  ['material', /\b(materials?|fence type|type of fence|kind of fence|fencing type)\b/i],
-  ['heightKey', /\b(heights?|tall|high)\b/i],
-  ['lengthMeters', /\b(lengths?|long|met(?:re|er)s?)\b/i],
-  ['removal', /\b(removals?|remove|removing|old fence)\b/i],
-  ['conditions', /\b(conditions?|site|ground|slope|sloped|access)\b/i],
-  // Deliberately narrower than the rest. A bare "gates" is ambiguous between the type and the
-  // count - "make it 2 gates" is a new quantity, not a request to re-pick the type - so both of
-  // these want an explicit phrase, and "the gate is wrong" is left to the model, which reads that
-  // phrasing reliably.
-  ['gateQty', /\b(how many gates|number of gates|gate count)\b/i],
-  ['gateType', /\b(gate type|type of gate|kind of gate|which gate)\b/i],
-];
-
 /**
- * One distinctive word per field, matched with the same typo tolerance as everything else the
- * customer types. The regexes above cover phrases; this covers a customer who answers "what
- * should I fix?" with a single mistyped word, which is exactly what they do - "lenght" was the
- * one that sent somebody back to an unchanged recap with no way forward.
+ * Which fields the customer named, by phrase or by a near-enough single word.
  *
- * Only unmistakable words belong here. "fence" and "type" appear in half of what anyone writes,
- * and a false match empties a field the customer never mentioned.
+ * The words belong to the FIELD now (`spec.namedBy`, `spec.aliases`) rather than to a table keyed
+ * on fencing's names. "No, the tile's wrong" has to reopen a tiling field, and a table that only
+ * knows `heightKey` and `gateType` could never do it.
  */
-const FIELD_ALIASES: [ChecklistField, string[]][] = [
-  ['suburb', ['suburb', 'location', 'postcode']],
-  ['material', ['material']],
-  ['heightKey', ['height']],
-  ['lengthMeters', ['length', 'metres', 'meters']],
-  ['removal', ['removal', 'removing']],
-  ['conditions', ['conditions']],
-];
-
-/** Which fields the customer named, by phrase or by a near-enough single word. */
-function fieldsNamedIn(message: string): Set<string> {
+function fieldsNamedIn(message: string, fields: FieldSpec[]): Set<string> {
   const named = new Set<string>();
 
-  for (const [field, pattern] of FIELD_WORDS) {
-    if (pattern.test(message)) named.add(slug(field));
+  for (const spec of fields) {
+    if (spec.namedBy?.test(message)) named.add(slug(spec.key));
   }
 
   const words = message.toLowerCase().match(/[a-z]+/g) ?? [];
   for (const word of words) {
     if (word.length < 4) continue; // below this a one-letter edit is a different word
-    for (const [field, aliases] of FIELD_ALIASES) {
-      if (aliases.some((alias) => editDistance(word, alias) <= 1)) named.add(slug(field));
+    for (const spec of fields) {
+      if (spec.aliases?.some((alias) => editDistance(word, alias) <= 1)) named.add(slug(spec.key));
     }
   }
 
@@ -648,7 +621,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const namedWrong = new Set<string>();
   if (fixing) {
     for (const field of parsed.clearFields ?? []) namedWrong.add(slug(field));
-    for (const field of fieldsNamedIn(rawMessage)) namedWrong.add(field);
+    for (const field of fieldsNamedIn(rawMessage, input.schema.fields)) namedWrong.add(field);
   }
 
   const clearedFields: string[] = [];

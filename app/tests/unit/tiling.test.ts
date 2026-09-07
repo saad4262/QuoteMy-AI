@@ -289,6 +289,44 @@ describe('a tiling job is actually priced', () => {
 
   /* A splashback is on the first page of jobs and this tiler has not published a price for one, so
      it is the natural case for "nobody near you can do that" - and the sentence must be tiling's. */
+  /**
+   * Correcting an answer by naming the field.
+   *
+   * The words that name a field used to live in one table keyed on fencing's names - heightKey,
+   * gateType - so "no, the tile's wrong" could never reopen anything. They belong to the field now.
+   */
+  it('reopens the field the customer names', async () => {
+    let response = await run([
+      'I need tiling done',
+      'yes',
+      'Pakenham',
+      'floor_only',
+      'porcelain',
+      '20',
+      'labour_only',
+      'any',
+      'none',
+      'none',
+    ]);
+    // The recap, before they confirm.
+    expect(response.type).toBe('confirmation');
+
+    const say = async (message: string, checklist: unknown) =>
+      runChat(
+        { trade: 'tiling', message, sessionId: 'price-1', place: JSON.stringify(BERWICK), knownChecklist: JSON.stringify(checklist) },
+        [],
+        { repo },
+      );
+
+    response = await say('no', response.checklist);
+    response = await say("the tile's wrong", response.checklist);
+
+    expect(response.message).toBe('What tile are you using?');
+    expect(response.checklist.tileType).toBeFalsy();
+    // And the answers they did not query are untouched.
+    expect(response.checklist.areaSqm).toBe(20);
+  });
+
   it('says so in tiling\'s words when nobody can price the job', async () => {
     const response = await run([
       'I need tiling done',
