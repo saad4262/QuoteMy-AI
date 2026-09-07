@@ -128,6 +128,12 @@ export async function runVoiceTurn(
 
   const response: ChatResponse = await runChat(
     {
+      /* Spoken, and named explicitly: a caller reaches one Retell agent, which is configured for
+         one trade, so the trade is a property of the number they rang rather than something to
+         work out from what they said. It also keeps the router from ever asking "fencing or
+         tiling?" down a phone line, where a spoken answer has no chip to tap. Voice is
+         fencing-only today (docs/VOICE.md); a second agent passes its own. */
+      trade: 'fencing',
       message,
       sessionId,
       place: session?.place ? JSON.stringify(session.place) : '',

@@ -38,7 +38,8 @@ customer: "I need a tiling quote"
       "nearbyPlaces": {},
       "suburbHint": null,
       "place": null,
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {},
@@ -119,7 +120,8 @@ customer: "yes go ahead"
       "nearbyPlaces": {},
       "suburbHint": null,
       "place": null,
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {},
@@ -238,7 +240,8 @@ picked place: Berwick, VIC 3806
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -364,7 +367,8 @@ customer: "floor_only"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -481,7 +485,8 @@ customer: "porcelain"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -614,7 +619,8 @@ customer: "20"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -753,7 +759,8 @@ customer: "labour_only"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -903,7 +910,8 @@ customer: "none"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -1059,7 +1067,8 @@ customer: "none"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -1210,7 +1219,8 @@ customer: "none"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -1353,7 +1363,8 @@ customer: "no"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -1518,7 +1529,8 @@ customer: "the tile's wrong"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -1669,7 +1681,8 @@ customer: "ceramic"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistDisplay": {
@@ -1849,7 +1862,8 @@ customer: "yes"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "tiling"
     }
   },
   "checklistComplete": true,

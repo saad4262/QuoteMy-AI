@@ -38,7 +38,8 @@ customer: "I need a fence quote"
       "nearbyPlaces": {},
       "suburbHint": null,
       "place": null,
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {},
@@ -119,7 +120,8 @@ customer: "yes go ahead"
       "nearbyPlaces": {},
       "suburbHint": null,
       "place": null,
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {},
@@ -238,7 +240,8 @@ picked place: Berwick, VIC 3806
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -363,7 +366,8 @@ customer: "something else"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -483,7 +487,8 @@ customer: "something else"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -608,7 +613,8 @@ customer: "something else"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {

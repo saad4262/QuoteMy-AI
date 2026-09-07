@@ -6,6 +6,7 @@ import { readSource, type UploadedFile } from '../ingest.js';
 import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
 import { readBudgetTap } from './budget.js';
+import { askWhichTrade, rememberTrade, routeTrade } from './routeTrade.js';
 import { findPictures, PICTURES_LINE } from './pictures.js';
 import { asObject, chatError } from './errors.js';
 import { specOf } from './fieldSpec.js';
@@ -164,9 +165,27 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   // (process-cached, 5-minute TTL) rather than per turn - this is what makes the chat pick up a
   // business-side vocabulary change without a redeploy, and what will make a second trade a new
   // document rather than a new code path.
-  /* The trade the request names, or fencing for a caller that names none - which is every caller
-     today, including the deployed frontend. Step A9 replaces the fallback with asking. */
-  const trade = input.trade ?? 'fencing';
+  /* WHICH TRADE, before anything else in the turn, because the schema, the model's briefing and
+     every question after this depend on it.
+
+     The caller may say and wins when it does. Otherwise this conversation's own earlier answer
+     stands. Otherwise the customer's own words decide it - most people say "I need a fence quote"
+     or "after a price for tiling my bathroom" in their opening sentence, and asking them a question
+     they have already answered is the fastest way to look like nobody is listening. Only when all
+     three are silent, or when one message names both trades, is the question asked. */
+  const published = await repo.listPublishedTrades();
+  /* `input.message` rather than the budget-stripped `message` below, which is not computed yet -
+     and it makes no difference: a budget chip only exists mid-conversation, by which point the
+     trade was settled on the first turn and comes back from the session. */
+  const routing = routeTrade(input.message, input.trade, ui?.trade, published);
+
+  if (!routing.trade) {
+    logger.info({ requestId: input.sessionId, ambiguous: routing.ambiguous }, 'asking which trade');
+    return askWhichTrade(input.sessionId, published, known, routing.ambiguous);
+  }
+
+  const trade = routing.trade;
+  if (routing.by === 'keywords') logger.info({ requestId: input.sessionId, trade }, 'trade read from the message');
   const schema = await loadTradeSchema(trade, repo);
 
   /* A guide figure tapped off a rates answer. It is not an answer to anything we asked, so the
@@ -251,7 +270,13 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   }
 
   const formatted = formatFencingResult({ state, matcher, answer, budget });
-  return matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
+  const response = matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
+
+  /* Settled once, and carried in the state the client echoes back. Re-deciding every turn would let
+     "the old fence is coming out" three questions into a tiling job re-route the conversation and
+     throw away everything already answered - and relying on the caller to keep sending it would
+     fail silently into fencing the first time one forgot. */
+  return rememberTrade(response, trade);
 }
 
 /**

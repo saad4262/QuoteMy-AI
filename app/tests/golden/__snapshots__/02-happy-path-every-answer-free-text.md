@@ -38,7 +38,8 @@ customer: "I need a fence quote"
       "nearbyPlaces": {},
       "suburbHint": null,
       "place": null,
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {},
@@ -119,7 +120,8 @@ customer: "yes go ahead"
       "nearbyPlaces": {},
       "suburbHint": null,
       "place": null,
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {},
@@ -238,7 +240,8 @@ picked place: Berwick, VIC 3806
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -364,7 +367,8 @@ customer: "aluminium"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -481,7 +485,8 @@ customer: "1800mm"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -614,7 +619,8 @@ customer: "30 metres"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -758,7 +764,8 @@ customer: "old timber fence"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -908,7 +915,8 @@ customer: "nothing tricky"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -1064,7 +1072,8 @@ customer: "a single pedestrian gate"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -1215,7 +1224,8 @@ customer: "2 gates"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistDisplay": {
@@ -1396,7 +1406,8 @@ customer: "yes please"
         "postcode": "3806",
         "displayLabel": "Berwick, VIC 3806"
       },
-      "answers": 0
+      "answers": 0,
+      "trade": "fencing"
     }
   },
   "checklistComplete": true,

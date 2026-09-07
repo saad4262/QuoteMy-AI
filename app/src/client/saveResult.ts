@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { logger } from '../config.js';
 import { getRepository, type BusinessRepository, type QuoteResultDoc } from '../store.js';
 import type { ChatResponse } from './schemas.js';
+import type { Trade } from '../vocab.js';
 
 /**
  * The finished quote, written where the frontend can listen for it.
@@ -24,7 +25,11 @@ import type { ChatResponse } from './schemas.js';
  * `type: 'result'` with an empty `results` array and a `noMatchReason`, and that is exactly what
  * the customer needs to see. The frontend has to render both.
  */
-export const isFinal = (response: ChatResponse): boolean => response.type === 'result';
+/* `trade` is checked as well, and not only to satisfy the compiler: the one turn that carries no
+   trade is the question asking which one, and that is never a result. A document written without a
+   trade would be unreadable by anything downstream. */
+export const isFinal = (response: ChatResponse): response is ChatResponse & { trade: Trade } =>
+  response.type === 'result' && response.trade !== null;
 
 export async function saveChatResult(
   response: ChatResponse,

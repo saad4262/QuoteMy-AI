@@ -110,9 +110,32 @@ Read this rather than hardcoding a list: it returns what is actually **published
 backend can serve but nobody has onboarded into yet is never offered to a customer who would then
 match nobody.
 
-The chat does **not** ask which trade when a request does not name one — it answers as fencing,
-exactly as it always has, so nothing that has not been updated breaks. Picking the trade is the
-entry point's job, and the endpoint above is what that decision reads.
+### 2.1a The chat also works out the trade on its own
+
+You do not have to send `trade`, and the chat is no longer fencing-by-default. It decides in this
+order:
+
+1. **`trade` in the body** — you said, and you win. Keep sending it if you have a picker.
+2. **What this conversation already settled** — held server-side in `_ui`, so it survives a turn
+   where you forget.
+3. **The customer's own words** — "I need a fence quote" routes to fencing, "my bathroom needs
+   tiling" routes to tiling. Most people say it in their opening sentence.
+4. **Otherwise it asks**, and this is the one turn where the response looks different:
+
+```jsonc
+{ "type": "question",
+  "trade": null,                                   // ← null ONLY here: nothing has answered yet
+  "message": "Are you looking for Fencing or Tiling services?",
+  "options": [ { "label": "Fencing", "value": "fencing" },
+               { "label": "Tiling",  "value": "tiling"  } ] }
+```
+
+Render it like any other question — the values are what to send back. A message naming both jobs
+gets a slightly different sentence ("Sounds like there might be more than one job there…"), same
+shape.
+
+**Two things to handle:** `trade` can be `null` on that one turn, and the turn records nothing, so
+the `checklist` comes back exactly as you sent it.
 
 ### 2.2 The business confirm screen — the real remaining work
 

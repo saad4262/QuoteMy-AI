@@ -175,6 +175,17 @@ export type GateChoice = string | 'none';
  * editing it. This is the entire session-state mechanism; there is no server-side session store.
  */
 export interface UiState {
+  /**
+   * Which trade this conversation settled on, so it is decided once and never revisited.
+   *
+   * Without it, routing would re-run on every message and "the old fence is coming out" three
+   * questions into a tiling job would throw the conversation into the wrong trade mid-flight. It
+   * lives in `_ui` rather than being re-sent by the caller because a client that forgets to echo it
+   * would silently get fencing, and silently is the worst way for this to be wrong.
+   *
+   * Optional so a checklist stored before this existed still loads.
+   */
+  trade?: Trade;
   turn: number;
   cursor: Record<string, number>;
   lastAsked: ChecklistField | 'alternative' | null;
@@ -409,7 +420,8 @@ export interface AlternativeOffer {
 
 export interface ChatResponse {
   sessionId: string | null;
-  trade: Trade;
+  /** Null only on the turn that asks which trade - nothing has answered yet. */
+  trade: Trade | null;
   /** A customer already holding a quote turns the results page into a comparison against it. */
   intent: 'new_quote' | 'compare_quote';
   place: Place | null;

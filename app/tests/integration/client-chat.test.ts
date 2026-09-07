@@ -76,10 +76,14 @@ function seedBusiness(uid: string, name: string, pricingOverrides: Partial<Prici
   repo.saveCapabilities(uid, capabilities);
 }
 
+/* Names the trade, as the real fencing frontend does. Without it the router would ask "fencing or
+   tiling?" first on any opener that happens not to contain a fencing word, which is its job - and
+   `routing.test.ts` is where that behaviour is covered rather than here. */
 const chatTurn = (message: string, sessionId: string, place: unknown, knownChecklist: unknown) =>
   request(app)
     .post('/api/v1/client/fencing-chat')
     .send({
+      trade: 'fencing',
       message,
       sessionId,
       place: place ? JSON.stringify(place) : '',

@@ -87,6 +87,10 @@ describe('tapping one inside the conversation', () => {
       if (turn.place) place = turn.place;
       response = await runChat(
         {
+          /* Named, because some of these scripts open with a budget chip rather than a sentence -
+             which is our own control string and names no trade. A real conversation cannot start
+             that way: a chip only appears after a rates question has been answered. */
+          trade: 'fencing',
           message: turn.text,
           sessionId: 'budget',
           place: place ? JSON.stringify(place) : '',
