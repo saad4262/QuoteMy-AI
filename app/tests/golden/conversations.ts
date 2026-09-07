@@ -148,6 +148,8 @@ export interface Conversation {
   seed: (repo: MemoryRepository) => void;
   turns: Turn[];
   ai?: AiClient;
+  /** Omitted means fencing, so every conversation written before there was a second trade is unchanged. */
+  trade?: 'fencing' | 'tiling';
 }
 
 /**
@@ -166,6 +168,7 @@ export async function runScript(conversation: Conversation, repo: MemoryReposito
 
     const response: ChatResponse = await runChat(
       {
+        ...(conversation.trade ? { trade: conversation.trade } : {}),
         message: turn.say,
         sessionId: 'golden',
         place: place ? JSON.stringify(place) : '',
@@ -488,6 +491,201 @@ export const CONVERSATIONS: Conversation[] = [
       { say: 'none' },
       { say: 'yes' },
       { say: 'alt:colorbond:1.8m' }, // one tap moves material and height together
+    ],
+  },
+];
+
+// --- tiling -------------------------------------------------------------------------------------
+
+/**
+ * One tiler covering Berwick from Pakenham, priced both ways: per square metre for a plain floor,
+ * one fixed price for a bathroom. That mix is the whole reason tiling is a second trade rather than
+ * a second vocabulary, so every conversation below is driven against a business that has both.
+ */
+export function seedTiler(
+  repo: MemoryRepository,
+  uid: string,
+  businessName: string,
+  pricingOverrides: Record<string, unknown> = {},
+): void {
+  const now = '2026-01-01T00:00:00.000Z';
+
+  repo.addCandidate({
+    uid,
+    businessName,
+    servicesProvided: ['tiling'],
+    rating: 4.9,
+    reviewCount: 80,
+    isAutoAcceptEnabled: false,
+    isAiAutoAcceptEnabled: true,
+  });
+
+  repo.savePricing(uid, {
+    trade: 'tiling',
+    status: 'confirmed',
+    schemaVersion: 2,
+    updatedAt: now,
+    confirmedAt: now,
+    ratesSaved: 4,
+    gstIncluded: true,
+    supplyModels: ['supply_and_install', 'labour_only'],
+    enabledJobTypes: ['floor_only', 'bathroom'],
+    rates: {
+      floor_only: [
+        { tileType: null, price: 65, unit: 'per_sqm' },
+        { tileType: 'porcelain', price: 72, unit: 'per_sqm' },
+      ],
+      bathroom: [{ tileType: null, price: 4850, unit: 'per_job' }],
+    },
+    tileSupply: [{ label: 'Urban Grey Porcelain 600x600', tileType: 'porcelain', pricePerSqm: 45 }],
+    prep: [],
+    removals: [{ removes: 'ceramic', pricePerSqm: 45 }],
+    waterproofing: [{ area: 'bathroom', price: 950 }],
+    siteConditions: [{ condition: 'second_storey', extraPerSqm: null, extraPercent: 10 }],
+    serviceArea: {
+      baseLocation: 'Pakenham',
+      resolved: { suburb: 'Pakenham', state: 'VIC', postcode: '3810', lat: PAKENHAM.latitude, lng: PAKENHAM.longitude, source: 'google' },
+      radiusKm: 25,
+      excludedAreas: [],
+    },
+    minimumCharge: 350,
+    callOutFee: null,
+    travelFee: null,
+    ...pricingOverrides,
+  } as unknown as PricingDoc);
+
+  repo.saveCapabilities(uid, {
+    trade: 'tiling',
+    businessName,
+    warranty: { text: 'Workmanship warranty as per contract' },
+    tags: [],
+    extras: [],
+    inclusions: [],
+    exclusions: [],
+    otherOfferings: [],
+    couldNotUse: [],
+    schemaVersion: 2,
+    updatedAt: now,
+  } as unknown as CapabilitiesDoc);
+}
+
+const openTiling: Turn[] = [{ say: 'I need a tiling quote' }, { say: 'yes go ahead' }];
+
+export const TILING_CONVERSATIONS: Conversation[] = [
+  {
+    name: '20 tiling, a plain floor priced by the square metre',
+    why: 'the second trade end to end: its own questions in its own order, the tile-specific rate beating the general one, and a per-m2 total',
+    trade: 'tiling',
+    seed: (repo) => seedTiler(repo, 'tile-1', 'Paky Tiles'),
+    turns: [
+      ...openTiling,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'floor_only' },
+      { say: 'porcelain' },
+      { say: '20' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '21 tiling, a bathroom the business sells at one price',
+    why: 'a per_job rate is NOT multiplied by the area - the error that would quote a bathroom at forty thousand dollars - while removal and waterproofing still add on top',
+    trade: 'tiling',
+    seed: (repo) => seedTiler(repo, 'tile-1', 'Paky Tiles'),
+    turns: [
+      ...openTiling,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bathroom' },
+      { say: 'porcelain' },
+      { say: '8' },
+      { say: 'labour_only' },
+      { say: 'any' },
+      { say: 'bathroom' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '22 tiling, the business supplies the tiles',
+    why: 'supply_and_install adds the business own published tile price per m2 - never a figure from a web search',
+    trade: 'tiling',
+    seed: (repo) => seedTiler(repo, 'tile-1', 'Paky Tiles'),
+    turns: [
+      ...openTiling,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'floor_only' },
+      { say: 'porcelain' },
+      { say: '20' },
+      { say: 'supply_and_install' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '23 tiling, a percentage surcharge on an upstairs job',
+    why: 'a percent surcharge loads the rate and the per-m2 extras and never a fixed item, the same rule fencing has',
+    trade: 'tiling',
+    seed: (repo) => seedTiler(repo, 'tile-1', 'Paky Tiles'),
+    turns: [
+      ...openTiling,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'floor_only' },
+      { say: 'porcelain' },
+      { say: '20' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'second_storey' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '24 tiling, nobody prices that job',
+    why: 'the no-match sentence is tiling own - never "the businesses near you do not offer that fence type"',
+    trade: 'tiling',
+    seed: (repo) => seedTiler(repo, 'tile-1', 'Paky Tiles'),
+    turns: [
+      ...openTiling,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'kitchen_splashback' },
+      { say: 'porcelain' },
+      { say: '3' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '25 tiling, correcting the tile from the recap',
+    why: 'saying which field is wrong reopens THAT field - the words belong to the field, not to a table keyed on fencing names',
+    trade: 'tiling',
+    seed: (repo) => seedTiler(repo, 'tile-1', 'Paky Tiles'),
+    turns: [
+      ...openTiling,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'floor_only' },
+      { say: 'porcelain' },
+      { say: '20' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'no' },
+      { say: "the tile's wrong" },
+      { say: 'ceramic' },
+      { say: 'yes' },
     ],
   },
 ];

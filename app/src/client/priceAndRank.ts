@@ -271,7 +271,12 @@ function tilingBrief(checklist: Checklist, spec: PricingSpec): TilingBrief {
     removal: removal && removal !== 'none' ? slug(removal) : null,
     waterproofing: waterproofing && waterproofing !== 'none' ? slug(waterproofing) : null,
     conditions: asTextList(checklist.conditions),
-    supply: slug(asText(checklist.supply)),
+    /* NOT slugged, unlike every other field here. The rest are compared against keys a business
+       wrote in its own spelling, so both sides go through `slug`; supply is compared against a
+       closed vocabulary value, and slugging turns `supply_and_install` into `supply-and-install`,
+       which matches nothing. Golden conversation 22 is what caught it - the tile price silently
+       stopped being added to a supply-and-install quote. */
+    supply: asText(checklist.supply) ?? '',
   };
 }
 
