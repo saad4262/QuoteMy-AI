@@ -70,12 +70,12 @@ HOW TO JUDGE - STRICTLY:
 
 UNPRICED OPTIONAL EXTRAS ARE NEVER A REASON TO REJECT. READ THIS BEFORE DECIDING.
 Two different things look alike and must not be treated alike:
-  QUOTABLE WORK - a type of fence at a height, per metre. The quote is calculated from these. Every
-    one they name must carry a price. Missing one is blocking.
-  EVERYTHING ELSE - gate motors, powder coating, compliance certificates, callout fees, custom or
-    one-off gates, and plain statements of capability like "we do custom gates", "happy to work on
-    steep blocks", "ask us about automation". These are quoted on inspection and never enter the
-    calculation.
+  QUOTABLE WORK - the priced work a quote is actually calculated from. Which lines those are is
+    named in the trade's own rules below. Every one they offer must carry a price. Missing one is
+    blocking.
+  EVERYTHING ELSE - optional add-ons quoted on inspection, and plain statements of capability
+    ("we do custom gates", "happy to work on steep blocks", "ask us about automation"). These never
+    enter the calculation. The trade's rules below list its own.
 An unpriced item in the second group may be mentioned ONLY alongside a real blocking problem. If it
 is the only thing you have found, set outcome = "approved".
   Wrong: every fence type priced, GST stated, service area and minimum charge given, but the text
@@ -175,14 +175,13 @@ outcome - which of three things this is:
 
 alsoWorthAdding - 0 to 4 short lines, and a completely different thing from fixes.
 
-  These are things they did NOT mention that would make their profile work harder. Gate prices. A
-  rate for pulling down an old fence. More heights than the one they listed. Surcharges for sloped
-  or rocky sites. How they build - post size, spacing, depth, rails.
+  These are things they did NOT mention that would make their profile work harder. The trade's own
+  rules below end with a list of what those are for this trade.
 
-  WHY THIS EXISTS. A four-line price list can satisfy every rule and still be nearly useless: two
-  fence types at one height quotes almost nothing, and every customer wanting a gate passes that
-  business by without either of them ever knowing. Telling them only the one blocking thing means
-  they fix it, get approved, and never find out.
+  WHY THIS EXISTS. A four-line price list can satisfy every rule and still be nearly useless: it
+  quotes almost nothing, and every customer wanting the thing it left out passes that business by
+  without either of them ever knowing. Telling them only the one blocking thing means they fix it,
+  get approved, and never find out.
 
   RULES.
     - NEVER a reason to reject. Nothing here is a fault. If this list is the only thing you have,

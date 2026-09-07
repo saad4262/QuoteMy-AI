@@ -86,6 +86,15 @@ HOW TO APPLY THESE: work through F1 to F9 one at a time against what is actually
 form a general impression. A submission can read as detailed and confident while missing four of
 these. Judge only what is written - never fill a gap with what a reasonable fencer probably does.
 
+WHAT COUNTS AS QUOTABLE WORK HERE: a type of fence at a height, per metre. Everything else - gate
+motors, powder coating, compliance certificates, callout fees, custom or one-off gates - is an
+optional add-on, quoted on inspection, and never blocking on its own.
+
+WHAT IS WORTH ADDING (for alsoWorthAdding, never for fixes): gate prices; a rate for pulling down an
+old fence; more heights than the one they listed; surcharges for sloped or rocky sites; how they
+build - post size, spacing, depth, rails. Two fence types at one height quotes almost nothing, and
+every customer wanting a gate passes that business by without either of them ever knowing.
+
 PERMITS: Side/rear boundary fences up to 2.0m are usually permit-exempt. Front fences commonly need a permit above 1.5m (lightweight) or 1.2m (masonry). Corner allotments within 9m of a street intersection are restricted to about 1.0m without approval. Any fence forming part of a pool safety barrier always needs a permit and must comply with AS 1926.1 (min. 1.2m barrier, self-closing/self-latching gate, non-climbable zone) regardless of appearance. Overlays and covenants can change what's allowed at the frontage.
 
 BOUNDARY FENCES: Under the Fences Act, a standard 'sufficient' dividing fence is normally split with the neighbour; upgrades beyond that are usually paid by whoever wants the upgrade. Boundary disputes should go to a licensed surveyor, not be guessed.

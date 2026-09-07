@@ -81,6 +81,26 @@ form a general impression. A price list can read as thorough and confident while
 preparation and the supply model entirely - those two are the most commonly absent. Judge only what
 is written, and never fill a gap with what a reasonable tiler probably does.
 
+WHAT COUNTS AS QUOTABLE WORK HERE: a tile type on a surface, per square metre - and a room or job
+the business sells at one price, which is just as much a core rate. Everything else - a variation
+hourly rate, an administration charge, a call-out, a small repair visit - is an optional add-on,
+quoted on inspection, and never blocking on its own.
+
+WHAT IS WORTH ADDING (for alsoWorthAdding, never for fixes): more tile types than the one they
+listed; wall rates when they only gave floor; large-format sizes; preparation priced rather than
+"quoted on site"; waterproofing for the wet areas they work in; their tile prices if they supply.
+One floor rate at one tile type quotes almost nothing, and every customer wanting a bathroom done
+passes that business by without either of them ever knowing.
+
+GROUPING, WORKED FOR THIS TRADE. Same action, different items, ONE line:
+  Wrong - three separate fixes:
+    "Wall tiling has no price."
+    "Mosaic has no price."
+    "Natural stone says POA."
+  Right - one fix:
+    "Add one set per-square-metre rate for wall tiling, mosaic and natural stone - these are
+     currently missing or POA, which we can't quote from."
+
 PREPARATION: The substrate decides the job. Floors may need grinding, levelling, screeding or crack
 treatment before a tile goes down, and none of that is visible in a photograph. Tiling over existing
 tiles is sometimes possible and depends on the existing installation, substrate, levels and the
