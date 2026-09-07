@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS } from './vocab.js';
+import { CONDITIONS, GATE_TYPES, MATERIALS, REMOVES, TAGS, TRADES, UNITS, type Trade } from './vocab.js';
 
 /**
  * Everything the business side sends arrives on ONE route, and `action` says what to do with it.
@@ -206,6 +206,17 @@ export const extractionSchema = z.object({
   couldNotUse: z.string().array(),
 });
 export type Extraction = z.infer<typeof extractionSchema>;
+
+/**
+ * One trade per extraction call (`CLAUDE.md` non-negotiable #5), so the schema is chosen by trade
+ * rather than made to cover several. A fencing rate is a material at a height per linear metre; a
+ * tiling rate is not that shape, and widening one schema to hold both would hand the model a set of
+ * fields where most are wrong for whatever it is reading - which is how a number ends up in the
+ * nearest field that would take it.
+ */
+export const TRADE_EXTRACTION: Record<Trade, z.ZodType<Extraction>> = {
+  fencing: extractionSchema,
+};
 
 /**
  * zod -> the JSON Schema OpenAI's strict mode wants.

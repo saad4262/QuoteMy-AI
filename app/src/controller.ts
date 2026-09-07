@@ -5,7 +5,7 @@ import { badRequest, notFound, send } from './http.js';
 import { assertSomethingArrived, readSource, type UploadedFile } from './ingest.js';
 import { assertSubmittable, runOnboarding, sanitizeText } from './pipeline.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
-import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
+import { reviewSchema, TRADE_EXTRACTION, type BusinessBody } from './schemas.js';
 import { getRepository } from './store.js';
 import { verifyExtraction } from './verify/index.js';
 import { processSubmission } from './worker.js';
@@ -125,7 +125,7 @@ async function devStage(req: Request, res: Response, body: BusinessBody) {
 
   const result = await ai.callStructured({
     name: 'extraction',
-    schema: extractionSchema,
+    schema: TRADE_EXTRACTION[trade],
     system: extractionPrompt(trade),
     user: wrapDescription(trade, text),
     maxOutputTokens: 8000,

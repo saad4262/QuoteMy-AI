@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Trade } from './vocab.js';
+import { TRADES, type Trade } from './vocab.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -35,12 +35,16 @@ const read = (...p: string[]) => {
  * call (docs/FLOW.md §13).
  */
 const reviewSystem = read('review.system.md');
-const extractionSystem = read('extraction.system.md');
 const transcribeSystem = read('transcribe.system.md');
 const generalSop = read('sop', '_general.md');
 
+/** Two files per trade: the publish rules to judge against, and how to read that trade's list. */
 const tradeRules: Record<Trade, string> = {
   fencing: read('sop', 'fencing', 'rules.md'),
+};
+
+const tradeExtraction: Record<Trade, string> = {
+  fencing: read('extraction.fencing.md'),
 };
 
 /** Rough, deliberately pessimistic: ~3.6 chars per token for English prose. */
@@ -112,11 +116,11 @@ function previousReviewBlock(fixes: string[]): string {
   ].join('\n');
 }
 
-export function extractionPrompt(_trade: Trade, knownExtras = ''): string {
+export function extractionPrompt(trade: Trade, knownExtras = ''): string {
   // Extraction needs the vocabulary mapping, which is already inside its own prompt - not the
   // publish rules, which are the review stage's business. `knownExtras` is what other businesses
   // in this trade have already offered, so the same thing is filed under the same slug twice.
-  return [extractionSystem, knownExtras].filter(Boolean).join('\n\n');
+  return [tradeExtraction[trade], knownExtras].filter(Boolean).join('\n\n');
 }
 
 /** Untrusted text always arrives fenced, and the fence markers are stripped from it upstream. */
@@ -134,10 +138,14 @@ export function wrapDescription(trade: Trade, text: string): string {
 
 /** Called at boot. A fat SOP fails CI instead of quietly costing money on every request. */
 export function assertPromptBudgets(): void {
+  // Every trade, not only the first one. A trade whose SOP is twice the size of fencing's should
+  // fail at boot, not turn up on next month's bill.
   const checks: [string, number, number][] = [
-    ['review', estimateTokens(reviewPrompt('fencing')), PROMPT_TOKEN_BUDGET.review],
-    ['extraction', estimateTokens(extractionPrompt('fencing')), PROMPT_TOKEN_BUDGET.extraction],
     ['transcribe', estimateTokens(transcribePrompt()), PROMPT_TOKEN_BUDGET.transcribe],
+    ...TRADES.flatMap((trade): [string, number, number][] => [
+      [`review (${trade})`, estimateTokens(reviewPrompt(trade)), PROMPT_TOKEN_BUDGET.review],
+      [`extraction (${trade})`, estimateTokens(extractionPrompt(trade)), PROMPT_TOKEN_BUDGET.extraction],
+    ]),
   ];
   for (const [name, used, budget] of checks) {
     if (used > budget) {
@@ -147,7 +155,11 @@ export function assertPromptBudgets(): void {
 }
 
 export const promptSizes = () => ({
-  review: estimateTokens(reviewPrompt('fencing')),
-  extraction: estimateTokens(extractionPrompt('fencing')),
   transcribe: estimateTokens(transcribePrompt()),
+  ...Object.fromEntries(
+    TRADES.map((trade) => [
+      trade,
+      { review: estimateTokens(reviewPrompt(trade)), extraction: estimateTokens(extractionPrompt(trade)) },
+    ]),
+  ),
 });

@@ -4,7 +4,7 @@ import { env } from './config.js';
 import { AppError, unprocessable } from './http.js';
 import { assertSomethingArrived, readSource, stripProvenance, type UploadedFile } from './ingest.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
-import { extractionSchema, reviewSchema, type BusinessBody } from './schemas.js';
+import { reviewSchema, TRADE_EXTRACTION, type BusinessBody } from './schemas.js';
 import { LABELS, MESSAGES, WHAT_TO_SEND } from './messages.js';
 import { getRepository, SCHEMA_VERSION, type BusinessRepository, type ReviewDoc } from './store.js';
 import { verifyExtraction } from './verify/index.js';
@@ -256,7 +256,7 @@ export async function runOnboarding(
 
   const extraction = await ai.callStructured({
     name: 'extraction',
-    schema: extractionSchema,
+    schema: TRADE_EXTRACTION[input.trade],
     system: extractionPrompt(input.trade, extrasPromptBlock(knownExtras)),
     user: wrapDescription(input.trade, text),
     maxOutputTokens: 8000,
