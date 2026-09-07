@@ -110,6 +110,161 @@ describe('a tiling conversation', () => {
   });
 });
 
+describe('a tiling job is actually priced', () => {
+  const now = '2026-01-01T00:00:00.000Z';
+
+  /** One tiler in Pakenham, with both kinds of rate on its list - per m² and one fixed room price. */
+  function seedTiler(): void {
+    repo.addCandidate({
+      uid: 'paky',
+      businessName: 'Paky Tiles',
+      servicesProvided: ['tiling'],
+      rating: 4.9,
+      reviewCount: 80,
+      isAutoAcceptEnabled: false,
+      isAiAutoAcceptEnabled: true,
+    });
+
+    repo.savePricing('paky', {
+      trade: 'tiling',
+      status: 'confirmed',
+      schemaVersion: 2,
+      updatedAt: now,
+      confirmedAt: now,
+      ratesSaved: 3,
+      gstIncluded: true,
+      supplyModels: ['supply_and_install', 'labour_only'],
+      enabledJobTypes: ['floor_only', 'bathroom'],
+      rates: {
+        floor_only: [
+          { tileType: null, price: 65, unit: 'per_sqm' },
+          { tileType: 'porcelain', price: 72, unit: 'per_sqm' },
+        ],
+        bathroom: [{ tileType: null, price: 4850, unit: 'per_job' }],
+      },
+      tileSupply: [],
+      prep: [],
+      removals: [{ removes: 'ceramic', pricePerSqm: 45 }],
+      waterproofing: [{ area: 'bathroom', price: 950 }],
+      siteConditions: [],
+      serviceArea: {
+        baseLocation: 'Pakenham',
+        resolved: { suburb: 'Pakenham', state: 'VIC', postcode: '3810', lat: -38.07, lng: 145.48, source: 'google' },
+        radiusKm: 25,
+        excludedAreas: [],
+      },
+      minimumCharge: 350,
+      callOutFee: null,
+      travelFee: null,
+    } as never);
+
+    repo.saveCapabilities('paky', {
+      trade: 'tiling',
+      businessName: 'Paky Tiles',
+      warranty: { text: 'Workmanship warranty as per contract' },
+      tags: [],
+      extras: [],
+      inclusions: [],
+      exclusions: [],
+      otherOfferings: [],
+      couldNotUse: [],
+      schemaVersion: 2,
+      updatedAt: now,
+    } as never);
+  }
+
+  const run = async (says: string[]) => {
+    let checklist: unknown = null;
+    let response = null as Awaited<ReturnType<typeof runChat>> | null;
+    for (const message of says) {
+      response = await runChat(
+        {
+          trade: 'tiling',
+          message,
+          sessionId: 'price-1',
+          place: JSON.stringify(BERWICK),
+          knownChecklist: checklist ? JSON.stringify(checklist) : '',
+        },
+        [],
+        { repo },
+      );
+      checklist = response.checklist;
+    }
+    return response!;
+  };
+
+  beforeEach(() => seedTiler());
+
+  it('prices a per-square-metre job off the tile-specific rate', async () => {
+    const response = await run([
+      'I need tiling done',
+      'yes',
+      'Pakenham',
+      'floor_only',
+      'porcelain',
+      '20',
+      'labour_only',
+      'any',
+      'none',
+      'none',
+      'yes',
+    ]);
+
+    expect(response.type).toBe('result');
+    expect(response.results).toHaveLength(1);
+    // $72/m2 for porcelain - the specific row, not the $65 general one - plus $45/m2 removal,
+    // across 20m2. GST is already included in the published rates.
+    expect(response.results[0]!.estimatedTotal).toBe((72 + 45) * 20);
+    expect(response.results[0]!.ratePerMeter).toBe(117);
+    expect(response.results[0]!.businessName).toBe('Paky Tiles');
+  });
+
+  it('prices a room the business sells as one price, and adds what is measured on top', async () => {
+    const response = await run([
+      'I need tiling done',
+      'yes',
+      'Pakenham',
+      'bathroom',
+      'porcelain',
+      '8',
+      'labour_only',
+      'any',
+      'bathroom',
+      'none',
+      'yes',
+    ]);
+
+    expect(response.type).toBe('result');
+    /* The bathroom package is $4,850 whatever the area, the removal is $45/m2 across 8m2, and the
+       waterproofing is its own $950. A per-job rate does not multiply by the area - getting that
+       wrong would quote this bathroom at nearly forty thousand dollars. */
+    expect(response.results[0]!.estimatedTotal).toBe(4850 + 45 * 8 + 950);
+  });
+
+  /* A splashback is on the first page of jobs and this tiler has not published a price for one, so
+     it is the natural case for "nobody near you can do that" - and the sentence must be tiling's. */
+  it('says so in tiling\'s words when nobody can price the job', async () => {
+    const response = await run([
+      'I need tiling done',
+      'yes',
+      'Pakenham',
+      'kitchen_splashback',
+      'porcelain',
+      '12',
+      'labour_only',
+      'none',
+      'none',
+      'none',
+      'yes',
+    ]);
+
+    expect(response.results).toHaveLength(0);
+    expect(response.message).toContain('Nobody near you publishes a price for that job');
+    // Never fencing's words in a tiling conversation.
+    expect(response.message).not.toContain('fence');
+  });
+});
+
 describe('the tiling verifier', () => {
   const text = [
     'Standard floor tiling $65 per m2.',

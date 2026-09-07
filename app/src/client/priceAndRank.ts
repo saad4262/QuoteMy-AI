@@ -1,15 +1,19 @@
 import type { ServiceExtract } from '../store.js';
 import {
   isFencingPricing,
+  isTilingPricing,
   type VerifiedCapabilities,
   type VerifiedOffering,
   type VerifiedPricing,
 } from '../verify/index.js';
+import { NO_MATCH_MESSAGES } from '../messages.js';
 import { budgetText } from './budget.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { quoteTotal } from './pricing/total.js';
 import { TRADE_PRICING, type PricingSpec } from './pricing/spec.js';
+import { quoteTiling, type TilingBrief } from './pricing/tiling.js';
+import { specOf } from './fieldSpec.js';
 import { titleCase, type TradeSchema } from './schema.js';
 import type { AlternativeOffer, ChatResponse, Checklist, ComparisonQuote, QuoteResult, UiState } from './schemas.js';
 
@@ -29,11 +33,11 @@ import type { AlternativeOffer, ChatResponse, Checklist, ComparisonQuote, QuoteR
  * into it before it is labelled or offered, so an alternative the customer taps is one the
  * checklist can accept as-is.
  */
-function makeMaterialNaming(schema: TradeSchema) {
-  /* Fencing's rate table is keyed by material, so its labels are the material ones. A trade whose
-     rates key off something else names that group in its pricing spec (step A6); until then an
-     absent map is an empty one rather than a crash. */
-  const materials = schema.labels.materials ?? {};
+function makeMaterialNaming(schema: TradeSchema, spec: PricingSpec) {
+  /* Whichever answer this trade headlines a quote with - fencing's material, tiling's tile - found
+     through that field's own label group rather than by assuming the group is called `materials`. */
+  const group = specOf(schema.fields, spec.headlineField)?.labelGroup;
+  const materials = (group ? schema.labels[group] : undefined) ?? {};
   const canonicalMaterial = (value: string): string =>
     Object.keys(materials).find((k) => slug(k) === slug(value)) ?? value;
   const materialLabel = (value: string): string => {
@@ -256,17 +260,34 @@ function asFencing(extract: ServiceExtract): FencingExtract | null {
   return { pricing, capabilities: extract.capabilities as FencingExtract['capabilities'] };
 }
 
+/** The tiling checklist, read the same defensive way fencing's is - coerced at the boundary. */
+function tilingBrief(checklist: Checklist, spec: PricingSpec): TilingBrief {
+  const removal = asText(checklist.removal);
+  const waterproofing = asText(checklist.waterproofing);
+  return {
+    jobType: slug(asText(checklist.jobType)),
+    tileType: slug(asText(checklist.tileType)),
+    areaSqm: asNumber(checklist[spec.quantityField]) ?? 0,
+    removal: removal && removal !== 'none' ? slug(removal) : null,
+    waterproofing: waterproofing && waterproofing !== 'none' ? slug(waterproofing) : null,
+    conditions: asTextList(checklist.conditions),
+    supply: slug(asText(checklist.supply)),
+  };
+}
+
 /** Same rule as `formatResult`: an answer to their own question goes in front, never instead. */
 const withAnswer = (gate: ChatResponse, message: string): string =>
   gate.answer ? gate.answer.text + '\n\n' + message : message;
 
 export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: TradeSchema): ChatResponse {
-  const { canonicalMaterial, materialLabel } = makeMaterialNaming(schema);
+  const spec = TRADE_PRICING[schema.trade];
+  const words = NO_MATCH_MESSAGES[schema.trade];
+  const { canonicalMaterial, materialLabel } = makeMaterialNaming(schema, spec);
   const checklist = gate.checklist as Checklist;
   const base = { sessionId: gate.sessionId, trade: schema.trade, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending };
 
   if (!matcher.matched) {
-    return fail(base, 'No fencing business covers that suburb yet. Try a nearby suburb?', matcher.noMatchReason || 'area');
+    return fail(base, words.area!, matcher.noMatchReason || 'area');
   }
 
   const material = asText(checklist.material);
@@ -274,7 +295,6 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
   const removal = asText(checklist.removal);
   const gateType = asText(checklist.gateType);
 
-  const spec = TRADE_PRICING[schema.trade];
   const wantedMaterial = slug(material);
   const wantedHeight = Number.parseFloat(String(heightKey ?? ''));
   const brief: Brief = {
@@ -293,7 +313,43 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
   for (let i = 0; i < matcher.businesses.length; i += 1) {
     const business = matcher.businesses[i]!;
-    const extract = asFencing(matcher.pricing[i]!);
+    const stored = matcher.pricing[i]!;
+
+    /* Each trade prices its own shape. The two arms produce the same `Quote`, so everything after
+       this point - ranking, the comparison against a quote they already hold, the results screen -
+       is written once and knows nothing about fences or tiles. */
+    if (schema.trade === 'tiling') {
+      const pricing = stored.pricing;
+      if (!pricing || !isTilingPricing(pricing)) continue;
+
+      const quote = quoteTiling(business, pricing, tilingBrief(checklist, spec));
+      if ('blocked' in quote) {
+        // The two trades block for different reasons; these are the nearest equivalents, and they
+        // are what chooses the sentence a customer reads when nobody can quote them.
+        blocked[quote.blocked === 'jobType' ? 'height' : quote.blocked === 'tileType' ? 'material' : 'removal'] += 1;
+        continue;
+      }
+
+      quotes.push({
+        uid: business.uid,
+        businessName: business.businessName,
+        suburb: business.suburb,
+        distanceKm: business.distanceKm,
+        material: slug(quote.tileKey),
+        heightKey: quote.rateKey,
+        ratePerMeter: quote.ratePerUnit,
+        autoAcceptsAi: business.autoAcceptsAi,
+        currency: 'AUD',
+        projectTotalMin: quote.total,
+        projectTotalMax: quote.total,
+        estimatedTotal: quote.total,
+        warranty: (stored.capabilities as { warranty?: { text?: string | null } } | null)?.warranty?.text ?? null,
+        badges: quote.badges,
+      });
+      continue;
+    }
+
+    const extract = asFencing(stored);
     if (!extract) continue;
     const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief, spec);
     if ('blocked' in quote) {
@@ -422,17 +478,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     }
 
     const reason = blocked.removal > 0 ? 'removal' : blocked.gate > 0 ? 'gate' : blocked.height > 0 ? 'height' : blocked.material > 0 ? 'material' : 'pricing';
-    const message =
-      reason === 'removal'
-        ? 'None of the businesses near you take away that kind of old fence. Want to arrange the removal separately?'
-        : reason === 'gate'
-          ? 'Nobody near you prices that gate. Want to try without the gate?'
-          : reason === 'height'
-            ? 'Nobody near you publishes a rate at that height. Want to try a different height?'
-            : reason === 'material'
-              ? 'The businesses near you do not offer that fence type yet. Want to try a different type?'
-              : 'I found businesses near you, but none of them have finished setting up their pricing yet.';
-    return fail(base, message, reason);
+    return fail(base, words[reason] ?? words.pricing!, reason);
   }
 
   const benchmark = existingPrice === null ? average : existingPrice;

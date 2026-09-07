@@ -164,7 +164,16 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
     removes: ['any', ...REMOVES.filter((r) => r !== 'any')],
   },
   tiling: {
-    jobTypes: [...TILE_JOB_TYPES],
+    /* Ordered for the screen, not for the vocabulary. Three choices are shown at a time, so the
+       three commonest jobs go first - a bathroom, a plain floor, a kitchen splashback - and the
+       rest follow on the next page. The vocabulary's own order groups the rooms together, which is
+       the right order to read a list in and the wrong one to be offered three of. */
+    jobTypes: [
+      'bathroom',
+      'floor_only',
+      'kitchen_splashback',
+      ...TILE_JOB_TYPES.filter((j) => j !== 'bathroom' && j !== 'floor_only' && j !== 'kitchen_splashback'),
+    ],
     tileTypes: [...TILE_TYPES],
     supply: [...TILE_SUPPLY],
     /* Same shape as fencing's: "yes, take them up" first, and the kinds behind it for anyone who
@@ -215,6 +224,36 @@ export const TILING_QUESTIONS: Record<string, string> = {
 export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
   fencing: QUESTIONS,
   tiling: TILING_QUESTIONS,
+};
+
+/**
+ * What a customer is told when nobody near them can quote the brief.
+ *
+ * Here rather than in `priceAndRank.ts` for the same reason every other customer-facing sentence
+ * is here: these are words, and words belong to a trade. "The businesses near you do not offer that
+ * fence type" is not a sentence a tiling customer should ever see.
+ *
+ * The reasons are the shared ones the pricing code counts. Which of a trade's own blockers maps
+ * onto which reason is that trade's business - tiling has no gates, and its `height` is the job it
+ * could not price.
+ */
+export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
+  fencing: {
+    area: 'No fencing business covers that suburb yet. Try a nearby suburb?',
+    removal: 'None of the businesses near you take away that kind of old fence. Want to arrange the removal separately?',
+    gate: 'Nobody near you prices that gate. Want to try without the gate?',
+    height: 'Nobody near you publishes a rate at that height. Want to try a different height?',
+    material: 'The businesses near you do not offer that fence type yet. Want to try a different type?',
+    pricing: 'I found businesses near you, but none of them have finished setting up their pricing yet.',
+  },
+  tiling: {
+    area: 'No tiling business covers that suburb yet. Try a nearby suburb?',
+    removal: 'None of the tilers near you take up that kind of old tile. Want to arrange the removal separately?',
+    gate: 'Nobody near you prices that part of the job. Want to try without it?',
+    height: 'Nobody near you publishes a price for that job. Want to try a different one?',
+    material: 'The tilers near you do not lay that tile yet. Want to try a different one?',
+    pricing: 'I found tilers near you, but none of them have finished setting up their pricing yet.',
+  },
 };
 
 export const MESSAGES = {

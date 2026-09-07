@@ -37,6 +37,12 @@ export interface PricingSpec {
   rateKeys: string[];
   /** Whether the trade's businesses publish a floor under a small job. */
   minimumCharge: boolean;
+  /**
+   * Which checklist answer the quote is headlined by - the thing a customer picked that a result
+   * card names. Fencing's is the material; tiling's is the tile. It is how the labels for a result
+   * are found, so it must be a field with a `labelGroup`.
+   */
+  headlineField: string;
 }
 
 export const TRADE_PRICING: Record<Trade, PricingSpec> = {
@@ -46,6 +52,7 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
     // pricing.rates is { material: { "1.8m": rate } } - the same two answers, nested.
     rateKeys: ['material', 'heightKey'],
     minimumCharge: true,
+    headlineField: 'material',
   },
   tiling: {
     quantityField: 'areaSqm',
@@ -55,5 +62,6 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
        the general one, the same way a fencing gate prefers its own material's price. */
     rateKeys: ['jobType', 'tileType'],
     minimumCharge: true,
+    headlineField: 'tileType',
   },
 };
