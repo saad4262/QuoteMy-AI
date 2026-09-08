@@ -196,9 +196,30 @@ export function numbersIn(text: string): number[] {
 }
 
 /** A positive number out of whatever the customer wrote - "30", "30m", "about 30", "1,200". */
+/**
+ * Two numbers with something between them: a range, or a room measured side by side. Neither is one
+ * answer, and picking the first is the quiet way to get it wrong - "3 by 4 metres" read as 3 quotes
+ * a quarter of the floor, and "20-25" read as 20 picks the end that suits us.
+ */
+const TWO_NUMBERS = /\d+(?:\.\d+)?\s*(?:-|–|—|x|×|\*|by|to|or)\s*\d+/i;
+
+/** Units this product does not work in. 100 square feet is 9 square metres, not 100 of them. */
+const NOT_METRIC = /\b(sq\.?\s*ft|sqft|square\s+f(?:ee|oo)t|f(?:ee|oo)t|ft|inch(?:es)?|in\.|yards?|yds?)\b/i;
+
+/**
+ * One number out of what somebody typed - and NOTHING when what they typed is not one number.
+ *
+ * The first number in the string used to win outright, which is right for "about 100" and "100m2"
+ * and silently wrong for everything below. It reads as the system having understood them, and the
+ * error surfaces as a total, by which point nobody can see where it came from.
+ *
+ * Refusing leaves the field unanswered, so the question comes round again. That costs a turn; a
+ * quote against a quarter of the real floor costs the job.
+ */
 export function positiveNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const text = String(value).replace(/,(?=\d{3}\b)/g, '');
+  if (TWO_NUMBERS.test(text) || NOT_METRIC.test(text)) return null;
   const match = text.match(/-?\d+(?:\.\d+)?/);
   if (!match) return null;
   const parsed = Number(match[0]);

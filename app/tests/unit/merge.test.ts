@@ -742,3 +742,57 @@ describe('taking the old fence away without saying what it is', () => {
     expect(response.results.length).toBe(0);
   });
 });
+
+/**
+ * A number field reads one number, or nothing.
+ *
+ * The first number in whatever was typed used to win outright. That is right for "about 100" and
+ * "100m2", and quietly wrong for a room given as its two sides, a range, or a foreign unit: "3 by 4
+ * metres" became 3 and quoted a quarter of the floor, "20-25" became 20, and "100 sq ft" became 100
+ * square metres - nine times what the customer has. Every one of them looks to the customer like
+ * they were understood, and surfaces only as a total nobody can trace.
+ */
+describe('reading a number the customer typed', () => {
+  /* Answering the area question and nothing else: the model returns an empty turn, so what lands in
+     the checklist is what the deterministic reader made of the words. */
+  const readArea = async (message: string) => {
+    const schema = await loadTradeSchema('tiling', new MemoryRepository());
+    const state = mergeAndDecide({
+      sessionId: 'n1',
+      message,
+      place: PLACE,
+      known: {
+        suburb: 'Berwick, VIC 3806', jobType: 'bathroom', tileType: 'ceramic', areaSqm: null,
+        supply: null, removal: null, waterproofing: null, conditions: null, existingPrice: null,
+        _ui: ui({ lastAsked: 'areaSqm' }),
+      } as unknown as Partial<Checklist>,
+      turnExtraction: turn(),
+      docFacts: {},
+      docSuburbHint: null,
+      haystackText: message + ' ',
+      schema,
+    });
+    return (state.checklist as Record<string, unknown>).areaSqm ?? null;
+  };
+
+  it('takes a bare number as the unit the question asked for', async () => {
+    // The whole point: nobody should have to type "m2" to answer "how many square metres?".
+    for (const [typed, expected] of [['100', 100], ['8.5', 8.5], ['1,200', 1200], ['about 100', 100], ['100m2', 100], ['12 sqm', 12]] as const) {
+      expect(await readArea(typed), typed).toBe(expected);
+    }
+  });
+
+  it('refuses two numbers rather than picking one of them', async () => {
+    // A room given as its sides, and a range. Working out the area from either is arithmetic.
+    for (const typed of ['3 by 4 metres', '6x4', '6 × 4', '20-25', '20 to 25', '20 or 25']) {
+      expect(await readArea(typed), typed).toBeNull();
+    }
+  });
+
+  it('refuses a number in a unit this product does not work in', async () => {
+    for (const typed of ['100 sq ft', '100 sqft', '100 square feet', '12 yards']) {
+      expect(await readArea(typed), typed).toBeNull();
+    }
+  });
+});
+
