@@ -90,6 +90,13 @@ export const TILE_TYPES = [
   'large_format_900x900',
   'large_format_1200x1200',
   'large_format_1200x2400',
+  /* Added after the first tiling business onboarded with both and lost them: six figures - floor,
+     wall and supply for each size - dropped on the way in with nothing said to the business.
+     Appended rather than slotted in beside the other sizes, because this list is also the order the
+     customer's multiple choice is built in, and a vocabulary addition must not quietly reshuffle
+     what is on their screen. */
+  'large_format_600x600',
+  'large_format_800x800',
   'subway',
   'mosaic',
   'glass_mosaic',

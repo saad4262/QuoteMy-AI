@@ -52,16 +52,79 @@ function findRate(rows: TileRate[], tileType: string): TileRate | undefined {
   return rows.find((row) => row.tileType && slug(row.tileType) === tileType) ?? rows.find((row) => !row.tileType);
 }
 
+/**
+ * The surfaces a room is made of, for a business that prices by surface rather than by room.
+ *
+ * Tilers quote per square metre off a rate card - floor $60, wall $65 - and almost none of them
+ * publish a single figure for "a bathroom". The customer, though, asks for a room, because that is
+ * what they are having done. Without this a price list that covers the work completely quotes
+ * nothing at all, which is what happened to the first tiling business onboarded: every rate it
+ * published was a surface rate, and every customer asking for a bathroom was told nobody nearby
+ * prices that job.
+ *
+ * The DEAREST of the surfaces is used, never the cheapest. A room is floor and wall together and
+ * the customer gives one area for the lot, so the split is unknowable - and the one number nobody
+ * may be shown is a total below what they will actually be charged. It is the same reasoning as
+ * the removal lookup below.
+ */
+const JOB_SURFACES: Record<string, string[]> = {
+  bathroom: ['floor-only', 'wall-only'],
+  ensuite: ['floor-only', 'wall-only'],
+  laundry: ['floor-only', 'wall-only'],
+  // A splashback is wall tiling and nothing else. A business that prices only floors has not
+  // priced this work, and a floor rate standing in for it would be a made-up number.
+  'kitchen-splashback': ['wall-only'],
+  balcony: ['floor-only'],
+  outdoor: ['floor-only'],
+};
+
+function rateForJob(
+  pricing: TilingVerifiedPricing,
+  jobType: string,
+  tileType: string,
+): { rate: TileRate; rateKey: string; fromSurfaces: boolean } | undefined {
+  const published = Object.keys(pricing.rates).find((key) => slug(key) === jobType);
+  if (published) {
+    const rate = findRate(pricing.rates[published] ?? [], tileType);
+    return rate ? { rate, rateKey: published, fromSurfaces: false } : undefined;
+  }
+
+  // No price for this room, so build one from the surfaces the room is actually made of.
+  let dearest: { rate: TileRate; rateKey: string } | undefined;
+  for (const surface of JOB_SURFACES[jobType] ?? []) {
+    const key = Object.keys(pricing.rates).find((k) => slug(k) === surface);
+    if (!key) continue;
+    const rate = findRate(pricing.rates[key] ?? [], tileType);
+    // Only a per-square-metre surface rate can stand in for a room: a flat "floor job" package
+    // says nothing about how much of this room there is.
+    if (!rate || rate.unit !== 'per_sqm') continue;
+    if (!dearest || rate.price > dearest.rate.price) dearest = { rate, rateKey: key };
+  }
+  return dearest ? { ...dearest, fromSurfaces: true } : undefined;
+}
+
 export function quoteTiling(
   business: MatchedBusiness,
   pricing: TilingVerifiedPricing,
   brief: TilingBrief,
 ): TilingQuote | { blocked: TilingBlocked } {
-  const rateKey = Object.keys(pricing.rates).find((key) => slug(key) === brief.jobType);
-  if (!rateKey) return { blocked: 'jobType' };
-
-  const rate = findRate(pricing.rates[rateKey] ?? [], brief.tileType);
-  if (!rate) return { blocked: 'tileType' };
+  const found = rateForJob(pricing, brief.jobType, brief.tileType);
+  /* Told apart on purpose: nothing at all for this room AND no surface rate to build it from is a
+     job they do not price; a room they cannot do in this tile is a tile problem. Getting this the
+     wrong way round sends the customer the wrong alternatives to choose from. */
+  if (!found) {
+    /* Which of the two it is decides what the customer is offered next, so it is worked out from
+       whether a rate they could have used EXISTS, not from whether a key is present: a floor
+       priced as a flat package cannot cover a room of unknown size, so a business holding only
+       that has not priced this job - the tile was never the problem. */
+    const reachable = [brief.jobType, ...(JOB_SURFACES[brief.jobType] ?? [])];
+    const anyUsableRate = Object.entries(pricing.rates).some(
+      ([key, rows]) =>
+        reachable.includes(slug(key)) && rows.some((row) => slug(key) === brief.jobType || row.unit === 'per_sqm'),
+    );
+    return { blocked: anyUsableRate ? 'tileType' : 'jobType' };
+  }
+  const { rate, rateKey } = found;
 
   const area = brief.areaSqm > 0 ? brief.areaSqm : 0;
 
@@ -133,6 +196,9 @@ export function quoteTiling(
   badges.push(business.distanceKm > 0 ? business.distanceKm + ' km away' : 'In your suburb');
   if (business.rating) badges.push(business.reviewCount ? business.rating + '★ (' + business.reviewCount + ')' : business.rating + '★');
   if (!byArea) badges.push('Fixed price for the job');
+  /* Said plainly, because it changes what the number means: they publish a rate per square metre
+     rather than a price for this room, so the total follows the area the customer gave. */
+  if (found.fromSurfaces) badges.push('Priced per m² for this room');
   if (removalPerSqm > 0) badges.push('Old tiles removed');
   if (tilePerSqm > 0) badges.push('Tiles supplied');
   if (brief.supply === 'labour_only') badges.push('You supply the tiles');

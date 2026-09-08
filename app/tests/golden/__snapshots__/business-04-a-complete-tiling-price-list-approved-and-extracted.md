@@ -122,6 +122,8 @@ Fixture: `tests/fixtures/description-COMPLETE-tiling.txt` (1813 characters)
       "large_format_900x900": "Large format 900×900",
       "large_format_1200x1200": "Large format 1200×1200",
       "large_format_1200x2400": "Large format 1200×2400",
+      "large_format_600x600": "Large format 600×600",
+      "large_format_800x800": "Large format 800×800",
       "subway": "Subway",
       "glass_mosaic": "Glass mosaic",
       "feature_mosaic": "Feature mosaic",

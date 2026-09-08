@@ -6,6 +6,7 @@ import { TRADE_FIELDS } from '../../src/client/fieldSpec.js';
 import { turnSchemaFor } from '../../src/client/schemas.js';
 import { chatPrompt, extractionPrompt, reviewPrompt } from '../../src/prompts.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
+import { quoteTiling } from '../../src/client/pricing/tiling.js';
 import { verifyExtraction } from '../../src/verify/index.js';
 import type { TilingExtraction } from '../../src/schemas.js';
 import { TRADE_VOCAB } from '../../src/vocab.js';
@@ -346,6 +347,92 @@ describe('a tiling job is actually priced', () => {
     expect(response.message).toContain('Nobody near you publishes a price for that job');
     // Never fencing's words in a tiling conversation.
     expect(response.message).not.toContain('fence');
+  });
+});
+
+/**
+ * Pricing a room for a business that prices surfaces.
+ *
+ * Tilers quote off a rate card - floor so much a metre, wall so much a metre - and hardly any of
+ * them publish one figure for "a bathroom". Customers ask for the room, because that is what they
+ * are having done. The first tiling business onboarded published five tile types across floor and
+ * wall, every waterproofing area, removal and a minimum charge, and quoted NOTHING: every customer
+ * asking for a bathroom was told nobody nearby prices that job.
+ */
+describe('a room quoted from surface rates', () => {
+  const surfacePricer = {
+    gstIncluded: true,
+    supplyModels: ['labour_only'],
+    enabledJobTypes: ['floor_only', 'wall_only'],
+    rates: {
+      floor_only: [{ tileType: 'ceramic', price: 60, unit: 'per_sqm' }],
+      wall_only: [{ tileType: 'ceramic', price: 65, unit: 'per_sqm' }],
+    },
+    tileSupply: [],
+    prep: [],
+    removals: [],
+    waterproofing: [],
+    siteConditions: [],
+    serviceArea: { baseLocation: 'Pakenham', radiusKm: 25, excludedAreas: [], resolved: null },
+    minimumCharge: null,
+    callOutFee: null,
+    travelFee: null,
+  } as unknown as Parameters<typeof quoteTiling>[1];
+
+  const business = { distanceKm: 5, rating: null, reviewCount: null } as unknown as Parameters<typeof quoteTiling>[0];
+
+  const ask = (jobType: string, pricing = surfacePricer) =>
+    quoteTiling(business, pricing, {
+      jobType,
+      tileType: 'ceramic',
+      areaSqm: 10,
+      supply: 'labour_only',
+      removal: null,
+      waterproofing: null,
+      conditions: [],
+    }) as never as { total?: number; badges?: string[]; blocked?: string };
+
+  it('prices a bathroom off the floor and wall rates, taking the dearer', () => {
+    const quote = ask('bathroom');
+
+    // A room is floor AND wall, and the customer gives one area for the lot, so which is which
+    // cannot be known. $65 rather than $60: the number shown must not be under what they charge.
+    expect(quote.blocked).toBeUndefined();
+    expect(quote.total).toBe(650);
+    expect(quote.badges).toContain('Priced per m² for this room');
+  });
+
+  /* A splashback is wall tiling and nothing else. Pricing it off a floor rate would be a number
+     this business never published - the reason the fallback follows each job's real surfaces
+     rather than reaching for whatever rate happens to be there. */
+  it('will not price a splashback from a floor rate', () => {
+    const floorsOnly = { ...surfacePricer, rates: { floor_only: surfacePricer.rates.floor_only } };
+
+    expect(ask('kitchen-splashback', floorsOnly).blocked).toBe('jobType');
+    expect(ask('kitchen-splashback').total).toBe(650); // the wall rate, when they publish one
+  });
+
+  it('leaves a published room price alone', () => {
+    const packaged = {
+      ...surfacePricer,
+      rates: { ...surfacePricer.rates, bathroom: [{ tileType: null, price: 4850, unit: 'per_job' }] },
+    };
+    const quote = ask('bathroom', packaged as typeof surfacePricer);
+
+    // Their own figure for the room, not one built from the surfaces underneath it.
+    expect(quote.total).toBe(4850);
+    expect(quote.badges).not.toContain('Priced per m² for this room');
+  });
+
+  /* A room package is one price for the whole job, so it says nothing about how big THIS room is.
+     Standing in for a room whose area we were told would be quoting a number nobody wrote. */
+  it('does not stand a per-job floor package in for a room', () => {
+    const packagedFloor = {
+      ...surfacePricer,
+      rates: { floor_only: [{ tileType: 'ceramic', price: 900, unit: 'per_job' }] },
+    };
+
+    expect(ask('balcony', packagedFloor as typeof surfacePricer).blocked).toBe('jobType');
   });
 });
 

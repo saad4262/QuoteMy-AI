@@ -21,13 +21,13 @@ to them, pluralise them, re-case them, hyphenate them differently, or invent one
 
   jobType:     bathroom | ensuite | laundry | kitchen_splashback |
                floor_only | wall_only | balcony | outdoor
-  tileType:    ceramic | porcelain | large_format_600x1200 | large_format_900x900 |
-               large_format_1200x1200 | large_format_1200x2400 | subway | mosaic |
-               glass_mosaic | feature_mosaic | natural_stone | terrazzo |
-               outdoor_porcelain | herringbone
+  tileType:    ceramic | porcelain | large_format_600x600 | large_format_800x800 |
+               large_format_600x1200 | large_format_900x900 | large_format_1200x1200 |
+               large_format_1200x2400 | subway | mosaic | glass_mosaic | feature_mosaic |
+               natural_stone | terrazzo | outdoor_porcelain | herringbone
   prep type:   surface_prep | floor_grinding | primer | floor_levelling | screeding |
                adhesive_removal | rubbish_removal | crack_treatment
-  removes:     ceramic | porcelain | stone | mosaic | adhesive
+  removes:     ceramic | porcelain | stone | mosaic | adhesive | any
   waterproof:  bathroom | ensuite | laundry | shower | balcony
   condition:   restricted_access | second_storey | stairs | small_room | uneven_substrate
   supply:      supply_and_install | labour_only
@@ -47,8 +47,11 @@ always the right answer when the vocabulary has no home for it.
 How the trade's wording maps onto the tile list:
   ceramic, standard tile, standard tiling                      -> ceramic
   porcelain, rectified porcelain                               -> porcelain
-  600x1200, 600 x 1200, large format 600x1200                  -> large_format_600x1200
-  900x900 / 1200x1200 / 1200x2400                              -> the matching large_format value
+  600x600, 600 x 600, large format 600x600                     -> large_format_600x600
+  800x800, 600x1200, 900x900, 1200x1200, 1200x2400             -> the matching large_format value
+A large-format size that is NOT one of those five is still priced work: put it in couldNotUse with
+its figure, never in the nearest size. A rate that vanishes without a word is the one outcome this
+whole file exists to prevent.
   subway tile, 75x300                                          -> subway
   mosaic, kit kat, sheet mosaic                                -> mosaic
   glass mosaic                                                 -> glass_mosaic
@@ -134,6 +137,10 @@ per_job or per_hour, whichever the line states.
 removals - taking up what is already there, priced per square metre. `removes` is what is being
 taken UP - ceramic, porcelain, stone, mosaic - or adhesive for adhesive removal. This is never
 folded into a tiling rate.
+USE `any` WHEN ONE REMOVAL PRICE IS GIVEN WITHOUT SAYING WHAT IS BEING TAKEN UP. A line reading
+"Tile Removal: $35 per square metre" is one row: removes `any`, 35. That is the correct value, not
+a guess and not an invention - it means the price covers whatever is there. Do NOT drop the line
+because no material is named, and do NOT pick a material they did not write.
 
 waterproofing - priced per wet area, never per square metre. One entry per area they price:
 bathroom, ensuite, laundry, shower, balcony.
@@ -144,8 +151,13 @@ NEVER convert between them - you cannot know what 10% is worth without doing ari
 rates, and you do not do arithmetic.
 
 minimumCharge / callOutFee / travelFee - the smallest job they will take, any inspection or call-out
-fee, and any charge for travelling outside their usual area. Three separate numbers; do not merge
+fee, and any FLAT charge for travelling outside their usual area. Three separate numbers; do not merge
 them.
+travelFee IS A FLAT AMOUNT ONLY. A rate per kilometre is not one: "$2 per km beyond 25 km" is $2 for
+one kilometre, and recording 2 in travelFee says the whole trip costs $2. Leave travelFee null and
+put the charge in couldNotUse in their own words - there is no per-kilometre unit, and a figure
+filed under the wrong unit is worse than one the business is told we could not file. The same goes
+for anything else priced by a unit that is not in the list.
 
 extras - any other priced add-on that is not a rate, prep, removal, waterproofing or surcharge:
 regrouting, silicone replacement, a tile repair, a variation rate, an administration charge. unit
