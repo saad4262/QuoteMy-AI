@@ -1,3 +1,5 @@
+import { TRADE_WORDS } from '../../messages.js';
+import { TRADES, type Trade } from '../../vocab.js';
 import type { ChatOption, ChatResponse } from '../schemas.js';
 
 /**
@@ -23,11 +25,23 @@ const speakable = (options: ChatOption[]): ChatOption[] => options.filter((o) =>
  * "1.8m" is read as "one point eight metres". Left alone, a speech engine says "one point eight em"
  * or "eighteen metres" depending on its mood, and the customer agrees to a fence they did not ask
  * for.
+ *
+ * The square-metre rules run FIRST, and the order is the whole of their correctness: `8m²` matched
+ * the plain metres rule below it and came out "8 metres²", so a caller quoting a bathroom heard
+ * eight metres and agreed to a brief nobody meant. `²` is not a word character, so the `\b` after
+ * `m` matched happily and nothing anywhere reported a problem.
  */
 export function spoken(text: string): string {
   return text
     .replace(/\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\b,?\s*(\d{4})\b/g, (_, state: string, postcode: string) => `${STATES[state]} ${postcode.split('').join(' ')}`)
     .replace(/\b(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\b/g, (_, state: string) => STATES[state]!)
+    // "$72/m²" - the rate beside a quote. Without this the unit is simply never said out loud.
+    .replace(/\s*\/\s*m²/g, ' per square metre')
+    .replace(/(\d+)\s*m²/g, '$1 square metres')
+    .replace(/\bm²/g, 'square metres')
+    /* Tile sizes: "Large format 600×1200" is read out as a choice, and the multiplication sign is
+       the one character in this product a caller has to act on without being able to see it. */
+    .replace(/(\d)\s*[×x]\s*(\d)/g, '$1 by $2')
     .replace(/(\d+)\.(\d+)\s*m\b/g, (_, whole: string, part: string) => `${whole} point ${part.split('').join(' ')} metres`)
     .replace(/(\d+)\s*m\b/g, '$1 metres')
     .replace(/\$([\d,]+)/g, (_, amount: string) => `${amount.replace(/,/g, '')} dollars`)
@@ -87,9 +101,22 @@ function readRecap(response: ChatResponse): string {
  */
 const nothingCarried = (text: string | null | undefined): boolean => !text || !/[a-z0-9]/i.test(text);
 
-/** The opening line of a call that has nothing behind it. */
-export const OPENING_LINE =
-  'Hi there, thanks for calling. I can get you fencing quotes from businesses near you — it only takes a couple of minutes. What are you after?';
+/**
+ * The opening line of a call that has nothing behind it, naming what this product can actually
+ * quote today.
+ *
+ * Built from the trades passed in rather than written out, for the same reason the picker reads
+ * `listPublishedTrades()`: promising a trade nobody has onboarded sends a caller through eight
+ * questions to be told nobody near them does that work. One trade names itself; two or more are
+ * offered together, and the caller's own first sentence usually settles it without a question
+ * being asked at all.
+ */
+export function openingLine(trades: readonly Trade[]): string {
+  const names = trades.map((trade) => TRADE_WORDS[trade].trade);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : (names[0] ?? 'trade');
+
+  return `Hi there, thanks for calling. I can get you ${list} quotes from businesses near you — it only takes a couple of minutes. What are you after?`;
+}
 
 /**
  * The first thing said on a call, given whatever the conversation already knows.
@@ -105,6 +132,11 @@ export function greetingFor(carried: {
   display?: Record<string, { title: string; value: string }>;
   message?: string | null;
   options?: ChatOption[];
+  /**
+   * What to name in the opening line: the one trade this call already belongs to, or everything
+   * published when it belongs to none yet. Only reached when nothing else was carried.
+   */
+  trades?: readonly Trade[];
 }): string {
   const known = Object.values(carried.display ?? {})
     .map((entry) => spoken(entry.value))
@@ -112,7 +144,7 @@ export function greetingFor(carried: {
   const question = nothingCarried(carried.message) ? '' : spoken(carried.message!.trim());
 
   // Nothing carried at all: an ordinary first call.
-  if (!known.length && !question) return OPENING_LINE;
+  if (!known.length && !question) return openingLine(carried.trades ?? TRADES);
 
   /* "Welcome back" only when there is something of theirs to come back to.
      A question with nothing answered under it is not a conversation they would recognise having

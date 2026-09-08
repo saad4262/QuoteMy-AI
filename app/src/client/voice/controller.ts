@@ -7,6 +7,7 @@ import { getRepository, type BusinessRepository } from '../../store.js';
 import { asObject } from '../errors.js';
 import { runChat } from '../controller.js';
 import { saveChatResult } from '../saveResult.js';
+import { TRADES, type Trade } from '../../vocab.js';
 import type { ChatOption, ChatResponse, Checklist, Place, UiState } from '../schemas.js';
 import { matchSpokenToOption } from './matchSpoken.js';
 import { greetingFor, toSpeech } from './toSpeech.js';
@@ -128,12 +129,16 @@ export async function runVoiceTurn(
 
   const response: ChatResponse = await runChat(
     {
-      /* Spoken, and named explicitly: a caller reaches one Retell agent, which is configured for
-         one trade, so the trade is a property of the number they rang rather than something to
-         work out from what they said. It also keeps the router from ever asking "fencing or
-         tiling?" down a phone line, where a spoken answer has no chip to tap. Voice is
-         fencing-only today (docs/VOICE.md); a second agent passes its own. */
-      trade: 'fencing',
+      /* Whatever this call has settled on, and `undefined` until it has - which hands the decision
+         straight to the chat's own router rather than making one here.
+
+         This used to be a hardcoded 'fencing', on the reasoning that a caller reaches one agent
+         configured for one trade. The agent turns out not to be configured for a trade at all: it
+         reads a greeting this backend writes and speaks nothing else of its own, so one agent
+         serves every trade and a caller asking about their bathroom was simply given fencing's
+         questions. Asking down a phone line is fine too - `toSpeech` reads the router's choices out
+         as lettered options and `matchSpokenToOption` resolves the answer with no model at all. */
+      trade: session?.trade ?? undefined,
       message,
       sessionId,
       place: session?.place ? JSON.stringify(session.place) : '',
@@ -162,6 +167,10 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
+    /* Kept once anything settles it, and never unset by a turn that could not: the router answers
+       `trade: null` on the turn where it ASKS which trade, and taking that as the new truth would
+       throw away a trade the call had already established. */
+    trade: response.trade ?? session?.trade ?? null,
     /* Numbered, not positioned. `slice` below drops the oldest turns of a very long call, which
        shifts every index behind them - and a page that tracks "I have rendered the first N" then
        re-renders turns it already had, remounting the list on every reply. */
@@ -280,6 +289,8 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
     message?: string;
     checklistDisplay?: string;
     checklistAnswered?: string;
+    /** A page with a trade picker, or a per-trade landing page, saying so outright. */
+    trade?: string;
   };
   const carried = {
     checklist: asObject<Record<string, unknown>>(body.checklist),
@@ -293,11 +304,31 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
   };
   const options = Array.isArray(carried.options) ? carried.options : [];
 
+  /* Which trade this call is about, before it starts.
+
+     What the page said outright wins; otherwise it is read out of the checklist the page carried,
+     where `rememberTrade` has been writing it since the conversation settled. That second source is
+     the one that matters in practice: a caller pressing the microphone seven questions into a
+     tiling chat needs the page to send nothing it is not already sending. Neither means the call
+     opens without one, and the router settles it from what they say. */
+  const carriedTrade = (carried.checklist?._ui as { trade?: unknown } | undefined)?.trade;
+  const named = String(body.trade ?? '').trim() || String(carriedTrade ?? '').trim();
+  const trade = (TRADES as readonly string[]).includes(named) ? (named as Trade) : null;
+
   /* The opening line, written here and read by the agent - never composed by the speech model,
      same rule as every other sentence in this product. With nothing carried it is the ordinary
      greeting; with a conversation behind it, it says so and picks up the question already on
-     screen, so pressing the microphone at the seventh question does not start again at hello. */
-  const greeting = greetingFor({ display: carried.display ?? {}, message: asText(body.message), options });
+     screen, so pressing the microphone at the seventh question does not start again at hello.
+
+     The trades it may name are this call's own when it has one, and otherwise what is actually
+     PUBLISHED - the same rule the trade picker follows, because promising a caller a trade nobody
+     has onboarded spends eight questions to arrive at nobody. */
+  const greeting = greetingFor({
+    display: carried.display ?? {},
+    message: asText(body.message),
+    options,
+    trades: trade ? [trade] : await getRepository().listPublishedTrades(),
+  });
 
   /* Written for every call now, not only one that carries a conversation, because the greeting has
      to be kept somewhere.
@@ -316,6 +347,7 @@ export async function createVoiceCall(req: Request, res: Response): Promise<void
     checklist: carried.checklist ?? {},
     place: carried.place ?? null,
     options,
+    trade,
     // The page already has everything said before this call. Only this call's turns belong here.
     turns: [{ n: 0, at: new Date().toISOString(), said: '', spoke: greeting, wrote: '', offered: options, chose: null }],
     checklistDisplay: carried.display ?? {},

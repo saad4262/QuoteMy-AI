@@ -52,6 +52,12 @@ const FILLER = new Set([
   // Units. "1.8 metres" is the height and the word for it, not the height and something else.
   'm', 'mm', 'cm', 'metre', 'metres', 'meter', 'meters', 'ft', 'feet', 'foot',
   'tall', 'high', 'long', 'wide', 'gate', 'gates',
+  /* Tiling's units and its own noun. "Porcelain tiles please" is a tile and the word for it.
+     NOT here, and this is the important half: `floor` and `wall`. They are ANSWERS in this trade -
+     "Floor only", "Wall only" - and this set is exactly what the guard below ignores when deciding
+     whether a caller said more than their answer. Filing an answer here is how a second answer gets
+     silently thrown away, which is the one thing that guard exists to prevent. */
+  'square', 'squares', 'sqm', 'm2', 'tile', 'tiles', 'tiled', 'tiling',
   /* Verbs and hedges. Safe to ignore wholesale: a second answer is a thing or a number, never a
      verb, so nothing here can be the piece of the sentence worth sending to the model. */
   'need', 'want', 'wanted', 'looking', 'prefer', 'reckon', 'think', 'get', 'have', 'take', 'do',

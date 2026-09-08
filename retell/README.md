@@ -3,9 +3,13 @@
 You do not need to know Retell. Follow this in order — it is four commands and two dashboard clicks.
 
 Everything the customer hears is written by our backend. Retell only turns speech into text, text into
-speech, and takes turns. The flow in this folder contains **no fencing content at all** — no
-questions, no materials, no prices. That is on purpose: it is why a second trade will need no changes
-here.
+speech, and takes turns. The flow in this folder contains **no trade content at all** — no
+questions, no materials, no prices. That is on purpose, and it has now been tested: adding tiling
+touched no node and no edge here. The only change either file needed was `boosted_keywords`, which
+is the speech recogniser's vocabulary rather than anything the agent says.
+
+**One agent serves every trade.** Which trade a call is about is the backend's decision, and it
+reaches the agent as the `greeting` dynamic variable like everything else.
 
 ---
 

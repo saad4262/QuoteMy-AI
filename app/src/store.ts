@@ -227,6 +227,15 @@ export interface VoiceSession {
   place: unknown;
   options: { label: string; value: string | number }[];
   /**
+   * Which trade this call is about, once anything has settled it.
+   *
+   * Null until something does, and that is deliberate: passed on as `undefined`, the chat's own
+   * router decides the way it does for a typed conversation - what the caller said, then a question
+   * naming what is published. A default here would be a decision made in the one place that knows
+   * least about the call.
+   */
+  trade?: Trade | null;
+  /**
    * The call, as it was said. Kept because a call has to end somewhere a screen can pick it up:
    * the customer hangs up, the page asks for the session, and the conversation carries on in the
    * chat exactly where the speaking stopped. Without this the page can show the answers but not

@@ -4,11 +4,13 @@ import { setAiClient, MockAiClient, type AiClient, type ModelCall, type ModelRes
 import { createApp } from '../../src/server.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { matchSpokenToOption } from '../../src/client/voice/matchSpoken.js';
-import { toSpeech, spoken, greetingFor, OPENING_LINE } from '../../src/client/voice/toSpeech.js';
+import { toSpeech, spoken, greetingFor, openingLine } from '../../src/client/voice/toSpeech.js';
 import { runVoiceTurn } from '../../src/client/voice/controller.js';
 import { resetChatSpend } from '../../src/client/spend.js';
 import { MemoryRepository, setRepository, type CapabilitiesDoc, type PricingDoc } from '../../src/store.js';
 import type { ChatOption, ChatResponse } from '../../src/client/schemas.js';
+import { TRADES } from '../../src/vocab.js';
+import { seedTiler } from '../golden/conversations.js';
 
 const options = (...pairs: [string, string | number][]): ChatOption[] =>
   pairs.map(([label, value]) => ({ label, value }));
@@ -78,6 +80,34 @@ describe('spoken', () => {
     expect(spoken('30m of fence')).toBe('30 metres of fence');
     expect(spoken('$2,200')).toBe('2200 dollars');
     expect(spoken('incl. GST')).toBe('incl. G S T');
+  });
+
+  /* A square metre is not a metre, and the difference was inaudible: "8m2" matched the plain
+     metres rule and came out "8 metres" with a stray superscript after it, so a caller quoting a
+     bathroom heard eight metres and said yes to it. Nothing errored - the superscript is not a
+     word character, so the word boundary the rule relies on matched perfectly happily. */
+  it('says a square metre as a square metre', () => {
+    expect(spoken('8m\u00b2')).toBe('8 square metres');
+    expect(spoken('Area: 12m\u00b2')).toBe('Area: 12 square metres');
+    expect(spoken('$72/m\u00b2')).toBe('72 dollars per square metre');
+    expect(spoken('priced per m\u00b2')).toBe('priced per square metres');
+  });
+
+  /* Tile sizes are read out as choices, and the multiplication sign is the one character in this
+     product a caller has to act on without being able to see it. */
+  it('says a tile size as two numbers', () => {
+    expect(spoken('Large format 600\u00d71200')).toBe('Large format 600 by 1200');
+    expect(spoken('900x900')).toBe('900 by 900');
+  });
+
+  /* Fencing's own strings, unchanged to the character. The new rules fire only on a superscript or
+     a multiplication sign, so they cannot reach these - which is worth an assertion rather than an
+     argument, because this file is read aloud to customers on both trades. */
+  it('leaves fencing exactly as it was', () => {
+    expect(spoken('Got it \u2014 Berwick, VIC 3806, Colorbond, 1.8m, 20m. All correct?')).toBe(
+      'Got it \u2014 Berwick, Victoria 3 8 0 6, Colorbond, 1 point 8 metres, 20 metres. All correct?',
+    );
+    expect(spoken('$110/m')).toBe('110 dollars/m');
   });
 });
 
@@ -368,7 +398,10 @@ describe('a voice turn', () => {
     };
     setAiClient(broken);
 
-    await expect(runVoiceTurn('call-4', { spokenText: 'hello there' }, { repo })).rejects.toThrow();
+    /* Said something that names the trade, so the turn actually reaches the model. "Hello there"
+       no longer does: with no trade settled, the router answers with its own question before
+       anything is asked of a provider - which is the right behaviour and a useless test of this. */
+    await expect(runVoiceTurn('call-4', { spokenText: 'I need a fence, what do you reckon' }, { repo })).rejects.toThrow();
     // The route turns that into speech with isDone false - see voiceTurn. What matters here is that
     // it is an ordinary error and not something that leaves the session unreadable.
     expect(await repo.readVoiceSession('call-4')).toBeNull();
@@ -513,6 +546,148 @@ describe('the end of a call', () => {
 });
 
 /**
+ * Which trade a caller is ringing about.
+ *
+ * It used to be the string 'fencing', written into the turn on the reasoning that a caller reaches
+ * one speech agent configured for one trade. The agent is configured for no trade at all - it reads
+ * a greeting this backend writes and speaks nothing else of its own - so a caller asking about their
+ * bathroom was walked through fencing's eight questions and quoted by nobody.
+ *
+ * The order is the text chat's, unchanged: what the page said, then what this call already settled,
+ * then the caller's own words, and only then a question. The question works out loud because
+ * `toSpeech` reads its choices as lettered options and `matchSpokenToOption` resolves the answer
+ * without a model.
+ */
+describe('a call that is not about fencing', () => {
+  const app = createApp();
+  let repo: MemoryRepository;
+
+  beforeEach(() => {
+    repo = new MemoryRepository();
+    setRepository(repo);
+    clearSchemaCache();
+    resetChatSpend();
+    setAiClient(new MockAiClient());
+    seedTiler(repo, 'tile-1', 'Paky Tiles');
+  });
+
+  const startCall = async (body: Record<string, unknown>) =>
+    request(app).post('/api/v1/voice/create-call').send(body);
+
+  it('opens naming every trade that is live, not one of them', async () => {
+    const { body } = await startCall({});
+
+    expect(body.greeting).toBe(openingLine(TRADES));
+    expect(body.greeting).toContain('fencing or tiling quotes');
+  });
+
+  /* Pressing the microphone part-way through a typed tiling conversation. The page sends what it
+     already sends - `rememberTrade` has been writing the trade into `_ui` since the conversation
+     settled - so nothing new has to be built on that side for this to work. */
+  it('picks the trade up out of the checklist the page carried', async () => {
+    const { body } = await startCall({
+      checklist: JSON.stringify({ _ui: { trade: 'tiling' } }),
+    });
+
+    expect(body.greeting).toContain('tiling quotes');
+    expect(body.greeting).not.toContain('fencing');
+
+    // The opener first, exactly as a typed conversation gets it, then the trade's own first question.
+    await runVoiceTurn(body.sessionId, { spokenText: 'yes go ahead' }, { repo });
+    const turn = await runVoiceTurn(body.sessionId, { spokenText: 'yes' }, { repo });
+    expect(turn.speakText).toContain('Which suburb is the job in?');
+    expect(turn.speakText).not.toContain('fence');
+    expect((await repo.readVoiceSession(body.sessionId))?.trade).toBe('tiling');
+  });
+
+  it('lets the page say so outright, over anything it carried', async () => {
+    const { body } = await startCall({
+      trade: 'tiling',
+      checklist: JSON.stringify({ _ui: { trade: 'fencing' } }),
+    });
+
+    expect(body.greeting).toContain('tiling quotes');
+    expect((await repo.readVoiceSession(body.sessionId))?.trade).toBe('tiling');
+  });
+
+  it('reads the trade out of what the caller said, with no extra turn', async () => {
+    const { body } = await startCall({});
+    await runVoiceTurn(body.sessionId, { spokenText: 'I want my bathroom tiled' }, { repo });
+
+    const session = await repo.readVoiceSession(body.sessionId);
+    expect(session?.trade).toBe('tiling');
+    // Straight into the questions - never asked which trade, because they had already said.
+    expect(session?.turns.at(-1)?.spoke).not.toContain('looking for');
+  });
+
+  /* The one turn where the router asks. Out loud it is an ordinary question with choices, and
+     "tiling thanks" is resolved to the exact offered value in code - `matchSpokenToOption` against
+     the options this turn stored - rather than by asking a model what they meant.
+     The turn that follows does still cost a model call, unlike every other spoken choice: this one
+     records nothing (`askWhichTrade` hands the checklist back exactly as it came, deliberately, so
+     that "tiling, and it's in Berwick" loses nothing), and with nothing recorded there is no
+     `lastValues` for the zero-model shortcut to match against. Worth knowing; not worth breaking
+     that guarantee for. */
+  it('asks out loud when nothing has settled it, and resolves the spoken answer in code', async () => {
+    const { body } = await startCall({});
+
+    const asked = await runVoiceTurn(body.sessionId, { spokenText: 'hi, I need a quote' }, { repo });
+    expect(asked.speakText).toContain('Fencing or Tiling');
+    expect(asked.speakText).toContain('Option A, Fencing.');
+    expect(asked.speakText).toContain('Option B, Tiling.');
+    expect((await repo.readVoiceSession(body.sessionId))?.trade).toBeNull();
+
+    const answered = await runVoiceTurn(body.sessionId, { spokenText: 'tiling thanks' }, { repo });
+
+    // What reached the pipeline was the option's own value, not the sentence around it.
+    expect((await repo.readVoiceSession(body.sessionId))?.trade).toBe('tiling');
+    expect(answered.speakText).not.toContain('Fencing or Tiling');
+    expect(answered.speakText).not.toContain('fence');
+  });
+
+  /* A trade nobody has onboarded is never offered: a caller who picks it spends eight questions
+     arriving at nobody. Same rule the trade picker follows. */
+  it('never offers a trade nobody is live in', async () => {
+    const fencingOnly = new MemoryRepository();
+    fencingOnly.listPublishedTrades = async () => ['fencing'];
+    setRepository(fencingOnly);
+
+    const { body } = await startCall({});
+    expect(body.greeting).toContain('fencing quotes');
+    expect(body.greeting).not.toContain('tiling');
+  });
+
+  /* The whole conversation, spoken, on the trade that could not be reached before. */
+  it('asks tiling\'s questions, in tiling\'s words', async () => {
+    const { body } = await startCall({ trade: 'tiling' });
+    const sessionId = body.sessionId as string;
+
+    await runVoiceTurn(sessionId, { spokenText: 'yes' }, { repo });
+    const started = (await repo.readVoiceSession(sessionId))!;
+    await repo.writeVoiceSession(sessionId, {
+      ...started,
+      place: { latitude: -38.0362, longitude: 145.3478, suburb: 'Berwick', displayLabel: 'Berwick, VIC 3806' },
+    });
+
+    const said: string[] = [];
+    let turn = await runVoiceTurn(sessionId, { spokenText: 'Berwick' }, { repo });
+    for (let i = 0; i < 10 && !turn.speakText.includes('find you some quotes'); i += 1) {
+      said.push(turn.speakText);
+      const answer = turn.speakText.includes('square metres') ? '8 square metres' : 'option A';
+      turn = await runVoiceTurn(sessionId, { spokenText: answer }, { repo });
+    }
+
+    const heard = said.join(' ');
+    expect(heard).toContain('having tiled');
+    expect(heard).toContain('What tile are you using?');
+    expect(heard).toContain('square metres');
+    // Never the other trade's words on a tiling call.
+    expect(heard).not.toContain('fence');
+    expect(heard).not.toContain('gate');
+  });
+});
+
+/**
  * The shape Retell actually posts.
  *
  * A custom tool nests its arguments under `args` unless its "args only" switch is on. Reading only
@@ -645,8 +820,8 @@ describe('a second call in the same conversation', () => {
  */
 describe('the opening line', () => {
   it('is the ordinary greeting when nothing came before', () => {
-    expect(greetingFor({})).toBe(OPENING_LINE);
-    expect(greetingFor({ display: {}, message: '', options: [] })).toBe(OPENING_LINE);
+    expect(greetingFor({})).toBe(openingLine(TRADES));
+    expect(greetingFor({ display: {}, message: '', options: [] })).toBe(openingLine(TRADES));
   });
 
   /**
@@ -656,9 +831,9 @@ describe('the opening line', () => {
    * truthy, so it counted as a whole conversation to come back to.
    */
   it('is not fooled by an empty string that arrives wearing quote marks', () => {
-    expect(greetingFor({ display: {}, message: '""', options: [] })).toBe(OPENING_LINE);
-    expect(greetingFor({ message: "''" })).toBe(OPENING_LINE);
-    expect(greetingFor({ message: '   ' })).toBe(OPENING_LINE);
+    expect(greetingFor({ display: {}, message: '""', options: [] })).toBe(openingLine(TRADES));
+    expect(greetingFor({ message: "''" })).toBe(openingLine(TRADES));
+    expect(greetingFor({ message: '   ' })).toBe(openingLine(TRADES));
   });
 
   /**
@@ -671,7 +846,7 @@ describe('the opening line', () => {
     setRepository(new MemoryRepository());
 
     const plain = await request(app).post('/api/v1/voice/create-call').send({ message: 'null', checklist: 'null' });
-    expect(plain.body.greeting).toBe(OPENING_LINE);
+    expect(plain.body.greeting).toBe(openingLine(TRADES));
 
     const encoded = await request(app)
       .post('/api/v1/voice/create-call')

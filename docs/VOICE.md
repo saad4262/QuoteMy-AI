@@ -454,10 +454,21 @@ code and never mentions a URL, so nothing here reaches the speech engine as an a
 
 ## Building the Retell agent
 
-The flow has four nodes and one tool. It contains **no fencing-specific content whatsoever** — no
+The flow has four nodes and one tool. It contains **no trade-specific content whatsoever** — no
 field names, no materials, no questions. If the word "fencing" appears anywhere in it, something is
-wrong: that content belongs in the backend, which is what makes a second trade a schema document
-rather than a second agent.
+wrong: that content belongs in the backend.
+
+**One agent serves every trade, and this has now been proved rather than hoped for.** The greeting
+node reads `{{greeting}}`, which `POST /voice/create-call` composes, and every other line it speaks
+is `{{speak_text}}` from `/voice/turn`. Adding tiling touched no node and no edge — only the
+`boosted_keywords` list, which is the speech recogniser's vocabulary rather than the agent's script.
+A third trade will not touch this folder at all.
+
+Which trade a call is about is decided by the backend, in the same order the text chat uses: a
+`trade` in the create-call body (a picker, or a per-trade landing page), then `_ui.trade` inside the
+checklist the page carried, then the caller's own first sentence, and only then a question — read
+out as lettered options like any other choice. The opening line names what is actually published,
+so a trade nobody has onboarded is never offered down the phone.
 
 > **This is now built and committed** — [`retell/`](../retell/) holds the exact payloads that
 > created the live flow and agent, and its README carries the setup. The section below is the
@@ -509,8 +520,10 @@ node-greeting ──▶ node-turn ──[ is_done == "true" ]──▶ node-end
                     └────────────────────────┘
 ```
 
-1. **node-greeting** — a static opening line, then listen. Something like *"Hi, I can get you fencing
-   quotes. What are you after?"*
+1. **node-greeting** — reads `{{greeting}}`, then listens. The backend writes that line per call, so
+   it names the trade when the call already has one and names every published trade when it does
+   not. The static default in `default_dynamic_variables` is only the fallback for a call that
+   arrives without one, and names no trade at all.
 2. **node-turn** — function node calling `voice_turn`.
    - `wait_for_result: true`
    - `speak_during_execution: true` with a short filler — the confirm turn does real work
