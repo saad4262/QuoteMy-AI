@@ -34,9 +34,13 @@ Each item either carries a figure - per square metre, per job, or an hourly rate
 quoted on inspection.
 SATISFIED by "all preparation is quoted after a site inspection".
 
-T4 - REMOVAL OF EXISTING TILES, PER SQUARE METRE, BY WHAT IS BEING REMOVED.
-Ceramic, porcelain, stone and mosaic come up at different rates, and adhesive removal is its own
-line again. Removal folded into the tiling rate makes every quote wrong in both directions.
+T4 - REMOVAL OF EXISTING TILES, PRICED PER SQUARE METRE.
+ONE rate covering removal satisfies this rule completely. "Tile removal - $35/m2" is a firm number
+and a complete answer; do not ask for it to be split.
+Rates that differ by what is being taken up, and a separate line for adhesive removal, are worth
+having and belong in what is worth adding. They are NEVER a fix.
+What fails here is removal folded into the tiling rate, or offered as a service with no figure at
+all - "we do tile removal" and nothing more.
 SATISFIED by "we don't do removals" or "removal is quoted on site".
 
 T5 - WATERPROOFING, PRICED PER WET AREA.
@@ -88,7 +92,8 @@ quoted on inspection, and never blocking on its own.
 
 WHAT IS WORTH ADDING (for alsoWorthAdding, never for fixes): more tile types than the one they
 listed; wall rates when they only gave floor; large-format sizes; preparation priced rather than
-"quoted on site"; waterproofing for the wet areas they work in; their tile prices if they supply.
+"quoted on site"; waterproofing for the wet areas they work in; their tile prices if they supply;
+removal rates split by what is being taken up when they have given one rate for all of it.
 One floor rate at one tile type quotes almost nothing, and every customer wanting a bathroom done
 passes that business by without either of them ever knowing.
 
