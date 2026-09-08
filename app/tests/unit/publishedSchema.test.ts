@@ -76,6 +76,54 @@ describe('a published field spec', () => {
   });
 });
 
+/**
+ * A document written before the code grew a key must not switch that key off.
+ *
+ * This is not hypothetical: `schema/fencing` in production was written before `namedBy`, `aliases`
+ * and `recap` existed. Read bare, it turned off the phrasing of every confirmation and the words
+ * that let "no, the fence type is wrong" reopen a field - no error, no log, just a chat quietly
+ * worse than the code it was running.
+ */
+describe('a published field spec that predates part of the code', () => {
+  const compiledMaterial = FENCING_FIELDS.find((spec) => spec.key === 'material')!;
+
+  it('keeps what the document does not mention', async () => {
+    // Every key the older document actually had, and nothing that came later.
+    const older = FENCING_FIELDS.map(({ key, type, title, question, source, pinned, asked }) =>
+      JSON.parse(JSON.stringify({ key, type, title, question, source, pinned, asked })),
+    );
+
+    const schema = await loadTradeSchema('fencing', withFields(older));
+    const material = schema.fields.find((spec) => spec.key === 'material')!;
+
+    expect(material.namedBy).toEqual(compiledMaterial.namedBy);
+    expect(material.aliases).toEqual(compiledMaterial.aliases);
+    expect(schema.fields.find((spec) => spec.key === 'removal')?.recap).toEqual(
+      FENCING_FIELDS.find((spec) => spec.key === 'removal')?.recap,
+    );
+  });
+
+  /* JSON turns /fence type/i into {} rather than dropping it, so a publisher that round-tripped a
+     spec would write a key that LOOKS answered and means nothing. The code's own value wins. */
+  it('ignores a regular expression somebody flattened on the way in', async () => {
+    const fields = compiledCopy();
+    expect(fields[1]!.namedBy).toEqual({}); // what JSON did to it - the reason this test exists
+
+    const schema = await loadTradeSchema('fencing', withFields(fields));
+    expect(schema.fields[1]?.namedBy).toEqual(compiledMaterial.namedBy);
+  });
+
+  it('still lets the document win on everything it can carry', async () => {
+    const fields = compiledCopy();
+    fields[1]!.title = 'Fence type';
+    fields[1]!.question = 'Which fence takes your fancy?';
+
+    const schema = await loadTradeSchema('fencing', withFields(fields));
+    expect(schema.fields[1]).toMatchObject({ title: 'Fence type', question: 'Which fence takes your fancy?' });
+    expect(schema.fields[1]?.namedBy).toEqual(compiledMaterial.namedBy);
+  });
+});
+
 describe('a published field spec that cannot be executed', () => {
   /** Every one of these must leave the customer with the compiled spec, whole. */
   const refused: [string, () => unknown[]][] = [
@@ -115,7 +163,11 @@ describe('a published field spec that cannot be executed', () => {
       'asks a multiple choice with no answers in it',
       () => {
         const fields = compiledCopy();
-        delete fields[1]!.source;
+        /* Pointed at a list the document does not have, rather than at nothing: a spec that simply
+           OMITS `source` now keeps the compiled one, because a published spec is merged onto the
+           compiled spec instead of replacing it. Only a spec that actively names an empty list is
+           a question with no answers. */
+        fields[1]!.source = 'core.materialsThatDoNotExist';
         delete fields[1]!.options;
         return fields;
       },

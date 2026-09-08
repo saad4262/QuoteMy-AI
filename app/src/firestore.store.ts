@@ -40,6 +40,31 @@ import { TRADE_VOCAB, TRADES, type Trade } from './vocab.js';
  * Everything this class writes goes through the Admin SDK, which bypasses security rules. That is
  * deliberate and it is why the rules can forbid the business from writing its own approval.
  */
+/**
+ * What Firestore is able to hold, key by key.
+ *
+ * A field spec carries regular expressions - `namedBy`, and the `aliases` that let "no, the fence
+ * type is wrong" reopen a field - and Firestore rejects the whole write when it meets one. JSON
+ * would not reject it, it would quietly turn `/fence type/i` into `{}`, and a published `{}` then
+ * OVERRIDES the compiled expression: a document that looks fine and a chat that has forgotten how
+ * to be corrected. So those keys are dropped rather than flattened, and `structurallyUsable`
+ * merges what is published onto the compiled spec, which is where the dropped keys still live.
+ */
+function publishable(value: unknown): unknown {
+  if (value === null) return null;
+  if (value instanceof RegExp || typeof value === 'function' || typeof value === 'undefined') return undefined;
+  if (Array.isArray(value)) return value.map(publishable).filter((entry) => entry !== undefined);
+  if (typeof value === 'object') {
+    const kept: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      const usable = publishable(entry);
+      if (usable !== undefined) kept[key] = usable;
+    }
+    return kept;
+  }
+  return value;
+}
+
 export class FirestoreRepository implements BusinessRepository {
   readonly kind = 'firestore' as const;
 
@@ -357,7 +382,8 @@ export class FirestoreRepository implements BusinessRepository {
       ) as Record<string, string[]>,
       labels: CUSTOMER_LABELS[trade],
       questions: TRADE_QUESTIONS[trade],
-      fields: TRADE_FIELDS[trade],
+      // Regular expressions and functions dropped, not flattened - see `publishable`.
+      fields: TRADE_FIELDS[trade].map(publishable),
     };
 
     await db().runTransaction(async (tx) => {

@@ -120,6 +120,19 @@ const mergeMaps = (
  * being half-used - a half-applied spec is the shape of bug that looks like the chat forgetting a
  * question rather than like a bad document.
  */
+/**
+ * The parts of a compiled spec a document is not allowed to have an opinion about.
+ *
+ * Anything held as a regular expression or a function cannot survive Firestore, and a publisher
+ * that JSON-encoded one would write `{}` - which, merged, would override the real expression with
+ * nothing. Rather than trusting every writer to drop them, they are taken from the code every
+ * time. Found by shape, not by a list of names, so a spec that grows another one is covered.
+ */
+const codeOnly = (spec: FieldSpec | undefined): Partial<FieldSpec> =>
+  Object.fromEntries(
+    Object.entries(spec ?? {}).filter(([, value]) => value instanceof RegExp || typeof value === 'function'),
+  );
+
 function structurallyUsable(fields: unknown, trade: Trade): FieldSpec[] | null {
   if (!Array.isArray(fields) || !fields.length) return null;
 
@@ -128,11 +141,22 @@ function structurallyUsable(fields: unknown, trade: Trade): FieldSpec[] | null {
     return null;
   };
 
+  /* Published specs are MERGED onto the compiled ones, key by key, never used bare.
+     A Firestore document cannot hold a regular expression, so `namedBy` and `aliases` - which is
+     how "no, the fence type is wrong" reopens a field - and any phrasing added after a document
+     was first written are absent from it. Read bare, a published spec would silently switch those
+     off: `schema/fencing` was written before `recap` existed, and every production recap has been
+     printing raw chip labels because of it. What the document says wins; what it does not mention
+     keeps what the code compiled. */
+  const compiled = new Map(TRADE_FIELDS[trade].map((spec) => [spec.key, spec]));
+
   const specs: FieldSpec[] = [];
   const keys = new Set<string>();
   for (const entry of fields) {
-    const spec = entry as FieldSpec;
-    if (!spec || typeof spec.key !== 'string' || !spec.key) return refuse('a field has no key');
+    const published = entry as FieldSpec;
+    if (!published || typeof published.key !== 'string' || !published.key) return refuse('a field has no key');
+    const base = compiled.get(published.key);
+    const spec = { ...base, ...published, ...codeOnly(base) } as FieldSpec;
     if (keys.has(spec.key)) return refuse(`${spec.key} is named twice`);
     if (!FIELD_TYPES.includes(spec.type)) return refuse(`${spec.key} has unknown type ${String(spec.type)}`);
     keys.add(spec.key);
