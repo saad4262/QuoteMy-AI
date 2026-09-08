@@ -176,13 +176,18 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
     checklist.suburb = null;
     askingSuburbAgain = true;
   } else if (state.offTopic) {
-    /* They sent something that is not about a fence - a different trade, a document that is not a
+    /* They sent something that is not about this job - a different trade, a document that is not a
        quote, or nothing to do with building at all. Saying so is better than the opener's "Happy
        to help with that", which claims to help with whatever they just named, and better than
        "Sorry, I didn't catch that", which sounds like a hearing problem rather than the wrong
        counter. Nothing is recorded and no question is advanced; the next thing they say is read
-       normally, so this costs a customer who was only joking one line. */
-    message = "I only do fencing quotes here, sorry — is it a fence you're after?";
+       normally, so this costs a customer who was only joking one line.
+
+       In this trade's own words. It said "I only do fencing quotes here" on a tiling conversation,
+       which is a stranger's answer: the customer has already been asked eight questions about
+       their bathroom by the time they say something odd. */
+    const words = TRADE_WORDS[state.schema.trade];
+    message = `I only do ${words.trade} quotes here, sorry — is it ${words.article} you're after?`;
     type = 'message';
     options = [];
   } else if (state.isFirstTurn && missing.length > 0) {

@@ -271,12 +271,27 @@ export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
  * returns pictures of the wrong trade, a spoken unit read as metres understates a floor by the
  * width of the room, and an opening line that says fencing to a tiling customer is simply wrong.
  */
-export const TRADE_WORDS: Record<Trade, { trade: string; noun: string; mentions: RegExp }> = {
+export const TRADE_WORDS: Record<
+  Trade,
+  {
+    trade: string;
+    noun: string;
+    mentions: RegExp;
+    /** The job with its article, for the middle of a sentence: "is it a fence you're after?" */
+    article: string;
+    /** What one of these businesses is called, singular: a fencer, a tiler. */
+    tradesperson: string;
+  }
+> = {
   /* `mentions` is spelled out rather than derived from `noun`. Stemming "fence" and "tiles" to
      something that matches both the noun and the trade word lands on "fenc" and "til" - and "til"
-     matches "until". An explicit pattern per trade is two lines and cannot surprise anyone. */
-  fencing: { trade: 'fencing', noun: 'fence', mentions: /fenc/i },
-  tiling: { trade: 'tiling', noun: 'tiles', mentions: /tile|tiling/i },
+     matches "until". An explicit pattern per trade is two lines and cannot surprise anyone.
+
+     `article` and `tradesperson` are spelled out for the same reason: English does not derive
+     either one. "a fence" and "some tiling" take different articles, and a fencer is not a
+     "fencinger". Every sentence that used to hardcode "fence" or "fencer" now asks here. */
+  fencing: { trade: 'fencing', noun: 'fence', mentions: /fenc/i, article: 'a fence', tradesperson: 'fencer' },
+  tiling: { trade: 'tiling', noun: 'tiles', mentions: /tile|tiling/i, article: 'tiling', tradesperson: 'tiler' },
 };
 
 export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
