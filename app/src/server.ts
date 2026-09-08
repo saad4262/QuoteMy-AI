@@ -6,7 +6,6 @@ import { errorHandler, notFound, requestId, requestLog } from './http.js';
 import { FirestoreRepository } from './firestore.store.js';
 import { assertPromptBudgets, promptSizes } from './prompts.js';
 import { routes } from './routes.js';
-import { TRADES } from './vocab.js';
 import { setRepository } from './store.js';
 import { startWorker } from './worker.js';
 
@@ -41,11 +40,14 @@ export function initialize(): void {
   if (env.STORE === 'firestore') {
     const repo = new FirestoreRepository();
     setRepository(repo);
-    // Publish each trade's vocabulary so the customer side always has a document to read, even for
-    // a trade no business has extended yet.
-    for (const trade of TRADES) {
-      void repo.syncTradeSchema(trade).catch((err) => logger.warn({ err, trade }, 'could not publish trade schema'));
-    }
+    /* Publish each trade's vocabulary so the customer side always has a document to read, even for
+       a trade no business has extended yet.
+
+       Started here so a warm instance has already paid for it, and NOT awaited here: `initialize`
+       runs at module scope on a serverless host, where nothing can await it. What makes the write
+       reliable is that `listPublishedTrades` awaits this same promise before reading - see
+       `seedTradeSchemas`. Errors are handled inside it, so this can never reject. */
+    void repo.seedTradeSchemas();
   }
 }
 

@@ -306,6 +306,31 @@ export class FirestoreRepository implements BusinessRepository {
   private vocabRef = (trade: Trade) => db().collection('schema').doc(trade);
 
   /**
+   * Seeding every trade's vocabulary document: started once per instance, awaited by whoever reads
+   * the result.
+   *
+   * This used to be fire-and-forget from `initialize()`. On a long-running server that is fine -
+   * the process outlives the write. On a serverless one the instance is frozen the moment the
+   * response is sent, so a write nobody is waiting on is killed before it commits and the document
+   * is never written at all. `schema/tiling` was missing in production for exactly that reason,
+   * and because `listPublishedTrades` is what decides which trades exist, every tiling customer
+   * was silently routed into fencing - the frontend and the routing code were both correct.
+   *
+   * Memoised rather than retried: a failed seed is logged and left alone, and the next cold start
+   * tries again. A per-read retry would turn one broken permission into a write on every request.
+   */
+  private seeding: Promise<void> | null = null;
+
+  seedTradeSchemas(): Promise<void> {
+    this.seeding ??= Promise.all(
+      TRADES.map((trade) =>
+        this.syncTradeSchema(trade).catch((err) => logger.warn({ err, trade }, 'could not publish trade schema')),
+      ),
+    ).then(() => undefined);
+    return this.seeding;
+  }
+
+  /**
    * SEED the trade's vocabulary document - never overwrite it.
    *
    * A trade that nobody has published has no document at all, and the customer chat would have
@@ -425,6 +450,10 @@ export class FirestoreRepository implements BusinessRepository {
    * nobody has published yet is not one to offer a customer.
    */
   async listPublishedTrades(): Promise<Trade[]> {
+    // The seed this instance started at boot, so a cold start reads what it just wrote rather than
+    // an empty collection - see `seedTradeSchemas`. Already resolved on a warm instance.
+    await this.seedTradeSchemas();
+
     const live: Trade[] = [];
     for (const trade of TRADES) {
       try {
