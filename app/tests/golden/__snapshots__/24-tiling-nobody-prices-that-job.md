@@ -1322,14 +1322,24 @@ customer: "yes"
     "postcode": "3806",
     "displayLabel": "Berwick, VIC 3806"
   },
-  "type": "result",
-  "message": "Nobody near you publishes a price for that job. Want to try a different one?",
-  "options": [],
-  "results": [],
-  "avgRatePerMeter": null,
-  "comparison": null,
-  "noMatchReason": "height",
-  "checklistComplete": true,
+  "type": "question",
+  "message": "Nobody near you does kitchen splashback in Porcelain. The closest they can do is floor only in Porcelain, $350 from Paky Tiles. Want one of these instead?",
+  "options": [
+    {
+      "label": "Porcelain, Floor only · $350",
+      "value": "alt:porcelain:floor_only"
+    },
+    {
+      "label": "Porcelain, Bathroom · $4,850",
+      "value": "alt:porcelain:bathroom"
+    },
+    {
+      "label": "No thanks, I'll change something",
+      "value": "no"
+    }
+  ],
+  "noMatchReason": "alternative",
+  "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
     "jobType": "kitchen_splashback",
@@ -1351,10 +1361,13 @@ customer: "yes"
         "waterproofing": 0,
         "conditions": 0
       },
-      "lastAsked": null,
-      "lastQuestion": "Let me check what businesses are available near you…",
-      "lastValues": [],
-      "lastType": "message",
+      "lastAsked": "alternative",
+      "lastQuestion": "alternatives",
+      "lastValues": [
+        "alt:porcelain:floor_only",
+        "alt:porcelain:bathroom"
+      ],
+      "lastType": "question",
       "fixing": false,
       "rejectedPlaces": [],
       "nearbyPlaces": {},
@@ -1447,6 +1460,28 @@ customer: "yes"
       "value": "Nothing tricky"
     }
   ],
-  "checklistPending": []
+  "checklistPending": [],
+  "results": [],
+  "avgRatePerMeter": null,
+  "alternatives": [
+    {
+      "material": "porcelain",
+      "materialLabel": "Porcelain",
+      "heightKey": "floor_only",
+      "businessId": "tile-1",
+      "businessName": "Paky Tiles",
+      "estimatedTotal": 350,
+      "value": "alt:porcelain:floor_only"
+    },
+    {
+      "material": "porcelain",
+      "materialLabel": "Porcelain",
+      "heightKey": "bathroom",
+      "businessId": "tile-1",
+      "businessName": "Paky Tiles",
+      "estimatedTotal": 4850,
+      "value": "alt:porcelain:bathroom"
+    }
+  ]
 }
 ```

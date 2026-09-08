@@ -328,7 +328,11 @@ describe('a tiling job is actually priced', () => {
     expect(response.checklist.areaSqm).toBe(20);
   });
 
-  it('says so in tiling\'s words when nobody can price the job', async () => {
+  /* Nobody prices the job as asked - and that is not the end of it. The businesses covering this
+     customer can quote SOMETHING, and being shown the nearest of those beats being shown a dead end
+     next to a business that could have done the work. Fencing has done this all along; tiling fell
+     straight through, because the search was written against fencing's rate table. */
+  it('offers the nearest thing a tiler does publish, rather than a dead end', async () => {
     const response = await run([
       'I need tiling done',
       'yes',
@@ -343,10 +347,43 @@ describe('a tiling job is actually priced', () => {
       'yes',
     ]);
 
+    expect(response.type).toBe('question');
     expect(response.results).toHaveLength(0);
-    expect(response.message).toContain('Nobody near you publishes a price for that job');
+    // The room leads and the tile qualifies it, which is the opposite of fencing's sentence.
+    expect(response.message).toContain('Nobody near you does kitchen splashback in Porcelain');
+    expect(response.message).toContain('The closest they can do is floor only in Porcelain');
+    expect(response.message).toContain('Paky Tiles');
+    expect(response.alternatives?.length).toBeGreaterThan(0);
+    expect(response.options.map((option) => option.value)).toContain('no');
     // Never fencing's words in a tiling conversation.
     expect(response.message).not.toContain('fence');
+    expect(response.message).not.toContain(' at ');
+  });
+
+  /* And when there really is nothing to offer, the dead end is still the honest answer. This tiler
+     publishes no removal at all, so every combination it does publish blocks for the same reason -
+     there is no nearer job, only the same refusal at a different tile. */
+  it('still says so plainly when there is no nearest thing either', async () => {
+    const current = await repo.getPricing('paky', 'tiling');
+    await repo.savePricing('paky', { ...(current as never), removals: [] } as never);
+
+    const response = await run([
+      'I need tiling done',
+      'yes',
+      'Pakenham',
+      'floor_only',
+      'porcelain',
+      '20',
+      'labour_only',
+      'ceramic',
+      'none',
+      'none',
+      'yes',
+    ]);
+
+    expect(response.type).toBe('result');
+    expect(response.results).toHaveLength(0);
+    expect(response.message).toContain('take up that kind of old tile');
   });
 });
 

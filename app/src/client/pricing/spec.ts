@@ -43,6 +43,16 @@ export interface PricingSpec {
    * are found, so it must be a field with a `labelGroup`.
    */
   headlineField: string;
+  /**
+   * How the two halves of a rate are read out in a sentence, when nothing matched the brief and the
+   * nearest things a business does publish are offered instead.
+   *
+   * The trades want opposite orders. A fence is named by its material and qualified by a height -
+   * "Colorbond at 1.8m". A tiling job is named by the ROOM and qualified by the tile - "kitchen
+   * splashback in Porcelain" - because the room is the job and the tile is the choice within it.
+   * `lowerOther` because a room mid-sentence is not a proper noun; "1.8m" has no case to lose.
+   */
+  rateSentence: { order: 'headline-first' | 'other-first'; joiner: string; lowerOther?: boolean };
 }
 
 export const TRADE_PRICING: Record<Trade, PricingSpec> = {
@@ -53,6 +63,7 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
     rateKeys: ['material', 'heightKey'],
     minimumCharge: true,
     headlineField: 'material',
+    rateSentence: { order: 'headline-first', joiner: 'at' },
   },
   tiling: {
     quantityField: 'areaSqm',
@@ -63,5 +74,6 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
     rateKeys: ['jobType', 'tileType'],
     minimumCharge: true,
     headlineField: 'tileType',
+    rateSentence: { order: 'other-first', joiner: 'in', lowerOther: true },
   },
 };

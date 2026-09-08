@@ -389,11 +389,58 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
 
   if (top.length === 0) {
     /* Nothing matched the brief as written. The same businesses are asked again for every
-       material and height they DO publish - length, removal, site conditions and gate unchanged.
-       Closest first: same material at a different height beats a different material. */
+       combination they DO publish - everything else about the job unchanged.
+       Closest first: same material at a different height beats a different material.
+
+       Both trades, and the enumeration is per trade because the rate tables are different shapes:
+       fencing nests material into height, tiling keys a list of rows by job. Tiling used to fall
+       straight through to a dead end here - `asFencing` returns null for it, the loop found
+       nothing, and a customer whose tile nobody publishes was told "nobody near you publishes a
+       price for that job" and left there, next to businesses that could have done the work. */
     const alternatives: (Quote & { distanceFromBrief: number })[] = [];
     for (let i = 0; i < matcher.businesses.length; i += 1) {
       const business = matcher.businesses[i]!;
+
+      if (schema.trade === 'tiling') {
+        const pricing = matcher.pricing[i]!.pricing;
+        if (!pricing || !isTilingPricing(pricing)) continue;
+        const wanted = tilingBrief(checklist, spec);
+        for (const [rateKey, rows] of Object.entries(pricing.rates)) {
+          const jobType = slug(rateKey);
+          for (const row of rows) {
+            /* A row published for ANY tile quotes the tile they actually asked for, so that is the
+               alternative worth offering - their job at their own tile, not a tile nobody named. */
+            const tileType = row.tileType ? slug(row.tileType) : wanted.tileType;
+            if (jobType === wanted.jobType && tileType === wanted.tileType) continue;
+            const quote = quoteTiling(business, pricing, { ...wanted, jobType, tileType });
+            if ('blocked' in quote) continue;
+            if (existingPrice !== null && quote.total >= existingPrice) continue;
+            alternatives.push({
+              uid: business.uid,
+              businessName: business.businessName,
+              suburb: business.suburb,
+              distanceKm: business.distanceKm,
+              material: slug(quote.tileKey),
+              heightKey: quote.rateKey,
+              ratePerMeter: quote.ratePerUnit,
+              autoAcceptsAi: business.autoAcceptsAi,
+              currency: 'AUD',
+              projectTotalMin: quote.total,
+              projectTotalMax: quote.total,
+              estimatedTotal: quote.total,
+              warranty: null,
+              badges: quote.badges,
+              /* The room weighs more than the tile, and this is the opposite of fencing's
+                 weighting on purpose: a customer can change which tile goes down, but they cannot
+                 turn their bathroom into an ensuite. So a bathroom in another tile is nearer to
+                 what they asked for than another room in theirs. */
+              distanceFromBrief: (jobType === wanted.jobType ? 0 : 2) + (tileType === wanted.tileType ? 0 : 1),
+            });
+          }
+        }
+        continue;
+      }
+
       const extract = asFencing(matcher.pricing[i]!);
       if (!extract) continue;
       const enabled = extract.pricing.enabledMaterials.map(slug);
@@ -429,7 +476,31 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     }
 
     if (offers.length) {
-      const asked = materialLabel(material ?? '') + (heightKey && heightKey !== 'any' ? ' at ' + heightKey : '');
+      /* What the other half of a rate key is called, out loud. Fencing's is a height and is already
+         a word - "1.8m" - so it is used as it stands; tiling's is a room, and `bathroom` on screen
+         reads like a database. Found through the field's own label group rather than by naming
+         either trade, so a third trade needs nothing here. */
+      const otherKey = spec.rateKeys.find((key) => key !== spec.headlineField) ?? spec.rateKeys[0]!;
+      const otherGroup = specOf(schema.fields, otherKey)?.labelGroup;
+      const otherLabel = (value: string): string => {
+        const group = otherGroup ? schema.labels[otherGroup] : undefined;
+        if (!group) return value;
+        return group[Object.keys(group).find((k) => slug(k) === slug(value)) ?? value] ?? value;
+      };
+      const describe = (headline: string, other: string): string => {
+        const name = materialLabel(headline);
+        if (!other || other === 'any') return name;
+        const sentence = spec.rateSentence;
+        const qualifier = sentence.lowerOther ? otherLabel(other).toLowerCase() : otherLabel(other);
+        return sentence.order === 'headline-first'
+          ? name + ' ' + sentence.joiner + ' ' + qualifier
+          : qualifier + ' ' + sentence.joiner + ' ' + name;
+      };
+
+      /* Both halves read off the checklist by the spec's own names, not by fencing's: `material`
+         and `heightKey` are undefined on a tiling brief, and asking for them produced "Nobody near
+         you does ." - a sentence with the job missing out of the middle of it. */
+      const asked = describe(asText(checklist[spec.headlineField]) ?? '', asText(checklist[otherKey]) ?? '');
       const previousUi: UiState = checklist._ui ?? { turn: 0, cursor: {}, lastAsked: null, lastQuestion: '', lastValues: [], lastType: 'message', fixing: false, rejectedPlaces: [], nearbyPlaces: {}, suburbHint: null, place: null, answers: 0 };
       const uiOut: UiState = {
         ...previousUi,
@@ -459,16 +530,17 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
           'Nobody near you does ' +
           asked +
           '. The closest they can do is ' +
-          materialLabel(offers[0]!.material) +
-          ' at ' +
-          offers[0]!.heightKey +
+          describe(offers[0]!.material, offers[0]!.heightKey) +
           ', $' +
           offers[0]!.projectTotalMin.toLocaleString() +
           ' from ' +
           offers[0]!.businessName +
           '. Want one of these instead?',
         options: offers
-          .map((offer) => ({ label: materialLabel(offer.material) + ', ' + offer.heightKey + ' · $' + offer.projectTotalMin.toLocaleString(), value: 'alt:' + offer.material + ':' + offer.heightKey }))
+          .map((offer) => ({
+            label: materialLabel(offer.material) + ', ' + otherLabel(offer.heightKey) + ' · $' + offer.projectTotalMin.toLocaleString(),
+            value: 'alt:' + offer.material + ':' + offer.heightKey,
+          }))
           .concat([{ label: "No thanks, I'll change something", value: 'no' }]),
         noMatchReason: 'alternative',
         checklistComplete: false,
