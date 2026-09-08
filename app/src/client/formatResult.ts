@@ -4,6 +4,7 @@ import type { MergedState } from './mergeAndDecide.js';
 import type { MatchResult } from './matcher.js';
 import { slug } from './fuzzyMatch.js';
 import { budgetText } from './budget.js';
+import { TRADE_WORDS } from '../messages.js';
 import { TRADE_PRICING } from './pricing/spec.js';
 import type { Answer, Budget, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
@@ -133,14 +134,19 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
     const suggestions = matcher.nearby.filter((area) => area.suburb && slug(area.suburb) !== here && !here.includes(slug(area.suburb)));
 
     const failed = checklist.suburb || place?.suburb || 'that suburb';
+    /* The trade's own word, not the one this file was written for. These three sentences said
+       "fencing businesses" whatever the conversation was about, so somebody asking to have their
+       bathroom tiled in a suburb nobody covers was told about fencing businesses - in the middle of
+       a tiling conversation, at the one moment they are already being told no. */
+    const businesses = TRADE_WORDS[state.schema.trade].trade + ' business';
     const preamble =
       noMatchReason === 'place'
         ? "I couldn't place that suburb on the map."
         : noMatchReason === 'radius'
-          ? 'There are fencing businesses near ' + failed + ", but none of them travel far enough to reach you."
+          ? 'There are ' + businesses + 'es near ' + failed + ", but none of them travel far enough to reach you."
           : noMatchReason === 'pricing'
-            ? 'There are fencing businesses around ' + failed + ", but none of them have confirmed their pricing yet."
-            : 'No fencing business covers ' + failed + ' yet.';
+            ? 'There are ' + businesses + 'es around ' + failed + ", but none of them have confirmed their pricing yet."
+            : 'No ' + businesses + ' covers ' + failed + ' yet.';
 
     if (suggestions.length) {
       const shown = suggestions.slice(0, DEFAULT_PAGE_SIZE);

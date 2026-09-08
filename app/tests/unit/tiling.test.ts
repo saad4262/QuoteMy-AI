@@ -396,6 +396,63 @@ describe('a tiling job is actually priced', () => {
  * wall, every waterproofing area, removal and a minimum charge, and quoted NOTHING: every customer
  * asking for a bathroom was told nobody nearby prices that job.
  */
+/**
+ * Being told no, in this trade's own words.
+ *
+ * The suburb nobody covers is the one moment a customer is already hearing bad news, and it is
+ * exactly where fencing's vocabulary leaked: all three sentences said "fencing businesses" whatever
+ * the conversation was about, so somebody having their bathroom tiled in Darwin was told about
+ * fencing businesses. The retry itself worked the whole time - suburbs offered, coordinates
+ * included - which is why nothing looked broken.
+ */
+describe('a suburb nobody covers', () => {
+  const DARWIN = { latitude: -12.4634, longitude: 130.8456, suburb: 'Darwin', state: 'NT', postcode: '0800', displayLabel: 'Darwin, NT 0800' };
+
+  const askedFrom = async (trade: 'fencing' | 'tiling') => {
+    const empty = new MemoryRepository();
+    setRepository(empty);
+    clearSchemaCache();
+    const response = await runChat(
+      {
+        trade,
+        message: 'Darwin',
+        sessionId: 'nobody-' + trade,
+        place: JSON.stringify(DARWIN),
+        /* Everything answered but the suburb, which is when this actually happens: the matcher runs
+           only once the brief is complete, so the coverage news lands on the last answer. */
+        knownChecklist: JSON.stringify({
+          suburb: null,
+          existingPrice: null,
+          ...(trade === 'tiling'
+            ? { jobType: 'bathroom', tileType: 'ceramic', areaSqm: 8, supply: 'labour_only', removal: 'none', waterproofing: 'none', conditions: [] }
+            : { material: 'colorbond', heightKey: '1.8m', lengthMeters: 20, removal: 'none', conditions: [], gateType: 'none', gateQty: null }),
+          _ui: { turn: 9, cursor: {}, lastAsked: 'suburb', lastQuestion: '', lastValues: [], lastType: 'question', fixing: false, rejectedPlaces: [], nearbyPlaces: {}, suburbHint: null, place: null, answers: 8, trade },
+        }),
+      },
+      [],
+      { repo: empty },
+    );
+    // The matcher runs on the confirmed brief, so the coverage news comes one turn after the recap.
+    const confirmed = await runChat(
+      { trade, message: 'yes', sessionId: 'nobody-' + trade, place: JSON.stringify(DARWIN), knownChecklist: JSON.stringify(response.checklist) },
+      [],
+      { repo: empty },
+    );
+    return confirmed.message;
+  };
+
+  it('names the trade the customer is actually asking about', async () => {
+    expect(await askedFrom('tiling')).toContain('tiling business');
+    expect(await askedFrom('tiling')).not.toContain('fencing');
+    expect(await askedFrom('tiling')).not.toContain('fence');
+  });
+
+  it('leaves fencing saying exactly what it said before', async () => {
+    expect(await askedFrom('fencing')).toContain('fencing business');
+    expect(await askedFrom('fencing')).not.toContain('tiling');
+  });
+});
+
 describe('a room quoted from surface rates', () => {
   const surfacePricer = {
     gstIncluded: true,
