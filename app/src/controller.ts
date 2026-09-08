@@ -75,8 +75,20 @@ async function confirm(req: Request, res: Response, body: BusinessBody) {
 }
 
 /**
- * A nudge, not a request. The frontend already wrote submission/description. We claim it in the
- * background and write lastAiReview; the HTTP body is only "we heard you".
+ * The frontend already wrote submission/description and is listening to `description/lastaireview`;
+ * this runs the pipeline and writes the answer there. The HTTP body is only "we heard you".
+ *
+ * AWAITED, not fired and forgotten. It used to return the moment the work was started, which is
+ * fine on a server that outlives its own request and silently fatal on a serverless one: Vercel
+ * freezes the instance when the response is sent, so the pipeline died before `claimSubmission`
+ * had written a single field. The business saw "We are reading your details" for ever - nothing
+ * errored, the nudge answered `accepted: true` in under a second, and the submission sat at
+ * `pending` until the daily sweep. Whether it survived depended on whether another request
+ * happened to keep the instance warm, which is why some submissions went through and some did not.
+ *
+ * The response is now as slow as the work (10-40s, ceiling 300s in vercel.json), and nothing
+ * waits on it: the panel opens on the Firestore write, so a customer who closes the tab still
+ * gets their answer.
  */
 async function process(req: Request, res: Response, body: BusinessBody) {
   if (getRepository().kind !== 'firestore') {
@@ -86,9 +98,14 @@ async function process(req: Request, res: Response, body: BusinessBody) {
   const description = await getRepository().getDescription(body.businessUid, body.trade);
   if (!description) throw notFound('Nothing has been saved for this trade yet');
 
-  void processSubmission(body.businessUid, body.trade).catch((err) =>
-    logger.error({ err, uid: body.businessUid, trade: body.trade }, 'process nudge failed'),
-  );
+  try {
+    await processSubmission(body.businessUid, body.trade);
+  } catch (err) {
+    /* The pipeline writes its own answer for anything the business can act on, so reaching here
+       means something we could not answer with. Logged and reported as accepted anyway: the
+       submission is still `pending`, and the sweeper is what retries it. */
+    logger.error({ err, uid: body.businessUid, trade: body.trade }, 'process nudge failed');
+  }
 
   send(req, res, { accepted: true, submissionId: description.submissionId });
 }
