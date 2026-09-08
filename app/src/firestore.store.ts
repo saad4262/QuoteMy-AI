@@ -19,7 +19,7 @@ import type {
   VoiceTurnRecord,
 } from './store.js';
 import { describeFieldDrift, TRADE_FIELDS } from './client/fieldSpec.js';
-import { CUSTOMER_LABELS, TRADE_QUESTIONS } from './messages.js';
+import { CUSTOMER_CORE, CUSTOMER_LABELS, TRADE_QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
 import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
@@ -375,10 +375,18 @@ export class FirestoreRepository implements BusinessRepository {
   async syncTradeSchema(trade: Trade): Promise<void> {
     const ref = this.vocabRef(trade);
     const compiled = {
-      // This trade's lists, under this trade's own names - seeding fencing's materials into
-      // `schema/tiling` would put fence types on a tiler's screen and quote nobody.
+      /* This trade's lists, under this trade's own names - seeding fencing's materials into
+         `schema/tiling` would put fence types on a tiler's screen and quote nobody.
+
+         `CUSTOMER_CORE` and not the extraction vocabulary, and the difference is the whole point of
+         this document: it is the customer's multiple choice, in the order they see it and without
+         the values that are only ever a business's. Seeded from `TRADE_VOCAB` instead, tiling's
+         removal question opened with "Ceramic tiles" rather than "Yes, take them up" - because
+         `any` is last in the vocabulary and first on a screen - and offered "Adhesive only", which
+         is a line on a price list, not something a customer looking at a tiled floor would pick.
+         Fencing had the same question opening with "Timber fence". */
       core: Object.fromEntries(
-        Object.entries(TRADE_VOCAB[trade].core).map(([name, values]) => [name, [...values]]),
+        Object.entries(CUSTOMER_CORE[trade]).map(([name, values]) => [name, [...values]]),
       ) as Record<string, string[]>,
       labels: CUSTOMER_LABELS[trade],
       questions: TRADE_QUESTIONS[trade],
@@ -413,10 +421,11 @@ export class FirestoreRepository implements BusinessRepository {
    * The published vocabulary and the compiled one are allowed to differ - that is the point of
    * making the document editable - but nobody should find out by accident.
    *
-   * A value published here but missing from `vocab.ts` is the dangerous direction: the chat will
-   * offer it, a customer will pick it, and no business can ever be quoted for it because
-   * extraction rejects it on the way in. The other direction only means the chat is not offering
-   * something businesses could be quoted for.
+   * Compared against what the customer is MEANT to be offered (`CUSTOMER_CORE`), which is what this
+   * document holds. A value published here but missing from that is the dangerous direction: the
+   * chat will offer it, a customer will pick it, and unless it is a promoted extra no business can
+   * ever be quoted for it, because extraction rejects it on the way in. The other direction only
+   * means the chat is not offering something businesses could be quoted for.
    *
    * CONTEXT.md §8's warning is that vocabulary drift is the one failure here that is silent and
    * permanent. This is what stops it being silent.

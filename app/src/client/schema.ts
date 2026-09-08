@@ -90,6 +90,20 @@ const mergeLists = (stored: Record<string, unknown> | undefined, base: Record<st
   return merged;
 };
 
+/**
+ * Labels, merged VALUE by value rather than group by group.
+ *
+ * A published group used to replace the compiled one whole, so a group written before a value
+ * existed silently took that value's label away. `schema/fencing` held `removes: {timber, metal}`
+ * and no `any`, from before "Yes, take it away" was an answer - and every customer was offered a
+ * chip reading "Any", which is the slug title-cased and reads like a bug because it is one. The
+ * golden tests said "Yes, take it away" the whole time: they run against the compiled labels, and
+ * only production ran against the document.
+ *
+ * Same rule as the field specs above: what the document says wins, what it does not mention keeps
+ * what the code compiled. A label cannot be deleted by omission, which is the correct trade -
+ * omission is what an older document does, not what an editor meant.
+ */
 const mergeMaps = (
   stored: Record<string, unknown> | undefined,
   base: Record<string, Record<string, string>>,
@@ -97,7 +111,7 @@ const mergeMaps = (
   const merged = { ...base };
   for (const [key, value] of Object.entries(stored ?? {})) {
     if (value && typeof value === 'object' && Object.keys(value).length) {
-      merged[key] = value as Record<string, string>;
+      merged[key] = { ...merged[key], ...(value as Record<string, string>) };
     }
   }
   return merged;

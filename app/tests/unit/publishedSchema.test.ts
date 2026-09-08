@@ -124,6 +124,44 @@ describe('a published field spec that predates part of the code', () => {
   });
 });
 
+/**
+ * A label group written before one of its values existed must not take that label away.
+ *
+ * `schema/fencing` held `removes: {timber, metal}` and no `any`, from before "Yes, take it away"
+ * was an answer at all. The group replaced the compiled one whole, so the chip read "Any" - the
+ * slug, title-cased - on every fencing conversation in production. The golden tests never saw it:
+ * they run against the compiled labels, and only production reads the document.
+ */
+describe('a published label group that predates one of its values', () => {
+  class PublishingLabels extends MemoryRepository {
+    constructor(private readonly labels: Record<string, Record<string, string>>) {
+      super();
+    }
+    override async getTradeSchema(): Promise<StoredTradeSchema | null> {
+      return { labels: this.labels };
+    }
+  }
+
+  it('keeps the label the document does not mention', async () => {
+    const schema = await loadTradeSchema('fencing', new PublishingLabels({ removes: { timber: 'Timber fence' } }));
+
+    expect(schema.labels.removes?.any).toBe('Yes, take it away');
+    expect(schema.labels.removes?.timber).toBe('Timber fence');
+  });
+
+  it('still lets the document rename what it does mention', async () => {
+    const schema = await loadTradeSchema('fencing', new PublishingLabels({ removes: { any: 'Yes please', timber: 'Old timber' } }));
+
+    expect(schema.labels.removes?.any).toBe('Yes please');
+    expect(schema.labels.removes?.timber).toBe('Old timber');
+    // And a value only the document knows - an extra promoted out of what businesses offered.
+    clearSchemaCache(); // a second load of the same trade in one test is otherwise the first one
+    const withExtra = await loadTradeSchema('fencing', new PublishingLabels({ materials: { 'bamboo-screening': 'Bamboo screening' } }));
+    expect(withExtra.labels.materials?.['bamboo-screening']).toBe('Bamboo screening');
+    expect(withExtra.labels.materials?.colorbond).toBe('Colorbond');
+  });
+});
+
 describe('a published field spec that cannot be executed', () => {
   /** Every one of these must leave the customer with the compiled spec, whole. */
   const refused: [string, () => unknown[]][] = [
