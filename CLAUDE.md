@@ -19,7 +19,14 @@ The concrete plan for this phase is at `.claude/plans/` (see the most recent pla
 1. Strict `json_schema` for every extraction call, never `json_object`.
 2. Every extracted number must carry its exact source sentence; a code step string-matches it against the raw text and drops the field if it doesn't match.
 3. No price goes live without a human (the business) explicitly confirming it.
-4. The model never does arithmetic.
+4. The model never does arithmetic — on the **business** side, without exception: no totals, no
+   per-unit prices worked back from a job price, no converting a rate between units. The one carve-out
+   is the **customer's own measurement** in the chat: "3 by 4 metres" and "100 sq ft" are the same
+   fact as "12m²" and "9.29m²", and refusing them makes the customer do the sum before we will
+   listen. Even there the sum is done in CODE (`measureFrom`), the model is only a fallback for
+   wordings code cannot parse, and the result is read back to the customer — "Area: 12m². All
+   correct?" — before anything is quoted from it. A range is still refused: the midpoint and both
+   ends are three different inventions.
 5. One trade per extraction call.
 6. Give the model an `unmapped`/gaps outlet — never force it to guess or silently drop content.
 7. Validate, retry exactly once. Two failures means the prompt is wrong — flag it, don't loop.

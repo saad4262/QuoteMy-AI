@@ -197,6 +197,74 @@ export function numbersIn(text: string): number[] {
 
 /** A positive number out of whatever the customer wrote - "30", "30m", "about 30", "1,200". */
 /**
+ * What a customer typed, converted into the unit the field is actually kept in.
+ *
+ * "Roughly how many square metres?" gets answered every way a person measures a room: "100", "3 by
+ * 4 metres", "100 sq ft", "12 square yards". All of them are the same fact, and refusing the ones
+ * that need a multiplication or a conversion means asking somebody to do the sum for us before we
+ * will listen to them.
+ *
+ * THE SUM IS DONE HERE, IN CODE, AND NOT BY THE MODEL. `CLAUDE.md` non-negotiable 4 stands as it
+ * is: a model that multiplies once will multiply where it should not, and 6 x 4 has exactly one
+ * answer that never needs a second opinion. The chat prompt allows the model to convert too, for
+ * wordings this cannot parse, and where both read the same message they agree.
+ *
+ * A RANGE IS STILL NOT AN ANSWER. "20-25" has no correct conversion - the midpoint, the low end and
+ * the high end are three different inventions - so it is refused and the question comes round again.
+ */
+const DIMENSIONS = /(\d+(?:\.\d+)?)\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?)/i;
+const RANGE = /\d+(?:\.\d+)?\s*(?:-|–|—|to|or)\s*\d+/i;
+
+/** Multiply by these to reach the field's own unit. Areas convert as areas, lengths as lengths. */
+const TO_SQUARE_METRES: [RegExp, number][] = [
+  [/\b(sq\.?\s*ft|sqft|square\s+f(?:ee|oo)t|ft2|ft²)\b/i, 0.092903],
+  [/\b(sq\.?\s*yd|square\s+yards?|yd2|yd²)\b/i, 0.836127],
+  [/\b(sq\.?\s*in|square\s+inch(?:es)?|in2|in²)\b/i, 0.00064516],
+];
+const TO_METRES: [RegExp, number][] = [
+  [/\b(f(?:ee|oo)t|ft)\b/i, 0.3048],
+  [/\b(yards?|yds?)\b/i, 0.9144],
+  [/\b(inch(?:es)?|in\.)\b/i, 0.0254],
+  [/\b(cm|centimet(?:re|er)s?)\b/i, 0.01],
+  [/\b(mm|millimet(?:re|er)s?)\b/i, 0.001],
+];
+
+/** Two decimals: 100 square feet is 9.29 square metres, and pretending to more is false precision. */
+const tidy = (n: number): number => Math.round(n * 100) / 100;
+
+export function measureFrom(value: unknown, unit: 'm2' | 'm'): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value).replace(/,(?=\d{3}\b)/g, '');
+  if (RANGE.test(text) && !DIMENSIONS.test(text)) return null;
+
+  const factors = unit === 'm2' ? TO_SQUARE_METRES : TO_METRES;
+  // A linear unit on an area answer converts as a LENGTH on each side - "10 by 12 feet" is two
+  // measurements in feet, not an area in square feet.
+  const linear = unit === 'm2' ? TO_METRES : [];
+
+  const sides = text.match(DIMENSIONS);
+  if (sides) {
+    // Two sides of a room. Only an area can be built this way; a length has no second side.
+    if (unit !== 'm2') return null;
+    const each = linear.find(([re]) => re.test(text))?.[1] ?? 1;
+    const area = Number(sides[1]) * each * (Number(sides[2]) * each);
+    return Number.isFinite(area) && area > 0 ? tidy(area) : null;
+  }
+
+  /* Read here rather than through `positiveNumber`, which refuses a foreign unit outright - that
+     refusal is what protects a field with no conversion; this function IS the conversion. */
+  const found = text.match(/-?\d+(?:\.\d+)?/);
+  const plain = found ? Number(found[0]) : NaN;
+  if (!Number.isFinite(plain) || plain <= 0) return null;
+  const factor = factors.find(([re]) => re.test(text))?.[1];
+  if (factor) return tidy(plain * factor);
+  // A length unit written against an area, with no second side: "100 feet" of floor is not an area,
+  // and guessing which they meant is worse than asking.
+  if (linear.some(([re]) => re.test(text))) return null;
+  return plain;
+}
+
+/**
  * Two numbers with something between them: a range, or a room measured side by side. Neither is one
  * answer, and picking the first is the quiet way to get it wrong - "3 by 4 metres" read as 3 quotes
  * a quarter of the floor, and "20-25" read as 20 picks the end that suits us.

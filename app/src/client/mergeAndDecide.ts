@@ -1,7 +1,7 @@
 import type { Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
-import { conditionsFrom, editDistance, heightKeyFrom, NOTHING, numbersIn, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
+import { conditionsFrom, editDistance, heightKeyFrom, measureFrom, NOTHING, numbersIn, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
 import { askedFields, specOf, type FieldSpec } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
 import type { Checklist, Place, PlaceHint, TurnExtraction, UiState } from './schemas.js';
@@ -68,7 +68,8 @@ function validate(field: string, value: unknown, schema: TradeSchema, labelFor: 
       return heightKeyFrom(value);
 
     case 'number':
-      return positiveNumber(value);
+      // Converted into the field's own unit where the spec names one - see `measureFrom`.
+      return spec.measureIn ? measureFrom(value, spec.measureIn) : positiveNumber(value);
 
     case 'count': {
       const n = positiveNumber(value);
@@ -585,6 +586,20 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
        the choices is never choosing one, however the turn was read. */
     const direct = validate(ui.lastAsked, remainder, schema, labelFor);
     if (direct !== null && answersRatherThanAsks(ui.lastAsked, direct, asking)) merged[ui.lastAsked] = direct;
+  }
+
+  /* A measurement the converter deliberately refused must not come back in through the model.
+     `measureFrom` turns every shape of an answer into the field's unit - two sides, feet, square
+     yards - and refuses exactly two: a range, whose midpoint and both ends are three inventions,
+     and a length where an area was asked for, because a floor needs two measurements and "100 feet"
+     only has one. The model is told both, in a section of its own, and converts them anyway: it
+     returned 22.5 for "20-25" and 9.29 for "100 feet", the second being a room it made up.
+     Neither is a judgement call, so it is settled here instead of asked for again.
+     Only when they typed digits: "one hundred" is a real answer the converter cannot read and the
+     model can. */
+  if (ui.lastAsked && !questionOnly && /\d/.test(rawMessage)) {
+    const asked = specOf(schema.fields, ui.lastAsked);
+    if (asked?.measureIn && measureFrom(rawMessage, asked.measureIn) === null) merged[ui.lastAsked] = null;
   }
 
   /* Nothing on the list fitted, and they named something else. Last, so a real answer always wins:

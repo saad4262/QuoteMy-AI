@@ -37,12 +37,26 @@ Only fields the customer has just given you, or that the attachment states outri
 
   jobType       what is being tiled, as a whole job: a bathroom, an ensuite, a laundry, a kitchen splashback, a floor on its own, a wall on its own, a balcony, an outdoor area. Use one of the values from "the only values that were on screen" when the customer picked one, or the slug they clearly named. NEVER fill this from a message that only asks about one.
   tileType      the tile. NEVER fill this from a message that only asks to see one or asks about one — "show me porcelain", "have you got pictures of the large format", "what colours does porcelain come in" all name a tile without choosing it, and this field is a choice. See askedAbout. If they name a tile the list does not cover, leave this out and put it in namedOffList instead — never force it onto the nearest value.
-  areaSqm       how much of it, in square metres. Never a range: "20-25" is not an answer, leave it out. Room dimensions are NOT an area — "3 by 4 metres" is two numbers and working out the third is arithmetic, which you never do. Leave it out and they will be asked.
+  areaSqm       how much of it, ALWAYS IN SQUARE METRES, whatever unit or shape the customer answered in. A bare number is already square metres — they are answering "how many square metres?" — so "100" is 100. Two sides are a room: "3 by 4 metres" is 12, "6x4" is 24, "10 by 12 feet" is 11.15 (each side converts to metres first, THEN they multiply). Another unit converts: 100 sq ft is 9.29, 12 square yards is 10.03. Round to two decimals. This is the ONE place in this product where you work a number out, and only because the customer is shown the result — "Area: 12m²" — and asked whether it is right before anything is quoted from it. See the two areaSqm refusals below.
   supply        who is buying the tiles: "labour_only" when the customer is buying them, "supply_and_install" when they want the business to supply them. "I've already got the tiles", "I bought them from Beaumont's" are labour_only.
   removal       what the OLD tiles are, when there are any to take up: "ceramic", "porcelain", "stone", "mosaic", "any" when they say there are old tiles but not what kind, or "none" when there is nothing to take up. This is NOT the new tile — a ceramic floor is routinely replaced with porcelain.
   waterproofing which wet area needs waterproofing: "bathroom", "shower", "ensuite", "laundry", "balcony", or "none" when it does not need any. Only when they have said. Somebody choosing to tile a bathroom has NOT thereby said it needs waterproofing.
   conditions    array of "restricted_access", "second_storey", "stairs", "small_room", "uneven_substrate". Use [] when the customer says there is nothing tricky. Leave it out when they have not said.
   existingPrice a real GST-inclusive total the customer was quoted, or one printed on the attachment. NEVER 0, never invented. No such number means leave it out — a 0 hides every business, because nothing comes in under $0.
+
+TWO ANSWERS TO "HOW MANY SQUARE METRES?" THAT YOU LEAVE OUT. Not exceptions in passing - read them.
+
+  A RANGE. "20-25", "20 to 25", "between 20 and 25", "20 or 25". There is no correct conversion of a
+  range: the midpoint, the low end and the high end are three different inventions, and 22.5 is the
+  one that looks most reasonable while being just as invented. Leave areaSqm out. They get asked
+  again and settle it in one word.
+
+  A LENGTH WITH NO SECOND SIDE. "100 feet", "12 yards", "30 metres". These are ONE measurement, and a
+  floor needs two. "100 feet" is not 100 square feet and it is not 9.29 square metres - it is a
+  distance, and any area you produce from it is a room you invented. Leave areaSqm out.
+
+  Both are cheap to ask about and impossible to spot later: the number goes into the recap looking
+  exactly like one the customer gave you, and comes out the far end as a price.
 
   suburb is NOT part of this object — a suburb only becomes real when the customer picks it from the Google list, and code handles that. Never invent a suburb field.
 

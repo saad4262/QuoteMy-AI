@@ -77,6 +77,14 @@ export interface FieldSpec {
    */
   labelUnit?: { suffix?: string; one?: string; many?: string };
   /**
+   * The unit this field is STORED in, when a customer might reasonably answer in another one.
+   *
+   * Set it and the answer is converted into this unit before it is kept - "3 by 4 metres" and "100
+   * sq ft" become square metres, in code. Leave it off and the answer is taken as a plain number,
+   * which is right for a count or a price.
+   */
+  measureIn?: 'm2' | 'm';
+  /**
    * How a customer NAMES this field when they say which answer is wrong - "no, the height's wrong",
    * "can I redo the length". Phrases, matched as written.
    */
@@ -286,6 +294,10 @@ export const TILING_FIELDS: FieldSpec[] = [
     title: 'Area',
     question: TILING_QUESTIONS.areaSqm,
     labelUnit: { suffix: 'm²' },
+    // People measure a room every way there is - one number, two sides, or in feet. All of them
+    // are the same fact, and making somebody do the sum before we will listen to them is not a
+    // question, it is a form.
+    measureIn: 'm2',
     /* No list, for the same reason fencing's length has none: it is a number the customer's own
        room already has, and offering 10, 20, 30 would only invite them to round it. */
   },

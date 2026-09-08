@@ -782,17 +782,71 @@ describe('reading a number the customer typed', () => {
     }
   });
 
-  it('refuses two numbers rather than picking one of them', async () => {
-    // A room given as its sides, and a range. Working out the area from either is arithmetic.
-    for (const typed of ['3 by 4 metres', '6x4', '6 × 4', '20-25', '20 to 25', '20 or 25']) {
+  /* A room measured as its two sides is the same fact as its area, and the multiplication has one
+     answer. Done in code, so the model is not the thing multiplying - and so that the answer is the
+     same every time the same words arrive. */
+  it('works out an area given as two sides', async () => {
+    expect(await readArea('3 by 4 metres')).toBe(12);
+    expect(await readArea('6x4')).toBe(24);
+    expect(await readArea('6 × 4')).toBe(24);
+    // Feet on both sides: each side converts, then they multiply. Not 12 square feet.
+    expect(await readArea('10 by 12 feet')).toBe(11.15);
+  });
+
+  it('converts an area given in another unit', async () => {
+    expect(await readArea('100 sq ft')).toBe(9.29);
+    expect(await readArea('100 sqft')).toBe(9.29);
+    expect(await readArea('100 square feet')).toBe(9.29);
+    expect(await readArea('12 square yards')).toBe(10.03);
+  });
+
+  /* The one thing that still has no right answer: the midpoint, the low end and the high end of
+     "20-25" are three different inventions, and the customer can settle it in one word. */
+  it('still refuses a range', async () => {
+    for (const typed of ['20-25', '20 to 25', '20 or 25']) {
       expect(await readArea(typed), typed).toBeNull();
     }
   });
 
-  it('refuses a number in a unit this product does not work in', async () => {
-    for (const typed of ['100 sq ft', '100 sqft', '100 square feet', '12 yards']) {
-      expect(await readArea(typed), typed).toBeNull();
-    }
+  /* A length with no second side is not an area. "100 feet" of floor could be almost any room, and
+     choosing one is worse than asking. */
+  it('refuses a length where an area was asked for', async () => {
+    expect(await readArea('100 feet')).toBeNull();
+    expect(await readArea('12 yards')).toBeNull();
+  });
+
+  /* The refusals have to hold against the MODEL too, which is the half that kept breaking them: its
+     prompt names both, in a section of its own, and it still answered "20-25" with 22.5 and
+     "100 feet" with 9.29 - the second a room it invented out of a distance. Neither is a judgement
+     call, so code settles it. */
+  it('does not let the model convert what the converter refused', async () => {
+    const schema = await loadTradeSchema('tiling', new MemoryRepository());
+    const answered = async (message: string, modelSaid: number | null) => {
+      const state = mergeAndDecide({
+        sessionId: 'n2',
+        message,
+        place: PLACE,
+        known: {
+          suburb: 'Berwick, VIC 3806', jobType: 'bathroom', tileType: 'ceramic', areaSqm: null,
+          supply: null, removal: null, waterproofing: null, conditions: null, existingPrice: null,
+          _ui: ui({ lastAsked: 'areaSqm' }),
+        } as unknown as Partial<Checklist>,
+        turnExtraction: turn({ areaSqm: modelSaid } as Partial<TurnExtraction['checklist']>),
+        docFacts: {},
+        docSuburbHint: null,
+        haystackText: message + ' ',
+        schema,
+      });
+      return (state.checklist as Record<string, unknown>).areaSqm ?? null;
+    };
+
+    expect(await answered('20-25', 22.5)).toBeNull();
+    expect(await answered('100 feet', 9.29)).toBeNull();
+
+    // And it must not take away what only the model can read: no digits, so nothing was refused.
+    expect(await answered('one hundred', 100)).toBe(100);
+    // Nor anything the converter itself accepts.
+    expect(await answered('10 by 12 feet', 11.15)).toBe(11.15);
   });
 });
 
