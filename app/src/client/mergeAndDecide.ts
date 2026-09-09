@@ -1,3 +1,4 @@
+import { logger } from '../config.js';
 import type { Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
 import type { DocFacts } from './attachmentFacts.js';
@@ -539,12 +540,17 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   for (const field of everyField) {
     const knownValue = validate(field, (known as Record<string, unknown>)[field], schema, labelFor);
     const agentValue = validate(field, (agentChecklist as Record<string, unknown>)[field], schema, labelFor);
-    const docValue = validate(
-      field,
-      field === 'heightKey' ? (docFacts.heightMm ?? null) : (docFacts as Record<string, unknown>)[field],
-      schema,
-      labelFor,
-    );
+    const docRaw = field === 'heightKey' ? (docFacts.heightMm ?? null) : (docFacts as Record<string, unknown>)[field];
+    const docValue = validate(field, docRaw, schema, labelFor);
+    /* A document hint that produced something the schema will not accept.
+       Unlike a customer typing a word we do not know - which is ordinary, and handled - this is
+       ours: a slug in `FieldSpec.docHints` that the trade does not actually offer. `validate`
+       answers it with a null and the field simply comes back unanswered, so without this line the
+       only symptom is an attachment that reads worse than it should, with nothing anywhere to say
+       why. `fieldSpec.test.ts` is what stops it happening; this is what makes it visible if it does. */
+    if (docRaw !== null && docRaw !== undefined && docValue === null) {
+      logger.warn({ trade: schema.trade, field, value: docRaw }, 'document hint rejected by the schema');
+    }
 
     let value = knownValue;
     if (value === null || mayOverwrite(field)) {

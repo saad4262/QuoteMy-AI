@@ -4,6 +4,7 @@ import type { Trade } from '../vocab.js';
 import { turnSchemaFor, type Checklist, type TurnExtraction, type UiState } from './schemas.js';
 import { TRADE_FIELDS } from './fieldSpec.js';
 import type { DocFacts } from './attachmentFacts.js';
+import { onlyDescriptions, withoutDescriptions } from '../ingest.js';
 
 /**
  * Cheap and small on purpose: this call does one narrow thing (read a sentence, report which
@@ -48,7 +49,21 @@ export interface TurnInput {
 export function buildAgentContext(input: TurnInput): string {
   const sections: string[] = [];
 
-  if (input.extractedText) sections.push('--- Attached file/image content ---\n' + input.extractedText);
+  /* Copied text and described photos are handed over in two separate blocks, under two headings
+     that say which is which. Together they read as one thing, and "the attachment states outright"
+     - which is what the briefing lets the model fill a field from - would then cover a sentence the
+     model wrote about a photograph. `withoutDescriptions` is the same split `mentioned()` uses to
+     decide what counts as evidence, so the model is shown the same line the code draws. */
+  const copied = withoutDescriptions(input.extractedText);
+  if (copied) sections.push('--- Attached file/image content ---\n' + copied);
+
+  const described = onlyDescriptions(input.extractedText);
+  if (described) {
+    sections.push(
+      '--- What the attached PHOTOS appear to show. NOT the customer`s words, and never an answer ---\n' +
+        described,
+    );
+  }
 
   if (Object.keys(input.docFacts).length) {
     sections.push('--- Read off the attachment already, treat as settled ---\n' + JSON.stringify(input.docFacts));

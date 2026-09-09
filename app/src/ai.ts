@@ -484,7 +484,11 @@ export class MockAiClient implements AiClient {
     const rates = readRates(text);
 
     let data: unknown;
-    if (call.name === 'transcribe') data = this.transcribe(call.files ?? []);
+    /* Read off the prompt, the same signal the real model gets - rather than a flag threaded down
+       here, which would let the stand-in describe a photo on a call that never asked it to. */
+    if (call.name === 'transcribe') {
+      data = this.transcribe(call.files ?? [], /NOTHING WRITTEN TO COPY/.test(call.system));
+    }
     else if (call.name === 'review') data = trade === 'tiling' ? this.reviewTiling(text) : this.review(text, rates);
     else if (call.name === 'turn') data = this.turn(text);
     else if (call.name === 'answer') data = this.answer();
@@ -507,14 +511,26 @@ export class MockAiClient implements AiClient {
    * because pretending to have read one would put invented figures into the pipeline - the exact
    * failure this whole system is built to prevent.
    */
-  private transcribe(files: ModelFile[]) {
+  private transcribe(files: ModelFile[], describe: boolean) {
     return {
       documents: files.map((file) => {
         const decoded = file.data.toString('utf8');
         const isText = !file.data.includes(0) && Buffer.from(decoded, 'utf8').equals(file.data);
-        return isText
-          ? { label: file.name, text: decoded.trim(), unreadable: false }
-          : { label: file.name, text: '', unreadable: true };
+        if (isText) return { label: file.name, text: decoded.trim(), unreadable: false, content: 'transcript' as const };
+
+        /* An image, which offline there is no seeing. Both real outcomes have to be reachable or
+           half the handling around them goes untested, so size stands in for "is there anything in
+           this picture": a few bytes is the blank page the prompt's last rule is about, anything
+           larger is a photo of somewhere. Arbitrary, and it has to be - the alternative is a
+           stand-in that can only ever produce one of the two answers.
+
+           The description says nothing about the photo on purpose. It is the SHAPE of one, so the
+           pipeline around it can be exercised, and pointedly not a fact anybody could act on. */
+        const blank = file.data.length < 32;
+        if (describe && !blank) {
+          return { label: file.name, text: 'A photo of somewhere.', unreadable: false, content: 'description' as const };
+        }
+        return { label: file.name, text: '', unreadable: true, content: 'transcript' as const };
       }),
     };
   }

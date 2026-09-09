@@ -40,7 +40,25 @@ export type BusinessBody = z.infer<typeof businessBody>;
  * `unreadable` is how the model says so instead of inventing something plausible.
  */
 export const transcriptSchema = z.object({
-  documents: z.object({ label: z.string(), text: z.string(), unreadable: z.boolean() }).array(),
+  documents: z
+    .object({
+      label: z.string(),
+      text: z.string(),
+      unreadable: z.boolean(),
+      /**
+       * Which job the model actually did on this file, and the most important word in this schema.
+       *
+       * `transcript` is a copy: words that were written on the page, which everything downstream is
+       * entitled to treat as the customer's own. `description` is the model SAYING WHAT IT SEES in
+       * a photo of a room - a judgement, with no source sentence anywhere behind it.
+       *
+       * The two must never be confused, because the code that reads a transcript deliberately does
+       * not verify it (see `attachmentFacts.ts`) - it does not need to, a copy cannot invent. Run
+       * that same code over a description and a guess becomes a fact with nothing left to catch it.
+       */
+      content: z.enum(['transcript', 'description']),
+    })
+    .array(),
 });
 
 /**

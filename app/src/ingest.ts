@@ -26,6 +26,20 @@ export interface SourceDocument {
   unreadable: boolean;
 }
 
+/** Copied off the page, or the model saying what it can see in a photograph of a place. */
+export type ContentKind = 'transcript' | 'description';
+
+/**
+ * The marker on a described document's header line.
+ *
+ * This, and not a field on `SourceDocument`, is how "the model wrote this rather than copied it"
+ * travels: the transcript is one string by the time anything downstream reads it, so the fact has
+ * to live IN that string or it does not survive the journey. Both readers of it - the model, which
+ * should know it is being shown an impression, and `attachmentFacts.ts`, which must skip those
+ * blocks - take the marker from here. Two spellings of it would be a silent hole.
+ */
+export const DESCRIBED = ' — description';
+
 export interface Source {
   text: string;
   documents: SourceDocument[];
@@ -173,7 +187,7 @@ export async function filesFromStorage(
  * business fixing three rates and re-uploading the same scan should pay to read it once.
  * In-memory for now; it moves behind the repository when there is a database.
  */
-const transcripts = new Map<string, { text: string; unreadable: boolean }>();
+const transcripts = new Map<string, { text: string; unreadable: boolean; content: ContentKind }>();
 const sha256 = (buffer: Buffer) => createHash('sha256').update(buffer).digest('hex');
 
 /** Tests only. */
@@ -188,16 +202,34 @@ export const clearTranscriptCache = () => transcripts.clear();
 export async function readSource(
   text: string,
   files: UploadedFile[],
-  deps: { ai?: AiClient } = {},
+  deps: { ai?: AiClient; describe?: boolean } = {},
 ): Promise<Source> {
   assertWithinLimits(files);
+
+  /**
+   * Whether a photo with nothing written on it may be DESCRIBED rather than come back empty.
+   *
+   * Off by default, which is what keeps the business pipeline exactly as it was. That side's whole
+   * honesty guarantee is that every number carries the sentence it came from and `verify/`
+   * string-matches it against this transcript (`CLAUDE.md` non-negotiable #2). Put a description in
+   * that transcript and the model can satisfy a source-quote check with a sentence it wrote itself.
+   */
+  const describe = deps.describe === true;
+  const header = (label: string, content: ContentKind) =>
+    `[${label}${content === 'description' ? DESCRIBED : ''}]`;
 
   const documents: SourceDocument[] = [];
   const parts: string[] = [];
   const toTranscribe: { label: string; hash: string; file: ModelFile }[] = [];
 
   if (text.trim()) {
-    documents.push({ label: 'typed', kind: 'text', readBy: 'text', chars: text.trim().length, unreadable: false });
+    documents.push({
+      label: 'typed',
+      kind: 'text',
+      readBy: 'text',
+      chars: text.trim().length,
+      unreadable: false,
+    });
     parts.push(text.trim());
   }
 
@@ -208,15 +240,24 @@ export async function readSource(
     if (kind === 'text') {
       const decoded = file.buffer.toString('utf8').trim();
       documents.push({ label, kind, readBy: 'text', chars: decoded.length, unreadable: !decoded });
-      if (decoded) parts.push(`[${label}]\n${decoded}`);
+      if (decoded) parts.push(`${header(label, 'transcript')}\n${decoded}`);
       continue;
     }
 
-    const hash = sha256(file.buffer);
+    /* Keyed on what was ASKED FOR as well as on the bytes. The two sides of the product share this
+       cache and want different answers from the same photo, and without this a description written
+       for a customer would be served to the business pipeline as though it were a transcript. */
+    const hash = sha256(file.buffer) + (describe ? ':described' : '');
     const cached = transcripts.get(hash);
     if (cached) {
-      documents.push({ label, kind, readBy: 'model', chars: cached.text.length, unreadable: cached.unreadable });
-      if (cached.text) parts.push(`[${label}]\n${cached.text}`);
+      documents.push({
+        label,
+        kind,
+        readBy: 'model',
+        chars: cached.text.length,
+        unreadable: cached.unreadable,
+      });
+      if (cached.text) parts.push(`${header(label, cached.content)}\n${cached.text}`);
       continue;
     }
 
@@ -234,7 +275,7 @@ export async function readSource(
   const result = await ai.callStructured({
     name: 'transcribe',
     schema: transcriptSchema,
-    system: transcribePrompt(),
+    system: transcribePrompt(describe),
     user: `Transcribe the ${toTranscribe.length} attached document(s). Use the filename as each label.`,
     files: toTranscribe.map((t) => t.file),
     maxOutputTokens: 16000,
@@ -246,7 +287,17 @@ export async function readSource(
   for (const [i, entry] of toTranscribe.entries()) {
     const returned =
       result.data.documents.find((d) => d.label === entry.label) ?? result.data.documents[i];
-    const transcript = { text: (returned?.text ?? '').trim(), unreadable: returned?.unreadable ?? true };
+    /* A description that arrives when none was asked for is thrown away, not trusted. The prompt
+       does not offer the option in that mode, so this is a model ignoring its instructions - and
+       the one place that must not be answered by letting it through. */
+    const content: ContentKind =
+      describe && returned?.content === 'description' ? 'description' : 'transcript';
+    const wanted = describe || returned?.content !== 'description';
+    const transcript = {
+      text: wanted ? (returned?.text ?? '').trim() : '',
+      unreadable: wanted ? (returned?.unreadable ?? true) : true,
+      content,
+    };
 
     transcripts.set(entry.hash, transcript);
 
@@ -255,7 +306,7 @@ export async function readSource(
       doc.chars = transcript.text.length;
       doc.unreadable = transcript.unreadable;
     }
-    if (transcript.text) parts.push(`[${entry.label}]\n${transcript.text}`);
+    if (transcript.text) parts.push(`${header(entry.label, transcript.content)}\n${transcript.text}`);
   }
 
   return { text: parts.join('\n\n'), documents, usage: result.usage };
@@ -266,6 +317,59 @@ export async function readSource(
  * quote verification, so a header can never satisfy a source-quote check on its own.
  */
 export const stripProvenance = (text: string) => text.replace(/^\[[^\]\n]{1,60}\]$/gm, '').trim();
+
+/** One document's header line, with its label, so a block can be judged by the label above it. */
+const HEADER = /^\[([^\]\n]{1,60})\]$/gm;
+
+/**
+ * The transcript minus anything the model DESCRIBED rather than copied.
+ *
+ * For the places that ask "did the customer actually say this?" - `mergeAndDecide`'s `mentioned()`
+ * check being the one that matters. That check exists to stop the model returning a value nobody
+ * wrote, and it works by looking for the value in what the customer sent. A description is text the
+ * MODEL wrote, so leaving it in hands the model its own sentence as proof of its own claim: it
+ * writes "a bathroom" into a description, reads "bathroom" back out as the job type, and the check
+ * that should have caught the invention confirms it instead.
+ *
+ * Descriptions still reach the model - it is allowed to read one and talk about it. This is only
+ * about what counts as EVIDENCE.
+ */
+export function withoutDescriptions(text: string): string {
+  const parts = text.split(HEADER);
+  const kept: string[] = [];
+
+  // Index 0 is whatever came before the first header: typed text, which has no header of its own.
+  if (parts[0]?.trim()) kept.push(parts[0].trim());
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const label = parts[i] ?? '';
+    const body = parts[i + 1]?.trim();
+    if (body && !label.endsWith(DESCRIBED)) kept.push(body);
+  }
+
+  return kept.join('\n\n');
+}
+
+/**
+ * The other half: only the blocks the model described, labelled as it wrote them.
+ *
+ * Handed to the model under a heading of its own, so that "the attachment states outright" - which
+ * is what its briefing lets it fill a checklist field from - cannot quietly cover a sentence it
+ * wrote about a photograph. The two halves are split by the same rule `withoutDescriptions` uses,
+ * so the model is shown exactly the line the code already draws.
+ */
+export function onlyDescriptions(text: string): string {
+  const parts = text.split(HEADER);
+  const kept: string[] = [];
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const label = parts[i] ?? '';
+    const body = parts[i + 1]?.trim();
+    if (body && label.endsWith(DESCRIBED)) kept.push(`[${label}]\n${body}`);
+  }
+
+  return kept.join('\n\n');
+}
 
 export function assertSomethingArrived(source: Source): void {
   if (!source.text.trim()) {

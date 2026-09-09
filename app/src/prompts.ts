@@ -36,6 +36,9 @@ const read = (...p: string[]) => {
  */
 const reviewSystem = read('review.system.md');
 const transcribeSystem = read('transcribe.system.md');
+/* Its own file rather than a branch inside the first one: the copying rules are what the business
+   pipeline runs on, and they must be impossible to change by accident while editing this. */
+const describeSection = read('transcribe.describe.md');
 const generalSop = read('sop', '_general.md');
 
 /** Two files per trade: the publish rules to judge against, and how to read that trade's list. */
@@ -82,9 +85,17 @@ export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6);
  */
 export const PROMPT_TOKEN_BUDGET = { review: 8000, extraction: 4000, transcribe: 1500 } as const;
 
-/** Stage 0. Trade-independent: copying a document out is the same job whatever trade it is for. */
-export function transcribePrompt(): string {
-  return transcribeSystem;
+/**
+ * Stage 0. Trade-independent: copying a document out is the same job whatever trade it is for.
+ *
+ * `describe` adds the one case the copying rules cannot answer - a photograph of a room, which has
+ * no words on it to copy. Added rather than substituted, and only for the caller that asked: the
+ * business pipeline gets this prompt byte for byte as it always did, because its quote verification
+ * matches figures against this transcript and a described sentence would be a source quote the
+ * model wrote for itself.
+ */
+export function transcribePrompt(describe = false): string {
+  return describe ? `${transcribeSystem}\n\n${describeSection}` : transcribeSystem;
 }
 
 export function reviewPrompt(trade: Trade, previousFixes: string[] = []): string {
@@ -158,6 +169,10 @@ export function assertPromptBudgets(): void {
   // fail at boot, not turn up on next month's bill.
   const checks: [string, number, number][] = [
     ['transcribe', estimateTokens(transcribePrompt()), PROMPT_TOKEN_BUDGET.transcribe],
+    /* The described variant as well as the plain one. It is the bigger of the two and the one
+       nothing else measures, so left out it could grow past the budget with the check still
+       reporting the smaller number and passing. */
+    ['transcribe (describing)', estimateTokens(transcribePrompt(true)), PROMPT_TOKEN_BUDGET.transcribe],
     ...TRADES.flatMap((trade): [string, number, number][] => [
       [`review (${trade})`, estimateTokens(reviewPrompt(trade)), PROMPT_TOKEN_BUDGET.review],
       [`extraction (${trade})`, estimateTokens(extractionPrompt(trade)), PROMPT_TOKEN_BUDGET.extraction],

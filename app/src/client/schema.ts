@@ -141,11 +141,22 @@ const mergeMaps = (
  * that JSON-encoded one would write `{}` - which, merged, would override the real expression with
  * nothing. Rather than trusting every writer to drop them, they are taken from the code every
  * time. Found by shape, not by a list of names, so a spec that grows another one is covered.
+ *
+ * ANYWHERE INSIDE, not just at the top. `namedBy` is a bare expression and was caught by a shallow
+ * check; `docHints` is an object HOLDING expressions, and a round trip leaves it looking like a
+ * perfectly good hint list that has quietly lost every pattern. A shallow check waves that through,
+ * and the trade stops reading attachments with nothing logged and nothing on a screen. So the
+ * question this asks is "does this value carry code at any depth", which is what the paragraph
+ * above always claimed it asked.
  */
+const holdsCode = (value: unknown): boolean => {
+  if (value instanceof RegExp || typeof value === 'function') return true;
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value).some(holdsCode);
+};
+
 const codeOnly = (spec: FieldSpec | undefined): Partial<FieldSpec> =>
-  Object.fromEntries(
-    Object.entries(spec ?? {}).filter(([, value]) => value instanceof RegExp || typeof value === 'function'),
-  );
+  Object.fromEntries(Object.entries(spec ?? {}).filter(([, value]) => holdsCode(value)));
 
 function structurallyUsable(fields: unknown, trade: Trade): FieldSpec[] | null {
   if (!Array.isArray(fields) || !fields.length) return null;
