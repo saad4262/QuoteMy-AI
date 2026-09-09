@@ -122,6 +122,40 @@ describe('a published field spec that predates part of the code', () => {
     expect(schema.fields[1]).toMatchObject({ title: 'Fence type', question: 'Which fence takes your fancy?' });
     expect(schema.fields[1]?.namedBy).toEqual(compiledMaterial.namedBy);
   });
+
+  /**
+   * The same protection, one level down.
+   *
+   * `namedBy` is a bare regular expression, so JSON leaves `{}` behind and the shape check above
+   * catches it. `docHints` is an OBJECT holding regular expressions, and a round trip leaves
+   * something far more dangerous: a hint list that still has its slugs and has lost every pattern.
+   * That object is not a RegExp and not a function, so a shape check looking only at the top level
+   * waves it through - and every document this trade reads goes quietly blank.
+   *
+   * Nothing about that failure is visible: no throw, no log, no empty field on a screen. Just
+   * attachments that stop being read, on the day somebody publishes a schema from the console.
+   */
+  it('ignores document hints somebody flattened on the way in', async () => {
+    const fields = compiledCopy();
+    const flattened = fields[1]!.docHints as { values: unknown[] };
+    /* What JSON did to them: the slug survived and the pattern became `{}` - a hint that still
+       looks like a hint and matches nothing. (`publishable()` on the write side drops the pattern
+       instead, leaving `['pool_glass']`; both are the same corruption wearing different clothes.) */
+    expect(flattened.values[0]).toEqual(['pool_glass', {}]);
+
+    const schema = await loadTradeSchema('fencing', withFields(fields));
+    expect(schema.fields[1]?.docHints).toEqual(compiledMaterial.docHints);
+  });
+
+  it('keeps document hints a document has never heard of', async () => {
+    const older = FENCING_FIELDS.map(({ key, type, title, question, source, pinned, asked }) =>
+      JSON.parse(JSON.stringify({ key, type, title, question, source, pinned, asked })),
+    );
+
+    const schema = await loadTradeSchema('fencing', withFields(older));
+    expect(schema.fields.find((spec) => spec.key === 'material')?.docHints).toEqual(compiledMaterial.docHints);
+    expect(schema.fields.find((spec) => spec.key === 'heightKey')?.docKey).toBe('heightMm');
+  });
 });
 
 /**

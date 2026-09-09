@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import type { AiClient } from '../ai.js';
 import { logger } from '../config.js';
 import { AppError } from '../http.js';
-import { readSource, type UploadedFile } from '../ingest.js';
+import { readSource, withoutDescriptions, type SourceDocument, type UploadedFile } from '../ingest.js';
 import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
 import { readBudgetTap } from './budget.js';
@@ -39,6 +39,38 @@ const asText = (value: unknown): string | null => (typeof value === 'string' && 
  */
 
 const filesOf = (req: Request): UploadedFile[] => (Array.isArray(req.files) ? req.files : []);
+
+/**
+ * A file we got nothing out of, said out loud.
+ *
+ * The business side has always done this - "We could not read anything from X" - and the customer
+ * side never did: `readSource` sets `unreadable` on a document it could not transcribe, and this
+ * function is the first thing on this side of the product to read that flag.
+ *
+ * It matters most for the trade that came second. A fencing customer attaches a quote, which is
+ * text and transcribes fine. A tiling customer attaches PHOTOGRAPHS OF A BATHROOM, and the
+ * transcription prompt's whole job is copying out text a photo does not have - so the transcript
+ * comes back empty, and until now the turn simply carried on as though nothing had been sent. They
+ * uploaded three pictures, watched them upload, and were asked the next question as if they had
+ * not. Whatever is eventually decided about reading photographs properly, saying nothing was the
+ * one answer that was never defensible.
+ */
+function unreadableNotice(documents: SourceDocument[]): string {
+  const unread = documents.filter((doc) => doc.unreadable).map((doc) => doc.label);
+  if (!unread.length) return '';
+
+  const named =
+    unread.length === 1
+      ? unread[0]
+      : unread.length === 2
+        ? `${unread[0]} or ${unread[1]}`
+        : `${unread.slice(0, -1).join(', ')} or ${unread[unread.length - 1]}`;
+
+  /* Names the file, because "your attachment" is no help to somebody who sent four. Says what to do
+     instead, because a photo of a room genuinely has nothing written on it and sending it again
+     will do exactly the same thing. */
+  return `I could not read anything from ${named} — if there are figures on it, type them in or send a clearer photo.`;
+}
 
 /**
  * How many of the customer's own questions one conversation may have searched for.
@@ -107,6 +139,10 @@ async function answerIfAsked(
     asked: ui?.lastQuestion || null,
     choices,
     everything,
+    /* The same conversation memory the chat agent reads. Without it a follow-up - "and how does
+       that one go in a wet area" - is looked up as though it were the first thing anybody had
+       said. */
+    history: ui?.history ?? [],
   };
 
   /* Being shown and being told are two different things they can ask for, and one message asks for
@@ -152,15 +188,6 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   const known = asObject<Partial<Checklist>>(input.knownChecklist) ?? {};
   const ui: UiState | null = known._ui ?? null;
 
-  // Attachments only - the chat message itself never enters this transcript, kept separate
-  // exactly as it is in the source system.
-  const source = files.length ? await readSource('', files) : { text: '', documents: [] };
-  const extractedText = source.text.slice(0, 4000);
-  // More than one attachment: a height off one document and a total off another describe a job
-  // nobody priced, so the deterministic reader steps back and leaves it to the model instead.
-  const multipleDocuments = files.length > 1;
-  const { docFacts, docSuburbHint } = readAttachmentFacts(extractedText, multipleDocuments);
-
   // The trade's whole vocabulary, from Firestore `schema/fencing`. Read once per conversation
   // (process-cached, 5-minute TTL) rather than per turn - this is what makes the chat pick up a
   // business-side vocabulary change without a redeploy, and what will make a second trade a new
@@ -187,6 +214,27 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   const trade = routing.trade;
   if (routing.by === 'keywords') logger.info({ requestId: input.sessionId, trade }, 'trade read from the message');
   const schema = await loadTradeSchema(trade, repo);
+
+  /* Attachments only - the chat message itself never enters this transcript, kept separate exactly
+     as it is in the source system.
+
+     Read AFTER the trade is settled, because what a document is worth reading for is the trade's
+     own business: a height and a run on a fencing quote, a room and an area on a tiling one. It
+     used to run first and read every document as though it were a fence quote.
+
+     A turn that could not settle the trade has already returned above, so a customer being asked
+     "fencing or tiling?" no longer pays for a transcription that was thrown away unread. */
+  /* `describe: true` - a customer photographs the room, not a price list, and a photo that comes
+     back empty tells this turn that nothing was sent. What comes back described reaches the model
+     and stops there; `readAttachmentFacts` refuses to read it, on purpose. */
+  const source = files.length
+    ? await readSource('', files, { describe: true })
+    : { text: '', documents: [] };
+  const extractedText = source.text.slice(0, 4000);
+  /* The whole transcript, headers and all, and without the model's 4,000-character budget: the
+     reader tells the documents apart BY those headers, and being regular expressions, length costs
+     it nothing. The model's budget is about tokens and stays where it is. */
+  const { docFacts, docSuburbHint } = readAttachmentFacts(source.text, schema);
 
   /* A guide figure tapped off a rates answer. It is not an answer to anything we asked, so the
      rest of the turn must not see it: the message is emptied out, which leaves the question on
@@ -250,7 +298,11 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
     turnExtraction: turnResult.data,
     docFacts,
     docSuburbHint,
-    haystackText: message + ' ' + extractedText,
+    /* Descriptions excluded, deliberately. This is the text `mentioned()` checks a model's claim
+       against - "did the customer actually write this?" - and a description is text the MODEL
+       wrote. Left in, it lets the model hand itself its own sentence as proof of its own claim.
+       The model still SEES the description; it just cannot cite it. */
+    haystackText: message + ' ' + withoutDescriptions(extractedText),
     schema,
   });
 
@@ -269,14 +321,20 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
     );
   }
 
-  const formatted = formatFencingResult({ state, matcher, answer, budget });
+  const formatted = formatFencingResult({ state, matcher, answer, budget, tapped });
   const response = matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
+
+  /* In front of whatever the turn was going to say, the same way an answer to their own question
+     goes in front of it: the question still gets asked, they just find out first that one of their
+     files told us nothing. */
+  const notice = unreadableNotice(source.documents);
+  const spoken = notice ? { ...response, message: `${notice} ${response.message}`.trim() } : response;
 
   /* Settled once, and carried in the state the client echoes back. Re-deciding every turn would let
      "the old fence is coming out" three questions into a tiling job re-route the conversation and
      throw away everything already answered - and relying on the caller to keep sending it would
      fail silently into fencing the first time one forgot. */
-  return rememberTrade(response, trade);
+  return rememberTrade(spoken, trade);
 }
 
 /**

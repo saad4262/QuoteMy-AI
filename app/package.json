@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc && cp -r src/prompts dist/prompts",
+    "build": "rm -rf dist && tsc && cp -r src/prompts dist/prompts",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

@@ -39,6 +39,12 @@ customer: "I need a tiling quote"
       "suburbHint": null,
       "place": null,
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -121,6 +127,16 @@ customer: "yes go ahead"
       "suburbHint": null,
       "place": null,
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -241,6 +257,20 @@ picked place: Berwick, VIC 3806
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -368,6 +398,20 @@ customer: "floor_only"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -486,6 +530,20 @@ customer: "porcelain"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -620,6 +678,24 @@ customer: "20"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -760,6 +836,24 @@ customer: "labour_only"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -911,6 +1005,24 @@ customer: "none"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -1068,6 +1180,24 @@ customer: "none"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -1220,6 +1350,24 @@ customer: "none"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -1364,6 +1512,24 @@ customer: "no"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -1530,6 +1696,28 @@ customer: "the tile's wrong"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        },
+        {
+          "you": "the tile's wrong",
+          "me": "What tile are you using?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -1682,6 +1870,28 @@ customer: "ceramic"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        },
+        {
+          "you": "the tile's wrong",
+          "me": "What tile are you using?"
+        }
+      ],
       "trade": "tiling"
     }
   },
@@ -1863,6 +2073,28 @@ customer: "yes"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a tiling quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What are you having tiled?"
+        },
+        {
+          "you": "20",
+          "me": "Who's buying the tiles?"
+        },
+        {
+          "you": "the tile's wrong",
+          "me": "What tile are you using?"
+        }
+      ],
       "trade": "tiling"
     }
   },

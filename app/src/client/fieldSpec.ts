@@ -55,6 +55,57 @@ export interface DependsOn {
   notEquals?: string;
 }
 
+/**
+ * A captured number turned into the field's own unit, or null when this match is not an answer -
+ * "12 feet" is a height in inches-and-feet and a length in nothing at all.
+ */
+export type Refine = (value: number, match: RegExpMatchArray) => number | null;
+
+/**
+ * How this field is read off an ATTACHED DOCUMENT - a quote, a price list, a photo of one.
+ *
+ * This is the trade-specific half of `attachmentFacts.ts`. It lives here, beside the field it reads,
+ * for the same reason the pricing formula lives in `TRADE_PRICING` rather than in three copies: the
+ * reading is one algorithm and only the patterns differ, so the patterns are data and the algorithm
+ * is code. A twentieth trade then needs hints, not a file.
+ *
+ * Regular expressions rather than a published string: `firestore.store.ts` drops a RegExp from a
+ * published schema and `structurallyUsable` merges the published document back onto the compiled
+ * spec, which is where these still live - exactly the arrangement `namedBy` already relies on.
+ */
+export type DocHints =
+  | {
+      /**
+       * Slug to pattern, and ORDER MATTERS: specific before generic, because an `enum` takes the
+       * first match. A `multiEnum` collects every one that fires instead.
+       */
+      values: [string, RegExp][];
+      /**
+       * `multiEnum` only. The page has stated there is none of this - "Access: easy" - which is a
+       * real, EMPTY answer and not the silence of a page that never said.
+       */
+      none?: RegExp;
+      /**
+       * Read nothing unless one of these fires first. Two-stage questions need it: what the old
+       * fence is made of is only worth reading once the page says an old fence is coming out at all.
+       */
+      requires?: RegExp[];
+      /** ...and not when this sits just before that match: "no disposal of the old fence". */
+      negatedBy?: RegExp;
+    }
+  | {
+      /** `number` and `measure`: tried in order, and the first plausible one wins. */
+      quantity: [RegExp, Refine][];
+      /**
+       * Shapes that are not one answer. A range is the case: its midpoint and both ends are three
+       * different inventions, so nothing is read and the customer is asked - the same refusal
+       * `measureFrom` makes on a typed answer.
+       */
+      refuse?: RegExp[];
+      /** Last pass over whatever survived, for a unit the patterns cannot tell apart. */
+      then?: (value: number | null) => number | null;
+    };
+
 export interface FieldSpec {
   key: string;
   type: FieldType;
@@ -129,6 +180,20 @@ export interface FieldSpec {
    * real, so it is still recognised. See `mergeAndDecide.ts:18-26`.
    */
   acceptsExtras?: boolean;
+  /**
+   * How an attached document is read for this field. Absent means it is never read off one - which
+   * is the right default: a field with no hints is asked, and asking is always safe.
+   */
+  docHints?: DocHints;
+  /**
+   * What the reader files this field's answer under, when that is not `key`.
+   *
+   * Only fencing's height uses it. That field is stored as a normalised key ("1.8m") but read off a
+   * document as raw millimetres, so it has always travelled as `heightMm` - both `mergeAndDecide`
+   * and the briefing handed to the model know it by that name. Renaming it would be a change to
+   * what the model reads, which is exactly what this refactor promised not to do.
+   */
+  docKey?: string;
 }
 
 export const DEFAULT_PAGE_SIZE = 3;
@@ -138,6 +203,25 @@ export const DEFAULT_PAGE_SIZE = 3;
  * lives - `vocab.ts`, `formatResult.ts` and `messages.ts` - and `tests/unit/fieldSpec.test.ts`
  * checks it against those originals rather than against a second hand-written copy.
  */
+/* The conversions fencing's document hints are written in. They are the trade's own conventions -
+   what counts as a height, what counts as a run - so they sit with its fields rather than with the
+   reader, which knows nothing about fences. All four are lifted unchanged from `attachmentFacts.ts`. */
+
+// Heights arrive as metres, centimetres or millimetres and the three ranges barely overlap: under
+// 10 was metres, 10-300 was centimetres (nothing is a 150mm fence, while a 150cm one is
+// standard), above 300 is already millimetres.
+const toMm: Refine = (value) => (value < 10 ? Math.round(value * 1000) : value <= 300 ? Math.round(value * 10) : Math.round(value));
+
+// Longest unit spelling first, so "1.8 metres high" doesn't stop at the "m".
+const UNIT = '(?:millimetres?|millimeters?|centimetres?|centimeters?|metres?|meters?|mm|cm|m)';
+
+// A "1.8m" sitting on the page is the height, and nobody books a two metre run of fence.
+const asRun: Refine = (value) => (value >= 3 ? value : null);
+
+// A rural boundary longer than 500m is mis-read as millimetres; swap for a unit-aware capture if
+// one ever shows up.
+const asMetres = (value: number | null) => (value !== null && value > 500 ? Math.round(value / 1000) : value);
+
 export const FENCING_FIELDS: FieldSpec[] = [
   {
     key: 'suburb',
@@ -157,6 +241,22 @@ export const FENCING_FIELDS: FieldSpec[] = [
     question: QUESTIONS.material,
     source: 'core.materials',
     acceptsExtras: true,
+    /* Specific before generic - "glass pool fence" is pool_glass, not timber_pine, and "merbau" is
+       hardwood rather than the pine everyone defaults to. A document that only says "bamboo
+       screening" matches nothing here on purpose: it is not a material anybody publishes a rate
+       against, so the customer is asked instead of guessed at. */
+    docHints: {
+      values: [
+        ['pool_glass', /glass (?:pool )?fenc|frameless|toughened glass/i],
+        ['pool_aluminium', /pool fenc|pool panel/i],
+        ['colorbond', /colou?rbond/i],
+        ['chainmesh', /chain ?(?:mesh|wire|link)|security fenc/i],
+        ['aluminium', /alumin(?:i)?um|slat fenc|powder ?coat/i],
+        ['rural_wire', /rural fenc|post and wire|farm fenc|paddock|stock fence|ringlock/i],
+        ['timber_hardwood', /hardwood|merbau|spotted gum|jarrah|ironbark/i],
+        ['timber_pine', /treated pine|\bpine\b|timber|paling/i],
+      ],
+    },
   },
   {
     key: 'heightKey',
@@ -170,6 +270,25 @@ export const FENCING_FIELDS: FieldSpec[] = [
     options: [...HEIGHT_FALLBACK],
     optionsKeyedBy: 'material',
     fillWhenSingle: true,
+    /* Read as raw millimetres and normalised to a rate-table key ("1.8m") downstream by `validate`,
+       which is why this one field files under a different name - see `docKey`.
+       Capital H is the trade's own suffix ("1.8H" is a height) and is matched case-sensitively on
+       purpose - a lowercase h is just the start of a word. */
+    docKey: 'heightMm',
+    docHints: {
+      quantity: [
+        [/(\d+(?:\.\d+)?)\s?(?:mm|m)?\s?H\b/, toMm],
+        [/\bH\s?[-:]?\s?(\d{3,4})\b/, toMm],
+        // Fences run 4-8ft. Ten or more feet is the length of the run, not how tall it is. Inches
+        // count: 5'6" is 1676mm, and dropping them quietly shortens the fence by half a paling.
+        [
+          /(\d+(?:\.\d+)?)\s*(?:ft|foot|feet|')\s*(\d+)?\s*(?:"|in\b|inch(?:es)?)?/i,
+          (value, match) => (value < 10 ? Math.round(value * 304.8 + (Number(match[2]) || 0) * 25.4) : null),
+        ],
+        [new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${UNIT}?\\s*(?:high|height|tall)\\b`, 'i'), toMm],
+        [/(?:height|high)\b\D{0,10}?(\d+(?:\.\d+)?)/i, toMm],
+      ],
+    },
   },
   {
     key: 'lengthMeters',
@@ -182,6 +301,29 @@ export const FENCING_FIELDS: FieldSpec[] = [
     /* No list. Ten, fifteen, twenty were three guesses at a number the customer already knows, and
        a fence is whatever length the boundary is - nobody's is 10m because we offered 10m. They
        type it, which is one action either way, and it is right rather than near. */
+    /* Explicit shorthand first; the loose ones carry `asRun`'s 3m floor. "20 to 30 metres" is not an
+       answer at all - the rate is charged per metre, so a span prices a job nobody described, and
+       reading nothing lets the customer be asked which it is. */
+    docHints: {
+      refuse: [
+        /\b\d{1,4}(?:\.\d+)?\s*(?:m\b|metres?|meters?)?\s*(?:-|–|—|to)\s*\d{1,4}(?:\.\d+)?\s*(?:m\b|lm\b|lineal|metres?|meters?)/i,
+        /\bbetween\s+\d{1,4}[^\n]{0,14}?\d{1,4}\s*(?:m\b|lm\b|lineal|metres?|meters?)/i,
+      ],
+      quantity: [
+        [/(\d+(?:\.\d+)?)\s*(?:lineal|linear)\s*(?:ft|foot|feet)\b/i, (value) => Math.round(value * 0.3048)],
+        [/(\d+(?:\.\d+)?)\s*(?:lineal|linear)\s*(?:m\b|metres?|meters?)/i, (value) => value],
+        [/(\d+(?:\.\d+)?)\s*(?:lm|l\.m\.)\b/i, (value) => value],
+        [/(\d+(?:\.\d+)?)\s?L\b/, (value) => value],
+        // "1800 high x 25000 long" - a supplier writing both dimensions in millimetres.
+        [/(\d+(?:\.\d+)?)\s*(?:mm|cm|m)?\s*(?:long|wide|in length)\b/i, (value) => value],
+        [/(\d+(?:\.\d+)?)\s*m\b(?=[^\n]{0,40}?(?:fenc|run\b))/i, asRun],
+        [/(\d+(?:\.\d+)?)\s*(?:odd\s+|approx\.?\s+|or so\s+)?(?:metres?|meters?)\b/i, asRun],
+        // Last resort, for a line that never says the word: "post and wire 200m". The floor is what
+        // makes it safe - every height on the page is under 3, in metres or otherwise.
+        [/(\d+(?:\.\d+)?)\s*m\b/i, asRun],
+      ],
+      then: asMetres,
+    },
   },
   {
     key: 'removal',
@@ -198,6 +340,26 @@ export const FENCING_FIELDS: FieldSpec[] = [
        it is written: yes against no, and nothing else. Timber and metal follow on the next page for
        anyone who wants to be exact, and a typed "the old one is timber" still resolves to them. */
     pageSize: 2,
+    /* Two stages. `requires` asks whether a removal is being quoted for at all - "Disposal of 25m of
+       old fence" - because a quote that never mentions an old fence has not said there isn't one,
+       and silence must stay silence so the customer is asked. `values` then reads what is coming
+       out, which is a different question from what is going in: timber fences are routinely replaced
+       with Colorbond, and businesses price the two removals differently. */
+    docHints: {
+      requires: [
+        /\b(?:dispos\w*|remov\w*|demoli\w*|demo|dismantl\w*|tear\s*(?:down|out)|pull\s*(?:down|out)|take\s*away|cart\s*away|strip\s*out|rip\s*out)\b[^.\n]{0,60}fenc/gi,
+        // Said the other way round: "Existing 25m paling fence to be dismantled and taken to tip".
+        /\b(?:old|existing|current)\b[^.\n]{0,30}?fenc\w*[^.\n]{0,40}?\b(?:remov\w*|dispos\w*|demoli\w*|dismantl\w*|pulled|taken|carted|tip)\b/gi,
+      ],
+      // "no disposal of the old fence" prices a demolition nobody asked for.
+      negatedBy: /\b(?:no|not|excl\w*|without|nil)\b[^.\n]{0,24}$/i,
+      values: [
+        ['timber', /\b(?:timber|paling|wooden|hardwood|pine)\b[^.\n]{0,30}\bfenc/i],
+        ['timber', /\bfenc\w*[^.\n]{0,30}\b(?:timber|paling|wooden)\b/i],
+        ['metal', /\b(?:colou?rbond|steel|metal|alumin(?:i)?um|chain ?(?:mesh|wire|link)|wire)\b[^.\n]{0,30}\bfenc/i],
+        ['metal', /\bfenc\w*[^.\n]{0,30}\b(?:colou?rbond|steel|metal|chain ?mesh)\b/i],
+      ],
+    },
   },
   {
     key: 'conditions',
@@ -210,6 +372,22 @@ export const FENCING_FIELDS: FieldSpec[] = [
     question: QUESTIONS.conditions,
     source: 'core.conditions',
     pinned: { label: 'Nothing tricky', value: 'none' },
+    /* The schema's own vocabulary, which replaced an easy/difficult access question outright: a
+       business prices sloped / rock / restricted_access / hand_dig separately and has no way to
+       charge for "difficult" as such. `none` is a page that states easy access - that has said
+       something real, and it is an EMPTY answer rather than the silence of a page that never said. */
+    docHints: {
+      values: [
+        ['sloped', /\bslop\w*|\bfall\b|steep|gradient|uneven ground/i],
+        ['rock', /\brock\w*|\bshale\b|bluestone|basalt|hard ground/i],
+        [
+          'restricted_access',
+          /\b(?:tight|difficult|restricted|limited|poor|narrow)\s+(?:site\s+|side\s+)?access\b|\baccess\b[^\n:]{0,20}[:\-–]\s*(?:is\s+)?(?:difficult|hard|tight|restricted|limited|poor)\b/i,
+        ],
+        ['hand_dig', /hand ?dig|hand ?excavat|no machine access|dig by hand/i],
+      ],
+      none: /\baccess\b[^\n:]{0,20}[:\-–]\s*(?:is\s+)?easy\b|\b(?:easy|clear|good|open|unrestricted)\s+(?:site\s+)?access\b|\bflat\s+and\s+clear\b/i,
+    },
   },
   {
     key: 'gateType',
@@ -256,6 +434,81 @@ export const FENCING_FIELDS: FieldSpec[] = [
  * because plenty of businesses publish only per-square-metre rates and quote the same bathroom by
  * the metre; which way a given business is quoted is decided by the unit on its own rate row.
  */
+/**
+ * What a quote calls the thing on the floor.
+ *
+ * Not just "tile": a line about what is coming up names the kind at least as often as the noun -
+ * "existing mosaic to be stripped out" never says the word tiles - and a gate that insists on the
+ * noun reads that line as saying nothing at all.
+ */
+const TILE_NOUN = String.raw`(?:tiles?|tiling|ceramics?|porcelain|mosaics?|terrazzo|stone|marble|travertine|slate)`;
+
+/**
+ * An area, in the several ways a quote writes one.
+ *
+ * A rate is written the same way with one difference that does all the work here: a rate has words
+ * or a slash between the number and the unit - "$65 per m2", "$65/m2" - while an area has only
+ * space. So requiring `\s*` is what keeps this from reading a business's own rate as the size of
+ * somebody's floor.
+ */
+const AREA_UNIT = String.raw`(?:m\s*(?:2|²)|sq\.?\s*m|sqm|square\s+met(?:re|er)s?)`;
+
+/** Words that mean "this one is on its way out", either side of the tile they describe. */
+const COMING_UP = String.raw`(?:old|existing|current|remov\w*|strip\w*|demoli\w*|lift\w*)`;
+const TAKEN_AWAY = String.raw`(?:remov\w*|strip\w*|demoli\w*|lifted|taken up|come up)`;
+
+/**
+ * A tiling quote names two tiles in one breath - "remove existing ceramic, lay porcelain" - and the
+ * two fields that read them want opposite halves. `oldTile` is for `removal`, `newTile` for
+ * `tileType`, and each has to refuse the other's tile or they both read whichever word came first.
+ *
+ * Getting this wrong is not a near miss: `tileType` picks the rate row a customer is quoted
+ * against, so reading the tile being SKIPPED out of the room quotes a job nobody described.
+ */
+const oldTile = (word: string): RegExp => {
+  // Grouped, because `word` is an alternation for some kinds ("stone|marble|travertine") and an
+  // ungrouped one would bind the word boundaries to the first and last branch only.
+  const kind = `(?:${word})`;
+  return new RegExp(
+    `\\b${COMING_UP}\\b[^.\\n]{0,25}\\b${kind}\\b|\\b${kind}\\b[^.\\n]{0,25}\\b${TAKEN_AWAY}\\b`,
+    'i',
+  );
+};
+
+/**
+ * Where the sentence stops being about the old tile and starts being about the new one.
+ *
+ * Distance alone cannot tell them apart, and trying was the bug: in "remove existing ceramic tiles
+ * and lay porcelain" the word "existing" sits 23 characters before "porcelain", so any window wide
+ * enough to catch a real removal also caught the tile going down. What actually separates them is a
+ * conjunction or a laying verb - the point where a new clause begins.
+ */
+const NEW_CLAUSE = String.raw`(?:\b(?:and|then|with|lay|laying|laid|install\w*|fix|fixed|new|replac\w*|suppl\w*)\b|[,;])`;
+
+/** Up to 25 characters that stay inside one clause. */
+const SAME_CLAUSE = String.raw`(?:(?!${NEW_CLAUSE})[^.\n]){0,25}`;
+
+/**
+ * The tile GOING DOWN: anything the page names that is not sitting in a clause about taking a tile
+ * up. The two lookarounds are the whole of it - one refuses "remove existing <tile>", the other
+ * refuses "<tile> to be stripped out" - and both stop at the first conjunction, so the tile on the
+ * far side of an "and lay" is read as what it is.
+ */
+const newTile = (body: string): RegExp =>
+  new RegExp(
+    `(?<!\\b${COMING_UP}\\b${SAME_CLAUSE})(?:${body})(?!${SAME_CLAUSE}\\b${TAKEN_AWAY}\\b)`,
+    'i',
+  );
+
+/**
+ * A tile size, written the several ways a quote writes one: "600x1200", "600 x 1200mm", "1200X600".
+ *
+ * Both orders, because a supplier writes the long side first as often as not and "1200x600" is the
+ * same tile as "600x1200". The lookahead is what stops 600x1200 matching inside 600x12000.
+ */
+const tileSize = (a: number, b: number): RegExp =>
+  newTile(String.raw`\b(?:${a}\s*[x×]\s*${b}|${b}\s*[x×]\s*${a})(?:\s*mm)?(?!\d)`);
+
 export const TILING_FIELDS: FieldSpec[] = [
   {
     key: 'suburb',
@@ -274,6 +527,24 @@ export const TILING_FIELDS: FieldSpec[] = [
     question: TILING_QUESTIONS.jobType,
     source: 'core.jobTypes',
     labelGroup: 'jobTypes',
+    /* ROOMS FIRST, surfaces last, and that order is the whole rule: in this trade the room IS the
+       job - a bathroom is floor and wall and waterproofing at once, and tilers publish one price
+       for one. So "bathroom floor and wall retile" is a bathroom, not a floor; `floor_only` and
+       `wall_only` are what a job is when no room was named at all ("floor tiling to the living
+       area"). First-match-wins gives that for free, with no code to say it.
+       `ensuite` sits above `bathroom` for the same reason: an ensuite is the more specific room. */
+    docHints: {
+      values: [
+        ['ensuite', /\bensuites?\b/i],
+        ['bathroom', /\bbathrooms?\b|\bwet\s?rooms?\b/i],
+        ['laundry', /\blaundr(?:y|ies)\b/i],
+        ['kitchen_splashback', /\bsplash\s?backs?\b|\bkitchen\b[^.\n]{0,20}\btil/i],
+        ['balcony', /\bbalcon(?:y|ies)\b|\bterraces?\b/i],
+        ['outdoor', /\boutdoors?\b|\balfresco\b|\bpatios?\b|\bverandah?s?\b/i],
+        ['floor_only', /\bfloors?\b|\bflooring\b/i],
+        ['wall_only', /\bwalls?\b/i],
+      ],
+    },
   },
   {
     key: 'tileType',
@@ -285,6 +556,39 @@ export const TILING_FIELDS: FieldSpec[] = [
     source: 'core.tileTypes',
     labelGroup: 'tileTypes',
     acceptsExtras: true,
+    /* Sizes first, because a size IS the tile here: a business publishes a large-format rate and a
+       porcelain rate as two different rows, so "600x600 porcelain" is the large-format one and
+       reading it as porcelain quotes the wrong price. After the sizes, specific before generic -
+       outdoor porcelain above porcelain, the named mosaics above mosaic, and ceramic last because
+       it is the word a quote falls back on. */
+    docHints: {
+      values: [
+        ['large_format_1200x2400', tileSize(1200, 2400)],
+        ['large_format_1200x1200', tileSize(1200, 1200)],
+        ['large_format_900x900', tileSize(900, 900)],
+        ['large_format_800x800', tileSize(800, 800)],
+        ['large_format_600x1200', tileSize(600, 1200)],
+        ['large_format_600x600', tileSize(600, 600)],
+        ['herringbone', newTile(String.raw`\bherringbone\b|\bchevron\b`)],
+        ['terrazzo', newTile(String.raw`\bterrazzo\b`)],
+        ['glass_mosaic', newTile(String.raw`\bglass\s+mosaics?\b`)],
+        ['feature_mosaic', newTile(String.raw`\bfeature\s+(?:mosaics?|tiles?)\b|\bkit\s?kat\b|\bpenny\s+rounds?\b`)],
+        ['subway', newTile(String.raw`\bsubway\b|\bmetro\s+tiles?\b`)],
+        ['mosaic', newTile(String.raw`\bmosaics?\b`)],
+        [
+          'natural_stone',
+          newTile(String.raw`\bnatural\s+stone\b|\bmarble\b|\btravertine\b|\bgranite\b|\blimestone\b|\bbluestone\b|\bslate\b`),
+        ],
+        // Only when it says so. "Porcelain to the balcony" is porcelain; guessing otherwise would
+        // move them onto a rate their quote never mentioned.
+        [
+          'outdoor_porcelain',
+          newTile(String.raw`\b(?:outdoor|external|exterior)\s+porcelain\b|\bporcelain\b[^.\n]{0,15}\b(?:outdoor|external)\b`),
+        ],
+        ['porcelain', newTile(String.raw`\bporcelain\b`)],
+        ['ceramic', newTile(String.raw`\bceramics?\b`)],
+      ],
+    },
   },
   {
     key: 'areaSqm',
@@ -300,6 +604,35 @@ export const TILING_FIELDS: FieldSpec[] = [
     measureIn: 'm2',
     /* No list, for the same reason fencing's length has none: it is a number the customer's own
        room already has, and offering 10, 20, 30 would only invite them to round it. */
+    /* THE refusal that matters in this trade. A fencing quote has one run on it; a tiling quote
+       routinely has three areas - "Bathroom 6m2, Laundry 4m2, Kitchen 2m2" - and there is no way to
+       tell from the page which one the customer is asking us about. Summing them quotes a job three
+       times the size; taking the first quotes a job a third of it; and both look exactly like a
+       number the customer gave us by the time they reach a price. So two areas on a page is not an
+       answer, and neither is a range: read nothing and let them be asked, which costs one question.
+       Same call `measureFrom` already makes on a typed "20-25". */
+    docHints: {
+      refuse: [
+        new RegExp(String.raw`\b\d+(?:\.\d+)?\s*${AREA_UNIT}?\s*(?:-|–|—|to|or)\s*\d+(?:\.\d+)?\s*${AREA_UNIT}`, 'i'),
+        // Said the long way round, which no dash catches: "between 20 and 25 square metres".
+        new RegExp(String.raw`\bbetween\s+\d+(?:\.\d+)?[^\n]{0,14}?\d+(?:\.\d+)?\s*${AREA_UNIT}`, 'i'),
+        new RegExp(String.raw`\d+(?:\.\d+)?\s*${AREA_UNIT}\b[\s\S]*?\d+(?:\.\d+)?\s*${AREA_UNIT}\b`, 'i'),
+      ],
+      quantity: [
+        /* Two sides of a room. The trailing "m" is required and must not be "mm": without that this
+           reads the tile size "600 x 1200mm" as a seven-hundred-thousand square metre floor. The
+           plausibility cap is the second guard on the same mistake. */
+        [
+          /(\d+(?:\.\d+)?)\s*m?\s*[x×]\s*(\d+(?:\.\d+)?)\s*m\b(?!m)/i,
+          (value, match) => {
+            const other = Number(match[2]);
+            if (!Number.isFinite(other) || value > 50 || other > 50) return null;
+            return Math.round(value * other * 100) / 100;
+          },
+        ],
+        [new RegExp(String.raw`(\d+(?:\.\d+)?)\s*${AREA_UNIT}\b`, 'i'), (value) => value],
+      ],
+    },
   },
   {
     key: 'supply',
@@ -312,6 +645,18 @@ export const TILING_FIELDS: FieldSpec[] = [
     labelGroup: 'supply',
     /* Two real answers and no "none" - somebody is buying the tiles either way. */
     pageSize: 2,
+    /* `labour_only` first, because it is the qualified statement. "Supply and lay the client's own
+       tiles" contains the standard phrase for the other answer, and reading it as `supply_and_install`
+       would add a tile price to a quote that was only ever for labour. */
+    docHints: {
+      values: [
+        [
+          'labour_only',
+          /\blabour\s+only\b|\b(?:client|customer|owner|you)(?:'s)?\s+(?:to\s+|own\s+)?(?:supply|supplies|supplying|provide|provides|tiles?)\b|\btiles?\s+(?:supplied|provided)\s+by\s+(?:client|customer|owner|others)\b|\btiles?\s+by\s+others\b|\bexcludes?\s+(?:the\s+)?tiles?\b/i,
+        ],
+        ['supply_and_install', /\bsupply\s*(?:and|&|\+)\s*(?:install|lay|fix)\b|\bwe\s+supply\b|\btiles?\s+(?:are\s+)?included\b|\bincludes?\s+(?:the\s+)?tiles?\b/i],
+      ],
+    },
   },
   {
     key: 'removal',
@@ -326,6 +671,34 @@ export const TILING_FIELDS: FieldSpec[] = [
     pinned: { label: 'Nothing to take up', value: 'none' },
     // Yes against no, the same two-slot layout the fencing removal question uses.
     pageSize: 2,
+    /* The same two stages fencing uses: is a removal being quoted for at all, and only then what is
+       coming up. Silence stays silence - a quote that never mentions old tiles has not said there
+       are none, so the customer is still asked.
+       `any` last, and deliberately: it is what a removal reads as when the page says tiles are
+       coming up without saying which kind, which is most of the time. `adhesive` is absent on
+       purpose - it is a business-side line and is not offered to a customer. */
+    docHints: {
+      requires: [
+        new RegExp(
+          String.raw`\b(?:remov\w*|strip\w*|demoli\w*|dispos\w*|lift\w*|take\s*up|taking\s*up|tear\s*up|rip\s*up)\b[^.\n]{0,40}\b${TILE_NOUN}\b`,
+          'gi',
+        ),
+        new RegExp(
+          String.raw`\b(?:old|existing|current)\b[^.\n]{0,30}?\b${TILE_NOUN}\b[^.\n]{0,40}?\b(?:remov\w*|strip\w*|demoli\w*|lifted|taken\s*up|come\s*up|out)\b`,
+          'gi',
+        ),
+      ],
+      // "no removal of the existing tiles" prices a demolition nobody asked for.
+      negatedBy: /\b(?:no|not|excl\w*|without|nil)\b[^.\n]{0,24}$/i,
+      values: [
+        ['none', /\bno\s+(?:tile\s+)?removal\b|\btiles?\s+to\s+remain\b|\bnothing\s+to\s+(?:take\s*up|remove)\b/i],
+        ['ceramic', oldTile('ceramics?')],
+        ['porcelain', oldTile('porcelain')],
+        ['stone', oldTile('(?:natural\\s+)?stone|marble|travertine|slate')],
+        ['mosaic', oldTile('mosaics?')],
+        ['any', /\btiles?\b/i],
+      ],
+    },
   },
   {
     key: 'waterproofing',
@@ -344,6 +717,28 @@ export const TILING_FIELDS: FieldSpec[] = [
     source: 'core.waterproof',
     labelGroup: 'waterproof',
     pinned: { label: 'Not needed', value: 'none' },
+    /* `requires` IS this field. Four of its five answers - bathroom, ensuite, laundry, balcony - are
+       also `jobType` answers, so without a gate the words "Bathroom retile" would fill in
+       waterproofing as well, and every bathroom quote would come back claiming a waterproofing
+       answer the page never gave. The gate is the word itself: waterproofing, a membrane, tanking.
+       `none` leads, so "waterproofing not included" is read as the answer it is rather than as the
+       area sitting next to it. */
+    docHints: {
+      requires: [/\bwaterproof\w*|\bmembranes?\b|\btanking\b/gi],
+      values: [
+        [
+          'none',
+          /\b(?:no|not|nil|excl\w*|without)\b[^.\n]{0,25}(?:waterproof\w*|membranes?|tanking)|(?:waterproof\w*|membranes?|tanking)[^.\n]{0,25}\b(?:not included|excluded|by others|n\/a|not required)\b/i,
+        ],
+        // Shower before bathroom: a shower is the more specific wet area, and a business prices it
+        // as its own line.
+        ['shower', /\bshowers?\b/i],
+        ['ensuite', /\bensuites?\b/i],
+        ['bathroom', /\bbathrooms?\b/i],
+        ['laundry', /\blaundr(?:y|ies)\b/i],
+        ['balcony', /\bbalcon(?:y|ies)\b/i],
+      ],
+    },
   },
   {
     key: 'conditions',
@@ -356,6 +751,35 @@ export const TILING_FIELDS: FieldSpec[] = [
     source: 'core.conditions',
     labelGroup: 'conditions',
     pinned: { label: 'Nothing tricky', value: 'none' },
+    /* Tiling's own five, each one a surcharge a business publishes separately - carrying tile up a
+       staircase and cutting around a tiny ensuite are different jobs with different prices, and a
+       page that names one has said something worth keeping.
+       `restricted_access` is the only value fencing also publishes, and before the reader knew
+       about trades fencing's hint really did land on tiling briefs. It reads the same here, so
+       nothing a tiler was already getting was taken away. */
+    docHints: {
+      values: [
+        [
+          'restricted_access',
+          /\b(?:tight|difficult|restricted|limited|poor|narrow)\s+(?:site\s+|side\s+)?access\b|\baccess\b[^\n:]{0,20}[:\-–]\s*(?:is\s+)?(?:difficult|hard|tight|restricted|limited|poor)\b/i,
+        ],
+        // "First floor" is upstairs in Australian usage, and upstairs is what this charges for.
+        [
+          'second_storey',
+          /\b(?:second|2nd|first|1st|upper)\s+(?:stor(?:e?y|ies)|floor|level)\b|\bupstairs\b|\bsecond\s+stor(?:e?y|ies)\b/i,
+        ],
+        ['stairs', /\bstairs?\b|\bstaircases?\b|\bstairwells?\b|\bsteps\b/i],
+        [
+          'small_room',
+          /\bsmall\s+(?:rooms?|bathrooms?|ensuites?|laundr(?:y|ies)|areas?|spaces?)\b|\bpowder\s+rooms?\b|\bconfined\s+spaces?\b/i,
+        ],
+        [
+          'uneven_substrate',
+          /\bunevens?\b|\bout\s+of\s+level\b|\bnot\s+level\b|\bsubstrate\b[^.\n]{0,30}\b(?:level\w*|prep\w*|repair\w*|grind\w*)\b|\b(?:floor\s+)?level(?:ling|led)\b|\bscreed\w*\b|\bself[-\s]?level\w*\b/i,
+        ],
+      ],
+      none: /\baccess\b[^\n:]{0,20}[:\-–]\s*(?:is\s+)?easy\b|\b(?:easy|clear|good|open|unrestricted)\s+(?:site\s+)?access\b|\bflat\s+and\s+clear\b/i,
+    },
   },
   {
     key: 'existingPrice',

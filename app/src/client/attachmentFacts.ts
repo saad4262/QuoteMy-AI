@@ -1,3 +1,9 @@
+import { DESCRIBED } from '../ingest.js';
+import { TRADE_WORDS } from '../messages.js';
+import type { Trade } from '../vocab.js';
+import type { DocHints, FieldSpec, Refine } from './fieldSpec.js';
+import type { TradeSchema } from './schema.js';
+
 /**
  * Deterministic, regex-based reading of an attached quote/photo transcript. Ported from n8n's
  * `Read Attachment Facts` node.
@@ -7,123 +13,45 @@
  * gave five fields on one run and two on the next, and the customer got asked for a height they
  * had already attached. Regex gives the same document the same fields, every run.
  *
- * Everything here speaks the schema's own slugs (timber_pine, pool_glass, restricted_access…),
- * because those are what businesses publish rates against.
+ * WHAT IS READ is the trade's own business and lives in `FieldSpec.docHints`, beside the field it
+ * fills. HOW it is read is here, and is the same for every trade: this file knows about first
+ * matches and refusals and negation, and nothing whatsoever about fences or tiles.
+ *
+ * That split is the point. This used to be one file hardcoded to fencing with no `trade` argument
+ * at all - the only part of the customer pipeline that was not per-trade data, while the checklist
+ * (`TRADE_FIELDS`), the pricing (`TRADE_PRICING`), the vocabulary and the prompts all were. A
+ * twentieth trade now needs hints on its fields, not a twentieth copy of this algorithm.
+ *
+ * Everything read speaks the schema's own slugs (timber_pine, pool_glass, restricted_access…),
+ * because those are what businesses publish rates against. `fieldSpec.test.ts` is what holds every
+ * trade's hints to its own published vocabulary - a slug with no home would be dropped in silence
+ * by `validate`, which is the one failure mode here nobody would ever see.
  */
 
-export interface DocFacts {
-  material?: string;
-  heightMm?: number;
-  lengthMeters?: number;
-  removal?: 'timber' | 'metal';
-  conditions?: string[];
-  existingPrice?: number;
-}
+/**
+ * What a document gave up, keyed by the field it answers.
+ *
+ * An index signature rather than a hand-written list of fencing's six, because the reader is now
+ * generic over whatever fields a trade declares. The type safety that goes missing here is bought
+ * back in `fieldSpec.test.ts`, which checks every hint's slug against that trade's vocabulary -
+ * a stronger guarantee than a key name, and the one that actually matters.
+ */
+export type DocFacts = Record<string, string | number | string[]>;
 
-// Heights arrive as metres, centimetres or millimetres and the three ranges barely overlap: under
-// 10 was metres, 10-300 was centimetres (nothing is a 150mm fence, while a 150cm one is
-// standard), above 300 is already millimetres.
-const toMm = (value: number) => (value < 10 ? Math.round(value * 1000) : value <= 300 ? Math.round(value * 10) : Math.round(value));
+/**
+ * How much of a transcript this will read, and deliberately not the 4,000 characters the model gets.
+ *
+ * Those two numbers answer different questions. The model's is a token budget - every character
+ * costs money on every turn. This one costs nothing: it is regular expressions over a string, and
+ * the only reason it has a limit at all is that an uploaded text file can be twenty megabytes.
+ *
+ * They were the same number, and it quietly cost the one fact a long quote most reliably carries:
+ * the total sits at the BOTTOM of the page, so a room-by-room tiling quote had its total cut off
+ * while its first line was read fine.
+ */
+const READ_LIMIT = 20_000;
 
-// Longest unit spelling first, so "1.8 metres high" doesn't stop at the "m".
-const UNIT = '(?:millimetres?|millimeters?|centimetres?|centimeters?|metres?|meters?|mm|cm|m)';
-
-type Refine = (value: number, match: RegExpMatchArray) => number | null;
-
-// Capital H and L are the trade's own suffixes ("1.8H" is a height, "20L" is a run) and are
-// matched case-sensitively on purpose - a lowercase h is just the start of a word.
-const HEIGHT: [RegExp, Refine][] = [
-  [/(\d+(?:\.\d+)?)\s?(?:mm|m)?\s?H\b/, toMm],
-  [/\bH\s?[-:]?\s?(\d{3,4})\b/, toMm],
-  // Fences run 4-8ft. Ten or more feet is the length of the run, not how tall it is. Inches
-  // count: 5'6" is 1676mm, and dropping them quietly shortens the fence by half a paling.
-  [
-    /(\d+(?:\.\d+)?)\s*(?:ft|foot|feet|')\s*(\d+)?\s*(?:"|in\b|inch(?:es)?)?/i,
-    (value, match) => (value < 10 ? Math.round(value * 304.8 + (Number(match[2]) || 0) * 25.4) : null),
-  ],
-  [new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${UNIT}?\\s*(?:high|height|tall)\\b`, 'i'), toMm],
-  [/(?:height|high)\b\D{0,10}?(\d+(?:\.\d+)?)/i, toMm],
-];
-
-// "20 to 30 metres" is not an answer. The rate is charged per metre, so a span prices a job
-// nobody described - better to read no length at all and let the agent ask which is closer.
-const RANGE = [
-  /\b\d{1,4}(?:\.\d+)?\s*(?:m\b|metres?|meters?)?\s*(?:-|–|—|to)\s*\d{1,4}(?:\.\d+)?\s*(?:m\b|lm\b|lineal|metres?|meters?)/i,
-  /\bbetween\s+\d{1,4}[^\n]{0,14}?\d{1,4}\s*(?:m\b|lm\b|lineal|metres?|meters?)/i,
-];
-
-// Explicit shorthand first. The loose ones carry a 3m floor: a "1.8m" sitting on the page is the
-// height, and nobody books a two metre run of fence.
-const asRun = (value: number) => (value >= 3 ? value : null);
-const LENGTH: [RegExp, Refine][] = [
-  [/(\d+(?:\.\d+)?)\s*(?:lineal|linear)\s*(?:ft|foot|feet)\b/i, (value) => Math.round(value * 0.3048)],
-  [/(\d+(?:\.\d+)?)\s*(?:lineal|linear)\s*(?:m\b|metres?|meters?)/i, (value) => value],
-  [/(\d+(?:\.\d+)?)\s*(?:lm|l\.m\.)\b/i, (value) => value],
-  [/(\d+(?:\.\d+)?)\s?L\b/, (value) => value],
-  // "1800 high x 25000 long" - a supplier writing both dimensions in millimetres.
-  [/(\d+(?:\.\d+)?)\s*(?:mm|cm|m)?\s*(?:long|wide|in length)\b/i, (value) => value],
-  [/(\d+(?:\.\d+)?)\s*m\b(?=[^\n]{0,40}?(?:fenc|run\b))/i, asRun],
-  [/(\d+(?:\.\d+)?)\s*(?:odd\s+|approx\.?\s+|or so\s+)?(?:metres?|meters?)\b/i, asRun],
-  // Last resort, for a line that never says the word: "post and wire 200m". The floor is what
-  // makes it safe - every height on the page is under 3, in metres or otherwise.
-  [/(\d+(?:\.\d+)?)\s*m\b/i, asRun],
-];
-// A rural boundary longer than 500m is mis-read as millimetres; swap for a unit-aware capture if
-// one ever shows up.
-const asMetres = (value: number | null) => (value !== null && value > 500 ? Math.round(value / 1000) : value);
-
-// The schema's own material slugs, specific before generic - "glass pool fence" is pool_glass,
-// not timber_pine, and "merbau" is hardwood rather than the pine everyone defaults to. A document
-// that only says "bamboo screening" matches nothing here on purpose: it is not a material anybody
-// publishes a rate against, so the agent asks instead of guessing.
-const MATERIAL_HINTS: [string, RegExp][] = [
-  ['pool_glass', /glass (?:pool )?fenc|frameless|toughened glass/i],
-  ['pool_aluminium', /pool fenc|pool panel/i],
-  ['colorbond', /colou?rbond/i],
-  ['chainmesh', /chain ?(?:mesh|wire|link)|security fenc/i],
-  ['aluminium', /alumin(?:i)?um|slat fenc|powder ?coat/i],
-  ['rural_wire', /rural fenc|post and wire|farm fenc|paddock|stock fence|ringlock/i],
-  ['timber_hardwood', /hardwood|merbau|spotted gum|jarrah|ironbark/i],
-  ['timber_pine', /treated pine|\bpine\b|timber|paling/i],
-];
-
-// Any line about getting rid of what is already there. "Disposal of 25m of old fence" is the
-// removal being quoted for, and missing it is what made the agent ask a question the document had
-// already answered.
-const REMOVAL: RegExp[] = [
-  /\b(?:dispos\w*|remov\w*|demoli\w*|demo|dismantl\w*|tear\s*(?:down|out)|pull\s*(?:down|out)|take\s*away|cart\s*away|strip\s*out|rip\s*out)\b[^.\n]{0,60}fenc/gi,
-  // Said the other way round: "Existing 25m paling fence to be dismantled and taken to tip".
-  /\b(?:old|existing|current)\b[^.\n]{0,30}?fenc\w*[^.\n]{0,40}?\b(?:remov\w*|dispos\w*|demoli\w*|dismantl\w*|pulled|taken|carted|tip)\b/gi,
-];
-// "no disposal of the old fence" prices a demolition nobody asked for.
-const NEGATED = /\b(?:no|not|excl\w*|without|nil)\b[^.\n]{0,24}$/i;
-
-// What the OLD fence is made of, which is a different question from what the new one will be -
-// timber fences are routinely replaced with Colorbond. Businesses price removal against
-// core.removes (timber / metal / any), so only those two words are worth reading.
-const REMOVES: [DocFacts['removal'], RegExp][] = [
-  ['timber', /\b(?:timber|paling|wooden|hardwood|pine)\b[^.\n]{0,30}\bfenc/i],
-  ['timber', /\bfenc\w*[^.\n]{0,30}\b(?:timber|paling|wooden)\b/i],
-  ['metal', /\b(?:colou?rbond|steel|metal|alumin(?:i)?um|chain ?(?:mesh|wire|link)|wire)\b[^.\n]{0,30}\bfenc/i],
-  ['metal', /\bfenc\w*[^.\n]{0,30}\b(?:colou?rbond|steel|metal|chain ?mesh)\b/i],
-];
-
-// Site conditions, in the schema's own vocabulary. Replaces the old easy/difficult access
-// question outright: the business record prices sloped / rock / restricted_access / hand_dig
-// separately, and has no way to charge for "difficult" as such.
-const CONDITION_HINTS: [string, RegExp][] = [
-  ['sloped', /\bslop\w*|\bfall\b|steep|gradient|uneven ground/i],
-  ['rock', /\brock\w*|\bshale\b|bluestone|basalt|hard ground/i],
-  [
-    'restricted_access',
-    /\b(?:tight|difficult|restricted|limited|poor|narrow)\s+(?:site\s+|side\s+)?access\b|\baccess\b[^\n:]{0,20}[:\-–]\s*(?:is\s+)?(?:difficult|hard|tight|restricted|limited|poor)\b/i,
-  ],
-  ['hand_dig', /hand ?dig|hand ?excavat|no machine access|dig by hand/i],
-];
-// A document that states easy access has said something real: there is nothing tricky here.
-const EASY_ACCESS =
-  /\baccess\b[^\n:]{0,20}[:\-–]\s*(?:is\s+)?easy\b|\b(?:easy|clear|good|open|unrestricted)\s+(?:site\s+)?access\b|\bflat\s+and\s+clear\b/i;
-
+/** The generic address patterns. Only the trade's own name in `LETTERHEAD` differs. */
 // The job address, for the picker's benefit only. This is NOT checklist.suburb and never becomes
 // it: ranking measures real distance, so it needs coordinates from Google, and a line of text can
 // only ever be a head start. Labelled lines first - a contractor's letterhead is also an address,
@@ -136,11 +64,24 @@ const ADDRESS: RegExp[] = [
   /\b([A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,3}\s+(?:VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\s+\d{4})\b/,
 ];
 
-// The contractor's own address is on the page too, usually at the top, and suggesting it would
-// send the job to whichever suburb the fencer trades from.
-const LETTERHEAD = /\b(?:abn|acn|pty|ltd|p\/l|phone|mobile|email|www\.|@|fencing|fences|landscap|constructions?|quotation|invoice|tax invoice)\b/i;
+/**
+ * The contractor's own address is on the page too, usually at the top, and suggesting it would send
+ * the job to whichever suburb that business trades from.
+ *
+ * The trade's half comes from `TRADE_WORDS[trade].mentions`, which already exists and is already
+ * the one place a trade's own words are spelled out. Everything else here names a business rather
+ * than a job and is shared by every trade - as is the whole of `ADDRESS` above, and the total-line
+ * pattern below. Three facts every trade's quote carries the same way, written once.
+ */
+const letterheadFor = (trade: Trade): RegExp =>
+  new RegExp(
+    `\\b(?:abn|acn|pty|ltd|p\\/l|phone|mobile|email|www\\.|@|landscap|constructions?|quotation|invoice|tax invoice)\\b` +
+      `|(?:${TRADE_WORDS[trade].mentions.source})`,
+    'i',
+  );
 
-function readAddress(text: string): string | null {
+function readAddress(text: string, trade: Trade): string | null {
+  const letterhead = letterheadFor(trade);
   for (let index = 0; index < ADDRESS.length; index += 1) {
     const match = text.match(ADDRESS[index]!);
     if (!match) continue;
@@ -153,11 +94,24 @@ function readAddress(text: string): string | null {
       const lineStart = text.lastIndexOf('\n', match.index) + 1;
       let lineEnd = text.indexOf('\n', match.index);
       if (lineEnd === -1) lineEnd = text.length;
-      if (LETTERHEAD.test(text.slice(lineStart, lineEnd))) continue;
+      if (letterhead.test(text.slice(lineStart, lineEnd))) continue;
     }
     return line;
   }
   return null;
+}
+
+/**
+ * The headline the customer means when they say what they were quoted: GST-inclusive, so the
+ * largest of them, and never the Subtotal. The '$' is required - without it the "Total" column
+ * heading swallows the first line item's quantity instead.
+ */
+function readTotal(text: string): number | null {
+  const totals = [...text.matchAll(/(sub[\s-]*)?total\b[^\n$]{0,16}\$\s?([\d,]+(?:\.\d{1,2})?)/gi)]
+    .filter((match) => !match[1])
+    .map((match) => Number(match[2]!.replace(/,/g, '')))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return totals.length ? Math.max(...totals) : null;
 }
 
 function firstNumber(text: string, patterns: [RegExp, Refine][]): number | null {
@@ -170,47 +124,48 @@ function firstNumber(text: string, patterns: [RegExp, Refine][]): number | null 
   return null;
 }
 
-function readDocument(text: string): DocFacts {
-  const facts: DocFacts = {};
-
-  const material = MATERIAL_HINTS.find(([, pattern]) => pattern.test(text));
-  if (material) facts.material = material[0];
-
-  const heightMm = firstNumber(text, HEIGHT);
-  if (heightMm) facts.heightMm = heightMm;
-
-  const lengthMeters = RANGE.some((pattern) => pattern.test(text)) ? null : asMetres(firstNumber(text, LENGTH));
-  if (lengthMeters) facts.lengthMeters = lengthMeters;
-
-  // A quote that never mentions an old fence has not said there isn't one, so silence stays
-  // unset and the customer gets asked. A removal whose material the page never states is still an
-  // unanswered question: businesses price timber and metal differently.
-  const removing = REMOVAL.some((pattern) => {
-    pattern.lastIndex = 0;
-    return [...text.matchAll(pattern)].some((match) => !NEGATED.test(text.slice(Math.max(0, match.index! - 30), match.index)));
+/** Is this field even being talked about? Two-stage hints ask before they read - see `requires`. */
+function gateOpen(text: string, hints: Extract<DocHints, { values: unknown }>): boolean {
+  if (!hints.requires) return true;
+  return hints.requires.some((pattern) => {
+    pattern.lastIndex = 0; // these carry /g, and a stale lastIndex would skip the first match
+    return [...text.matchAll(pattern)].some(
+      (match) => !hints.negatedBy?.test(text.slice(Math.max(0, match.index! - 30), match.index)),
+    );
   });
-  if (removing) {
-    const removes = REMOVES.find(([, pattern]) => pattern.test(text));
-    if (removes) facts.removal = removes[0]!;
+}
+
+/**
+ * One field, read off the document. Null means "the page did not say", which is never the same as
+ * "the page said there is none" - that second one is an empty array, and only `multiEnum` can say it.
+ */
+function readField(text: string, spec: FieldSpec): string | number | string[] | null {
+  // Two facts that are not the trade's business: a total is a total, whoever wrote the quote.
+  if (spec.type === 'money') return readTotal(text);
+
+  const hints = spec.docHints;
+  // No hints is the safe default, and it is what every unread field relies on: it gets asked.
+  if (!hints) return null;
+
+  if ('quantity' in hints) {
+    if (hints.refuse?.some((pattern) => pattern.test(text))) return null;
+    const found = firstNumber(text, hints.quantity);
+    const value = hints.then ? hints.then(found) : found;
+    return value || null;
   }
 
-  // Conditions are only ever read as a complete answer, never a partial one. A page that names
-  // rock has not ruled out a slope, but it has told us the site is not "nothing tricky", and half
-  // an answer here would silently drop a surcharge the business charges for.
-  const conditions = CONDITION_HINTS.filter(([, pattern]) => pattern.test(text)).map(([value]) => value);
-  if (conditions.length) facts.conditions = conditions;
-  else if (EASY_ACCESS.test(text)) facts.conditions = [];
+  if (!gateOpen(text, hints)) return null;
 
-  // The headline the customer means when they say what they were quoted: GST-inclusive, so the
-  // largest of them, and never the Subtotal. The '$' is required - without it the "Total" column
-  // heading swallows the first line item's quantity instead.
-  const totals = [...text.matchAll(/(sub[\s-]*)?total\b[^\n$]{0,16}\$\s?([\d,]+(?:\.\d{1,2})?)/gi)]
-    .filter((match) => !match[1])
-    .map((match) => Number(match[2]!.replace(/,/g, '')))
-    .filter((value) => Number.isFinite(value) && value > 0);
-  if (totals.length) facts.existingPrice = Math.max(...totals);
+  if (spec.type === 'multiEnum') {
+    /* Read as a complete answer or not at all. A page that names rock has not ruled out a slope,
+       but it HAS said the site is not "nothing tricky" - and half an answer here would silently
+       drop a surcharge the business charges for. */
+    const found = hints.values.filter(([, pattern]) => pattern.test(text)).map(([value]) => value);
+    if (found.length) return found;
+    return hints.none?.test(text) ? [] : null;
+  }
 
-  return facts;
+  return hints.values.find(([, pattern]) => pattern.test(text))?.[0] ?? null;
 }
 
 export interface AttachmentFacts {
@@ -219,13 +174,106 @@ export interface AttachmentFacts {
 }
 
 /**
- * Reads a single document's worth of transcript. Across several documents, a height off one quote
- * and a total off another describe a job nobody priced - the caller should pass `multipleDocuments:
- * true` in that case, which switches this to a no-op (the agent reads them instead, each one
- * labelled by the router's attachment aggregation).
+ * The `[filename]` line `readSource` puts above each attachment's transcript.
+ *
+ * It is what makes one string carrying four documents separable again. The bodies are read without
+ * it, because a header is not content: a file called `Bathroom-Tiling-Quote-Berwick-VIC-3806.pdf`
+ * is a job address and a tile type as far as a regular expression is concerned.
  */
-export function readAttachmentFacts(extractedText: string, multipleDocuments: boolean): AttachmentFacts {
-  const text = extractedText.slice(0, 4000);
-  if (!text || multipleDocuments) return { docFacts: {}, docSuburbHint: null };
-  return { docFacts: readDocument(text), docSuburbHint: readAddress(text) };
+const DOCUMENT_HEADER = /^\[([^\]\n]{1,60})\]$/gm;
+
+/**
+ * Every document's body, minus the ones the model DESCRIBED rather than copied.
+ *
+ * That exclusion is the most important line in this file. Everything here is regular expressions
+ * over text, and what comes out is trusted without any further check - `mergeAndDecide` runs
+ * `mentioned()` over the model's claims and deliberately not over these, because a copy of a page
+ * cannot invent a figure and there is nothing to verify.
+ *
+ * A description is the opposite kind of thing: the model saying what it thinks it can see in a
+ * photograph of a room. Read it here and that guess arrives on the customer's brief wearing the
+ * clothes of a fact taken straight off their own quote, with the one check that might have caught
+ * it deliberately switched off. So descriptions never reach this reader at all - they go to the
+ * model, which is allowed to weigh them, and no further.
+ *
+ * `split` with a capturing group hands back the labels interleaved with the bodies, which is what
+ * makes each body answerable for its own header.
+ */
+function splitDocuments(transcript: string): string[] {
+  const parts = transcript.split(DOCUMENT_HEADER);
+  const bodies: string[] = [];
+
+  // Index 0 is whatever came before the first header - typed text, which has no header of its own.
+  const first = parts[0]?.trim();
+  if (first) bodies.push(first);
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const label = parts[i] ?? '';
+    const body = parts[i + 1]?.trim();
+    if (body && !label.endsWith(DESCRIBED)) bodies.push(body);
+  }
+
+  return bodies;
+}
+
+/** Everything one document had to say, before it is weighed against the others. */
+function readDocument(text: string, schema: TradeSchema): AttachmentFacts {
+  const docFacts: DocFacts = {};
+  /* `schema.fields`, not the compiled `TRADE_FIELDS`: this reads the same checklist the rest of the
+     turn is working from, so a trade whose spec was published rather than compiled is read for the
+     fields it actually has. The hints themselves always survive that publish - `schema.ts` takes
+     anything holding a regular expression from the code every time. */
+  for (const spec of schema.fields) {
+    // The address is an output of its own, deliberately: it is a head start for the Google picker
+    // and must never become `checklist.suburb`.
+    if (spec.type === 'place') continue;
+    const value = readField(text, spec);
+    if (value !== null) docFacts[spec.docKey ?? spec.key] = value;
+  }
+  return { docFacts, docSuburbHint: readAddress(text, schema.trade) };
+}
+
+/**
+ * One answer per field, across every document that had one.
+ *
+ * The rule is the one this whole reader is built on: where they agree, keep it; where they disagree,
+ * read nothing and let the customer be asked. A height off one quote and a total off another do
+ * describe a job nobody priced - but only for the fields the two documents actually contradict each
+ * other on, and that is a far smaller set than "everything".
+ *
+ * This used to be all-or-nothing: more than one file and the reader switched off whole. That is
+ * mostly a tiling problem, because a tiling customer attaches the quote AND three photographs of
+ * the bathroom, and the photographs say nothing at all - so a quote that contradicted nothing had
+ * every figure on it thrown away for the company it arrived in.
+ */
+function agreedAcross(perDocument: AttachmentFacts[]): AttachmentFacts {
+  const keep = <T>(values: T[]): T | null => {
+    const first = JSON.stringify(values[0]);
+    return values.every((value) => JSON.stringify(value) === first) ? values[0]! : null;
+  };
+
+  const docFacts: DocFacts = {};
+  const keys = new Set(perDocument.flatMap((one) => Object.keys(one.docFacts)));
+  for (const key of keys) {
+    const stated = perDocument.map((one) => one.docFacts[key]).filter((value) => value !== undefined);
+    const agreed = keep(stated);
+    if (agreed !== null) docFacts[key] = agreed;
+  }
+
+  const addresses = perDocument.map((one) => one.docSuburbHint).filter((hint): hint is string => Boolean(hint));
+  return { docFacts, docSuburbHint: addresses.length ? keep(addresses) : null };
+}
+
+/**
+ * Everything the attachments say that they do not disagree about.
+ *
+ * Takes the transcript as `readSource` built it, `[filename]` headers and all - those headers are
+ * how the documents are told apart, so stripping them before this point would put four quotes back
+ * into one.
+ */
+export function readAttachmentFacts(transcript: string, schema: TradeSchema): AttachmentFacts {
+  const documents = splitDocuments(transcript.slice(0, READ_LIMIT));
+  if (!documents.length) return { docFacts: {}, docSuburbHint: null };
+
+  return agreedAcross(documents.map((text) => readDocument(text, schema)));
 }

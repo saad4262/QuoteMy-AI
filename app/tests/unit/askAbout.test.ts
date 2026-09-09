@@ -41,7 +41,7 @@ function answeringAi(text: string, sources: { name: string; figure: string | nul
   };
 }
 
-const NOWHERE = { trade: 'fencing' as const, suburb: null, state: null, material: null, asked: null, choices: [], everything: [] };
+const NOWHERE = { trade: 'fencing' as const, suburb: null, state: null, material: null, asked: null, choices: [], everything: [], history: [] };
 
 describe('tidyProse', () => {
   /**

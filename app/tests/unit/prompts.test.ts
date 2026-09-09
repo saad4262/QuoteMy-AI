@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertPromptBudgets, estimateTokens, reviewPrompt, wrapDescription, PROMPT_TOKEN_BUDGET } from '../../src/prompts.js';
+import { assertPromptBudgets, estimateTokens, reviewPrompt, transcribePrompt, wrapDescription, PROMPT_TOKEN_BUDGET } from '../../src/prompts.js';
 
 describe('prompt assembly', () => {
   it('appends both SOPs to the review prompt, so there is nothing for the model to skip', () => {
@@ -47,5 +47,41 @@ describe('previous review block', () => {
 
   it('still fits the token budget with the block attached', () => {
     expect(estimateTokens(reviewPrompt('fencing', fixes))).toBeLessThan(PROMPT_TOKEN_BUDGET.review);
+  });
+});
+
+/**
+ * The section that lets a photograph of a room be described rather than come back empty.
+ *
+ * Kept in its own file and appended, never substituted: the copying rules above it are what the
+ * BUSINESS pipeline runs on, and that side's honesty guarantee is that every figure carries the
+ * sentence it came from and `verify/` string-matches it against the transcript. A described
+ * sentence in that transcript would be a source quote the model wrote for itself.
+ */
+describe('the transcribe prompt', () => {
+  it('says nothing about describing anything unless asked', () => {
+    expect(transcribePrompt()).not.toContain('NOTHING WRITTEN TO COPY');
+    expect(transcribePrompt(false)).toBe(transcribePrompt());
+  });
+
+  it('adds the describing rules without touching the copying ones', () => {
+    const described = transcribePrompt(true);
+    expect(described).toContain('NOTHING WRITTEN TO COPY');
+    expect(described.startsWith(transcribePrompt())).toBe(true);
+  });
+
+  it('forbids a number in a description, which is the whole of the safety here', () => {
+    /* Anything written here is read back later as though the customer had written it, so a figure
+       estimated off a photo would be taken for one they measured - and quoted on. */
+    const described = transcribePrompt(true);
+    expect(described).toContain('NEVER A NUMBER');
+    expect(described).toMatch(/not a measurement/i);
+    expect(described).toMatch(/never name a material you cannot be sure of/i);
+    expect(described).toMatch(/never judge the job/i);
+  });
+
+  it('fits the token budget in both shapes', () => {
+    expect(estimateTokens(transcribePrompt(true))).toBeLessThan(PROMPT_TOKEN_BUDGET.transcribe);
+    expect(() => assertPromptBudgets()).not.toThrow();
   });
 });

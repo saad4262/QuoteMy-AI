@@ -225,6 +225,40 @@ export interface UiState {
   oldFence?: boolean;
   /** Asked to think again about it once. Twice would be arguing with them. */
   removalChecked?: boolean;
+  /**
+   * What was SAID earlier, as opposed to what was settled.
+   *
+   * The checklist is the conversation's memory of its ANSWERS, and it is a good one: a field with a
+   * value is never asked again. It is not a memory of anything else, and everything else is what
+   * kept going missing. A customer said "I live in Pakenham, so which tile suits me" and got a
+   * considered answer that never mentioned Pakenham. A customer was told "porcelain is usually the
+   * pick" and, one turn later, the model that had to read "let's go with the one you said" had no
+   * idea what had been said. Both are the same hole: nothing carried the words.
+   *
+   * Only turns the checklist CANNOT already account for are kept. A tapped option is fully
+   * described by `checklist.tileType = 'porcelain'`, and writing "they said: porcelain" beside it
+   * would be the same fact twice, paid for on every request. So this fills up on free text and on
+   * the asides, and stays empty for a conversation of taps - which is also why the all-tapped
+   * golden conversations are untouched by it.
+   *
+   * Capped hard, in both directions. It rides in `_ui` through the client on every request, and an
+   * uncapped transcript would grow the payload, the prompt and the bill with every turn.
+   */
+  history?: TurnNote[];
+}
+
+/**
+ * One earlier exchange, clipped.
+ *
+ * `me` keeps the opening of what we said rather than all of it, because the part worth remembering
+ * is always at the front - a search answer leads with its recommendation, and a question is its own
+ * first sentence.
+ */
+export interface TurnNote {
+  /** The customer's own words. */
+  you: string;
+  /** What we said back, from the top. */
+  me: string;
 }
 
 export interface PlaceHint {
