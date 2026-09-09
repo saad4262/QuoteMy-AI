@@ -6,7 +6,7 @@ import { slug } from './fuzzyMatch.js';
 import { budgetText } from './budget.js';
 import { TRADE_WORDS } from '../messages.js';
 import { TRADE_PRICING } from './pricing/spec.js';
-import type { Answer, Budget, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, UiState } from './schemas.js';
+import type { Answer, Budget, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, TurnNote, UiState } from './schemas.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -23,6 +23,23 @@ import type { ChecklistField } from './vocab.js';
 
 const WANTS_MORE = /\b(more|other|others|another|different|else|alternativ\w*|aur|koi\s+aur)\b/i;
 
+/**
+ * How much of the conversation is carried forward, and how much of each turn.
+ *
+ * Six turns rather than all of them: the point is that "the one you recommended" and "I told you I
+ * am in Pakenham" still resolve, and both are recent. Every entry is also a slice of a payload the
+ * client echoes back on every single request, so this is a budget as much as a window.
+ */
+const HISTORY_TURNS = 6;
+const HISTORY_YOU = 200;
+const HISTORY_ME = 320;
+
+/** One line, no ragged whitespace, and an ellipsis so nothing downstream reads a cut as an end. */
+const clip = (text: string, limit: number): string => {
+  const flat = String(text).replace(/\s+/g, ' ').trim();
+  return flat.length <= limit ? flat : flat.slice(0, limit - 1).trimEnd() + '…';
+};
+
 export interface FormatResultInput {
   state: MergedState;
   /** Present only on turns where the matcher actually ran (`state.needsMatcher` was true). */
@@ -31,9 +48,17 @@ export interface FormatResultInput {
   answer?: Answer | null;
   /** Present only on the turn a guide figure was tapped off one of those answers. */
   budget?: Budget | null;
+  /**
+   * The customer pressed one of last turn's own buttons, so no model was consulted.
+   *
+   * Passed in rather than worked out again here: the controller has already decided it, and it is
+   * the decision that skips the model call. Two places deciding the same thing is how they come to
+   * disagree. Only `ui.history` reads it - a tap is already in the checklist.
+   */
+  tapped?: boolean;
 }
 
-export function formatFencingResult({ state, matcher, answer = null, budget = null }: FormatResultInput): ChatResponse {
+export function formatFencingResult({ state, matcher, answer = null, budget = null, tapped = false }: FormatResultInput): ChatResponse {
   const checklist = { ...state.checklist };
   const sessionId = state.sessionId;
   const place = state.place;
@@ -358,6 +383,25 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
      and their real quotes are still being collected. */
   if (budget) message = "Noted — I'll show you how the quotes compare to " + budgetText(budget, TRADE_PRICING[state.trade].unit) + '.\n\n' + message;
 
+  /* The answer goes in FRONT of the question rather than instead of it, and above the ack rather
+     than inside it: `acknowledged()` has already put "Got it" on the question, so the turn reads as
+     an answer, a blank line, then "Got it - what height are you after?". Every question is still
+     asked, in the same order, from the same template - the aside rides along.
+
+     Built here rather than at the return because `history` has to remember what we actually said,
+     and what we actually said includes the answer. Remembering only the question would carry
+     forward the half the customer did not ask for. */
+  const spoken = answer ? answer.text + '\n\n' + message : message;
+
+  /* What was SAID, added to what is already remembered.
+     Skipped for a tap, which the checklist has already recorded in full, and for an emptied message
+     - a budget chip, whose figure is carried in `ui.budget` and is not a thing anybody said. */
+  const carriedHistory = Array.isArray(ui.history) ? ui.history : [];
+  const history: TurnNote[] =
+    tapped || !rawMessage.trim()
+      ? carriedHistory
+      : [...carriedHistory, { you: clip(rawMessage, HISTORY_YOU), me: clip(spoken, HISTORY_ME) }].slice(-HISTORY_TURNS);
+
   const suburbHint = rejects(carriedHint) ? null : carriedHint;
   const expectsSuburb = options.length === 0 && (askingSuburbAgain || (!place && /\bsuburbs?\b|\bpost ?code\b|\bsuggestions\b/i.test(message)));
 
@@ -385,6 +429,8 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
     // Kept out of the checklist deliberately: it is not one of the trade's fields, nothing is
     // asked about it, and the brief panel must not show a web figure as though it were an answer.
     ...(carriedBudget ? { budget: carriedBudget } : {}),
+    // Omitted rather than sent empty, so a conversation of taps carries exactly what it did before.
+    ...(history.length ? { history } : {}),
   };
 
   const checklistDisplay: ChecklistDisplay = {};
@@ -422,15 +468,11 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
     intent: Number(checklist.existingPrice) > 0 ? 'compare_quote' : 'new_quote',
     place,
     type,
-    /* The answer goes in front of the question rather than instead of it, and above the ack rather
-       than inside it: `acknowledged()` has already put "Got it" on the question, so the turn reads
-       as an answer, a blank line, then "Got it - what height are you after?". Every question is
-       still asked, in the same order, from the same template - the aside rides along.
-
-       It is put into `message` as well as carried in its own field because the screen that renders
-       this is in another repository: a frontend that has never heard of `answer` shows the answer
-       anyway, and one that has can render the sources properly. */
-    message: answer ? answer.text + '\n\n' + message : message,
+    /* Assembled above, where `history` could remember it. It is put into `message` as well as
+       carried in its own `answer` field because the screen that renders this is in another
+       repository: a frontend that has never heard of `answer` shows the answer anyway, and one
+       that has can render the sources properly. */
+    message: spoken,
     ...(answer ? { answer } : {}),
     options,
     ...(expectsSuburb ? { expects: 'suburb' as const } : {}),

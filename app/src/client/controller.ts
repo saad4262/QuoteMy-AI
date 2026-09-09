@@ -139,6 +139,10 @@ async function answerIfAsked(
     asked: ui?.lastQuestion || null,
     choices,
     everything,
+    /* The same conversation memory the chat agent reads. Without it a follow-up - "and how does
+       that one go in a wet area" - is looked up as though it were the first thing anybody had
+       said. */
+    history: ui?.history ?? [],
   };
 
   /* Being shown and being told are two different things they can ask for, and one message asks for
@@ -317,7 +321,7 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
     );
   }
 
-  const formatted = formatFencingResult({ state, matcher, answer, budget });
+  const formatted = formatFencingResult({ state, matcher, answer, budget, tapped });
   const response = matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
 
   /* In front of whatever the turn was going to say, the same way an answer to their own question

@@ -39,6 +39,12 @@ customer: "I need a fence quote"
       "suburbHint": null,
       "place": null,
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -121,6 +127,16 @@ customer: "yes go ahead"
       "suburbHint": null,
       "place": null,
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -241,6 +257,20 @@ picked place: Berwick, VIC 3806
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -368,6 +398,20 @@ customer: "colorbond"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -486,6 +530,20 @@ customer: "1.8m"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -620,6 +678,24 @@ customer: "20"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -765,6 +841,24 @@ customer: "none"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -916,6 +1010,24 @@ customer: "none"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1062,6 +1174,24 @@ customer: "none"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1196,6 +1326,24 @@ customer: "no"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1352,6 +1500,28 @@ customer: "the blue one"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "the blue one",
+          "me": "Sorry, I didn't catch which one — which of these should I change?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1493,6 +1663,32 @@ customer: "lenght"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "the blue one",
+          "me": "Sorry, I didn't catch which one — which of these should I change?"
+        },
+        {
+          "you": "lenght",
+          "me": "How long is the fence?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1635,6 +1831,32 @@ customer: "30"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "the blue one",
+          "me": "Sorry, I didn't catch which one — which of these should I change?"
+        },
+        {
+          "you": "lenght",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30",
+          "me": "Got it — Berwick, VIC 3806, Colorbond, 1.8m, 30m. All correct?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1805,6 +2027,32 @@ customer: "yes"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "20",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "the blue one",
+          "me": "Sorry, I didn't catch which one — which of these should I change?"
+        },
+        {
+          "you": "lenght",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30",
+          "me": "Got it — Berwick, VIC 3806, Colorbond, 1.8m, 30m. All correct?"
+        }
+      ],
       "trade": "fencing"
     }
   },

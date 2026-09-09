@@ -38,16 +38,47 @@ const PER_UNIT: Record<QuantityUnit, RegExp> = {
 };
 
 /**
- * The numbers inside one site's figure, as the site wrote them. A single price is a range of one -
- * "$85 a metre" is as usable a benchmark as "$75 to $120 a metre".
+ * The tiles on their own, with nobody's labour in it.
+ *
+ * Live output, exactly as it came back: "Porcelain, materials only: from $50 per square metre"
+ * beside "supplied and installed in Melbourne: $65 to $90 per square metre". Both are true, and as
+ * chips they look identical. Tapped, the first one produces "the sites you looked at said $50 a
+ * square metre; these work out at $78 to $95" - a materials-only figure set against full installed
+ * quotes, which makes every real business look expensive by the price of laying the floor. The
+ * comparison line is the ONE thing a tapped figure ever does, so a figure that cannot be compared
+ * has nothing to do.
+ *
+ * Read off the figure rather than judged, and only because the prompt now requires the figure to
+ * say what it covers. A page that says nothing either way is still offered: the guard is for a
+ * figure that has told us it is not comparable, never a guess about one that has not.
+ */
+const MATERIALS_ONLY =
+  /\b(?:materials?|supply|tiles?)\s*(?:cost\s*)?only\b|\bonly\s+(?:the\s+)?(?:materials?|tiles?)\b|\bexcl(?:uding|\.)?\s+(?:labour|labor|installation|laying)\b|\bsupply\s+only\b/i;
+
+/**
+ * One option's range, and only one.
+ *
+ * A single price is a range of one - "$85 a metre" is as usable a benchmark as "$75 to $120 a
+ * metre". Two ranges are not a range at all, and that is the fault this refuses. A tiling site
+ * routinely publishes "ceramic materials $25-$60 per m2; porcelain materials $40-$100 per m2", and
+ * read as min-and-max that is "$25 to $100" - a span across two different tiles, offered to the
+ * customer as one benchmark and then set beside real quotes for the one tile they are actually
+ * having laid. It looks like a figure somebody stands behind. Nobody does.
+ *
+ * Counted after the plausibility filter rather than before, so a paragraph that mentions a job
+ * total alongside one real rate still yields that rate. More than two survivors means the sentence
+ * is describing more than one thing, and there is no way to tell in code which half is theirs -
+ * so it offers nothing rather than the wrong half. The prompt asks for one option's figure; this
+ * is what happens on the turns it does not get one.
  */
 export function guideRange(figure: string | null | undefined, unit: QuantityUnit): { min: number; max: number } | null {
   if (!figure || !PER_UNIT[unit].test(figure)) return null;
+  if (MATERIALS_ONLY.test(figure)) return null;
 
   const found = [...figure.matchAll(/\$\s?(\d[\d,]*(?:\.\d+)?)/g)]
     .map((match) => Number(match[1]!.replace(/,/g, '')))
     .filter((value) => Number.isFinite(value) && value >= PLAUSIBLE.min && value <= PLAUSIBLE.max);
-  if (!found.length) return null;
+  if (!found.length || found.length > 2) return null;
 
   return { min: Math.min(...found), max: Math.max(...found) };
 }

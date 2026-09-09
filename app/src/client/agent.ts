@@ -84,6 +84,21 @@ export function buildAgentContext(input: TurnInput): string {
     sections.push('--- Already established for this job ---\n' + JSON.stringify(established));
   }
 
+  /* What has already been said, before what was last asked - so the model reads the conversation in
+     the order it happened and arrives at this turn last.
+
+     This is the difference between a system that is listening and one that is only filling in a
+     form. Without it, "let's go with the one you recommended" points at nothing, "as I said, I'm in
+     Pakenham" reads as new information, and a question the customer has already answered in passing
+     gets put to them again. The checklist carries the answers; this carries everything else they
+     said. */
+  if (input.ui?.history?.length) {
+    sections.push(
+      '--- Earlier in this conversation, oldest first. Their words and yours ---\n' +
+        input.ui.history.map((note) => 'they said: ' + note.you + '\nyou replied: ' + note.me).join('\n\n'),
+    );
+  }
+
   if (input.ui?.lastAsked) {
     sections.push(
       '--- The question you asked last turn ---\n' +

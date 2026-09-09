@@ -39,6 +39,12 @@ customer: "I need a fence quote"
       "suburbHint": null,
       "place": null,
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -121,6 +127,16 @@ customer: "yes go ahead"
       "suburbHint": null,
       "place": null,
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -241,6 +257,20 @@ picked place: Berwick, VIC 3806
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -368,6 +398,24 @@ customer: "aluminium"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "aluminium",
+          "me": "What height are you after?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -486,6 +534,28 @@ customer: "1800mm"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "aluminium",
+          "me": "What height are you after?"
+        },
+        {
+          "you": "1800mm",
+          "me": "How long is the fence?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -620,6 +690,32 @@ customer: "30 metres"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "I need a fence quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "aluminium",
+          "me": "What height are you after?"
+        },
+        {
+          "you": "1800mm",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30 metres",
+          "me": "Is there an old fence to remove?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -765,6 +861,32 @@ customer: "old timber fence"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the fence going in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "aluminium",
+          "me": "What height are you after?"
+        },
+        {
+          "you": "1800mm",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30 metres",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "old timber fence",
+          "me": "Anything tricky about the site?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -916,6 +1038,32 @@ customer: "nothing tricky"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "Berwick",
+          "me": "What type of fence are you after?"
+        },
+        {
+          "you": "aluminium",
+          "me": "What height are you after?"
+        },
+        {
+          "you": "1800mm",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30 metres",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "old timber fence",
+          "me": "Anything tricky about the site?"
+        },
+        {
+          "you": "nothing tricky",
+          "me": "Do you need any gates?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1073,6 +1221,32 @@ customer: "a single pedestrian gate"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "aluminium",
+          "me": "What height are you after?"
+        },
+        {
+          "you": "1800mm",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30 metres",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "old timber fence",
+          "me": "Anything tricky about the site?"
+        },
+        {
+          "you": "nothing tricky",
+          "me": "Do you need any gates?"
+        },
+        {
+          "you": "a single pedestrian gate",
+          "me": "How many of those gates?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1225,6 +1399,32 @@ customer: "2 gates"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "1800mm",
+          "me": "How long is the fence?"
+        },
+        {
+          "you": "30 metres",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "old timber fence",
+          "me": "Anything tricky about the site?"
+        },
+        {
+          "you": "nothing tricky",
+          "me": "Do you need any gates?"
+        },
+        {
+          "you": "a single pedestrian gate",
+          "me": "How many of those gates?"
+        },
+        {
+          "you": "2 gates",
+          "me": "Got it — Berwick, VIC 3806, Aluminium, 1.8m, 30m, removing the old timber fence, 2 x single pedestrian gate. All correct?"
+        }
+      ],
       "trade": "fencing"
     }
   },
@@ -1407,6 +1607,32 @@ customer: "yes please"
         "displayLabel": "Berwick, VIC 3806"
       },
       "answers": 0,
+      "history": [
+        {
+          "you": "30 metres",
+          "me": "Is there an old fence to remove?"
+        },
+        {
+          "you": "old timber fence",
+          "me": "Anything tricky about the site?"
+        },
+        {
+          "you": "nothing tricky",
+          "me": "Do you need any gates?"
+        },
+        {
+          "you": "a single pedestrian gate",
+          "me": "How many of those gates?"
+        },
+        {
+          "you": "2 gates",
+          "me": "Got it — Berwick, VIC 3806, Aluminium, 1.8m, 30m, removing the old timber fence, 2 x single pedestrian gate. All correct?"
+        },
+        {
+          "you": "yes please",
+          "me": "Let me check what businesses are available near you…"
+        }
+      ],
       "trade": "fencing"
     }
   },
