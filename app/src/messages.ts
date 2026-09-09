@@ -1,6 +1,12 @@
 import {
   CONDITIONS,
   GATE_TYPES,
+  KITCHEN_BENCHTOPS,
+  KITCHEN_EXTRAS,
+  KITCHEN_JOB_TYPES,
+  KITCHEN_REMOVES,
+  KITCHEN_SIZES,
+  KITCHEN_SUPPLY,
   MATERIALS,
   REMOVES,
   TILE_CONDITIONS,
@@ -149,6 +155,56 @@ export const TILING_LABEL_GROUPS = {
   },
 } as const;
 
+export const KITCHEN_LABEL_GROUPS = {
+  jobTypes: {
+    new_kitchen: 'A brand new kitchen',
+    replacement: 'Replacing the old one',
+    install_only: "Fitting one I've bought",
+  },
+  /* Sizes read as answers to "roughly how big?", with the yardstick a customer can actually judge
+     themselves against. A fitter's own list says small/standard/large and nothing more, which is
+     no help to somebody standing in their kitchen wondering which one theirs is. */
+  sizes: {
+    small: 'Small — a galley or one run',
+    standard: 'Standard — an L-shape',
+    large: 'Large — a U-shape or an island',
+  },
+  supply: {
+    labour_only: "I'm supplying the cabinets",
+    supply_and_install: 'They supply the cabinets',
+  },
+  benchtops: {
+    laminate: 'Laminate',
+    timber: 'Timber',
+    stone: 'Stone',
+  },
+  /* `any` and `full_demolition` sat next to each other as "Yes, take the old one out" and "The
+     whole kitchen", which read as the same answer twice - seen on a live run. `any` is the one for
+     somebody who has not thought about how much comes out; the rest name what does, so the fullest
+     one has to SAY what it includes rather than repeat the word "kitchen". */
+  removes: {
+    any: 'Yes, take it out',
+    full_demolition: 'Everything — cabinets, bench, splashback',
+    cabinets_only: 'Just the cabinets',
+    benchtop_only: 'Just the benchtop',
+    splashback_only: 'Just the splashback',
+  },
+  prep: {
+    wall_prep: 'Wall preparation',
+    floor_prep: 'Floor preparation',
+    floor_levelling: 'Floor levelling',
+    plaster_repair: 'Plaster repair',
+  },
+  extras: {
+    island: 'An island',
+    pantry: 'A pantry',
+    splashback_prep: 'Splashback preparation',
+    appliance_integration: 'Built-in appliances',
+    sink: 'A sink',
+    laundry: 'Laundry cabinets too',
+  },
+} as const;
+
 /**
  * What the chat may OFFER, per trade, in the order it offers them.
  *
@@ -185,12 +241,28 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
     waterproof: [...TILE_WATERPROOF],
     conditions: [...TILE_CONDITIONS],
   },
+  kitchen: {
+    jobTypes: [...KITCHEN_JOB_TYPES],
+    sizes: [...KITCHEN_SIZES],
+    supply: [...KITCHEN_SUPPLY],
+    benchtops: [...KITCHEN_BENCHTOPS],
+    /* The wildcard first, as in both other trades: somebody replacing a kitchen knows there is one
+       there and has not thought about whether the benchtop comes out on its own. The specific
+       answers follow for anyone who has. */
+    removes: ['any', ...KITCHEN_REMOVES.filter((r) => r !== 'any')],
+    /* `prep` is deliberately absent. Whether a floor needs levelling is not something a customer
+       can see, and asking them to decide it produces a wrong answer rather than a missing one - it
+       comes off the fitter's own site measure. It stays in the vocabulary because BUSINESSES price
+       it, and `WHAT_TO_SEND` asks them to. */
+    extras: [...KITCHEN_EXTRAS],
+  },
 };
 
 /** The same, for the words. Keyed by trade so a second trade brings its own and touches nothing. */
 export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string>>> = {
   fencing: CUSTOMER_LABEL_GROUPS,
   tiling: TILING_LABEL_GROUPS,
+  kitchen: KITCHEN_LABEL_GROUPS,
 };
 
 /** Flattened, for the business-side response. Derived - never edited by hand. */
@@ -217,6 +289,21 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     TILING_LABEL_GROUPS.conditions,
     TILING_LABEL_GROUPS.tileTypes,
     TILING_LABEL_GROUPS.jobTypes,
+    LABEL_GROUPS.units,
+  ) as Record<string, string>,
+  /* Same trap as tiling's, and worse: `island`, `pantry` and `sink` are all extras a customer picks
+     AND lines a business prices, and `splashback_prep` sits next to `splashback_only`. The
+     customer-chat phrasing goes first to be overwritten, so a fitter's own screen reads "The whole
+     kitchen", never "Yes, take the old one out". */
+  kitchen: Object.assign(
+    {},
+    KITCHEN_LABEL_GROUPS.removes,
+    KITCHEN_LABEL_GROUPS.supply,
+    KITCHEN_LABEL_GROUPS.sizes,
+    KITCHEN_LABEL_GROUPS.extras,
+    KITCHEN_LABEL_GROUPS.prep,
+    KITCHEN_LABEL_GROUPS.benchtops,
+    KITCHEN_LABEL_GROUPS.jobTypes,
     LABEL_GROUPS.units,
   ) as Record<string, string>,
 };
@@ -248,9 +335,22 @@ export const TILING_QUESTIONS: Record<string, string> = {
 };
 
 /** Per trade, for the same reason as the lists above: fencing's wording is fencing's. */
+export const KITCHEN_QUESTIONS: Record<string, string> = {
+  jobType: 'What are you having done?',
+  /* "Roughly" for the same reason tiling's area question carries it: a fitter measures the kitchen
+     on site and everything is confirmed there, so a customer who stalls trying to be exact is
+     stalling over something we were never going to use as given. */
+  kitchenSize: 'Roughly how big is the kitchen?',
+  supply: "Who's supplying the cabinets?",
+  benchtop: 'What benchtop are you after?',
+  removal: 'Is there an old kitchen to take out?',
+  extras: 'Anything else in the job?',
+};
+
 export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
   fencing: QUESTIONS,
   tiling: TILING_QUESTIONS,
+  kitchen: KITCHEN_QUESTIONS,
 };
 
 /**
@@ -292,6 +392,16 @@ export const TRADE_WORDS: Record<
      "fencinger". Every sentence that used to hardcode "fence" or "fencer" now asks here. */
   fencing: { trade: 'fencing', noun: 'fence', mentions: /fenc/i, article: 'a fence', tradesperson: 'fencer' },
   tiling: { trade: 'tiling', noun: 'tiles', mentions: /tile|tiling/i, article: 'tiling', tradesperson: 'tiler' },
+  /* `tradesperson` is "kitchen fitter" rather than "kitchen renovator" or "cabinetmaker": it is
+     what these businesses call themselves, and it is also honest about the scope. Beky Kitchens
+     fits and supplies cabinetry; the electrical, gas and plumbing are somebody else's. */
+  kitchen: {
+    trade: 'kitchen fitting',
+    noun: 'kitchen',
+    mentions: /kitchen|cabinetr|cabinet/i,
+    article: 'a kitchen',
+    tradesperson: 'kitchen fitter',
+  },
 };
 
 export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
@@ -310,6 +420,18 @@ export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
     height: 'Nobody near you publishes a price for that job. Want to try a different one?',
     material: 'The tilers near you do not lay that tile yet. Want to try a different one?',
     pricing: 'I found tilers near you, but none of them have finished setting up their pricing yet.',
+  },
+  /* The keys are fencing's - `gate`, `height`, `material` - because they name the SHAPE of the
+     failure rather than a fence part: something in the brief nobody prices, something at that size,
+     something of that kind. Renaming them would be a wire change across three trades to make one
+     table read better. `height` is kitchen's size, `material` its benchtop. */
+  kitchen: {
+    area: 'No kitchen fitter covers that suburb yet. Try a nearby suburb?',
+    removal: 'None of the fitters near you take out an old kitchen. Want to arrange that separately?',
+    gate: 'Nobody near you prices that part of the job. Want to try without it?',
+    height: 'Nobody near you publishes a price for a kitchen that size. Want to try a different one?',
+    material: 'The fitters near you do not install that benchtop yet. Want to try a different one?',
+    pricing: 'I found kitchen fitters near you, but none of them have finished setting up their pricing yet.',
   },
 };
 
@@ -434,6 +556,59 @@ export const WHAT_TO_SEND: Record<Trade, { need: string[]; helpful: string[]; ex
       'All prices include GST. Based in Pakenham, we travel 25km.',
       'Minimum job $350. Site inspection $95. Travel outside our area $75.',
       'Workmanship warranty as per contract.',
+    ].join('\n'),
+  },
+
+  /* Taken from the blocking rules K1-K9 in prompts/sop/kitchen/rules.md, in the same order, for the
+     same reason: a business reading this and a reviewer judging it must be working from one list.
+     The example is a kitchen fitter's real shape - a price for the whole job, then everything else
+     itemised - because that is what this trade's price lists actually look like and a form that
+     asks for a rate per metre would get a blank. */
+  kitchen: {
+    need: [
+      'Your installation price for a kitchen, by size - small, standard and large - or per cabinet',
+      "Whether you supply the cabinetry, install the customer's own, or both - and your cabinetry package prices if you supply",
+      'What you charge to take out an old kitchen - full demolition, cabinets only, benchtop, splashback, disposal',
+      'Benchtop installation priced by material - laminate, timber, stone (or say you do not install them)',
+      'Preparation priced separately - wall preparation, floor levelling, plaster repair (or say it is quoted on site)',
+      'The extras you offer, each with a price - island, pantry, splashback preparation, appliance cut-outs, sink, laundry cabinetry',
+      'Your minimum charge, any site measure or consultation fee, and any travel charge',
+      'The suburb or postcode you work out from, and how far you travel',
+      'Whether your prices include GST',
+    ],
+    helpful: [
+      'What a standard installation includes - levelling, fixing, fillers, kickboards, doors, drawers, final adjustment',
+      'What it does not - electrical, gas, plumbing, stone fabrication, appliance supply',
+      "How you handle a customer-supplied kitchen that arrives incomplete, and any return attendance charge",
+      'Your hourly rate for variations, and your workmanship warranty in your own words',
+    ],
+    example: [
+      'KITCHEN INSTALLATION',
+      'Small - $1,950    Standard - $2,850    Large - $4,250',
+      'Per cabinet: base $180, wall $165, tall $280, drawer unit $190.',
+      'Flat-pack assembly: base $95, wall $85, tall $145, drawer $125 each.',
+      '',
+      'CABINETRY WE SUPPLY',
+      'Standard custom kitchen package $8,950. Standard pantry supplied and installed $1,250.',
+      "We also install kitchens the customer buys themselves - the installation price is the same.",
+      '',
+      'REMOVAL',
+      'Full kitchen demolition $1,650. Cabinet removal $950. Benchtop removal $380.',
+      'Splashback removal $420. Disposal $650.',
+      '',
+      'BENCHTOPS',
+      'Laminate $850. Timber $1,150. Stone $1,250. Sink cut-out $180. Cooktop cut-out $220.',
+      '',
+      'PREPARATION',
+      'Minor wall preparation $350. Floor levelling $650. Plaster repair $420.',
+      '',
+      'EXTRAS',
+      'Island $650. Pantry install $420. Splashback preparation $480. Sink $320.',
+      'Dishwasher preparation $220. Oven cabinet $280. Laundry cabinetry $1,850.',
+      '',
+      'All prices include GST. Based in Pakenham, we travel 30km.',
+      'Minimum installation $450. Site measure $120. Travel outside our area $85.',
+      'Variations $95 per hour. Workmanship warranty as per contract.',
     ].join('\n'),
   },
 };

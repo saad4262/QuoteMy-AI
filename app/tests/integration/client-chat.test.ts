@@ -106,7 +106,7 @@ describe('both chat paths', () => {
     const res = await request(app).get('/api/v1/client/trades');
 
     expect(res.status).toBe(200);
-    expect(res.body.data.map((t: { trade: string }) => t.trade).sort()).toEqual(['fencing', 'tiling']);
+    expect(res.body.data.map((t: { trade: string }) => t.trade).sort()).toEqual(['fencing', 'kitchen', 'tiling']);
   });
 
   it('answers for the trade the body names', async () => {

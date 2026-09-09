@@ -606,3 +606,106 @@ describe('what counts as the customer`s own words', () => {
     expect(onlyDescriptions(plain)).toBe('');
   });
 });
+
+/**
+ * Kitchen's hints, and the two orderings the whole trade turns on.
+ *
+ * Nothing in the compiler can see any of this. A hint that reads the wrong half of a sentence fills
+ * a field with a real-looking wrong value, and the customer is never asked - so what a pattern must
+ * NOT match is tested at least as hard as what it must.
+ */
+const kitchen = (text: string) => readFor('kitchen', text).docFacts;
+
+describe('kitchen: who is buying the cabinets', () => {
+  /* The most expensive read in this trade. A kitchen package is $8,950 where a room of tiles is a
+     few hundred, so getting this backwards adds a five-figure line to a quote that was only ever
+     for fitting. `labour_only` is ordered first for exactly this sentence. */
+  it('reads a supply-and-fit sentence about the CUSTOMER’S cabinets as labour only', () => {
+    expect(kitchen("Supply and install the client's own cabinets").supply).toBe('labour_only');
+    expect(kitchen('Installation only - customer-supplied kitchen').supply).toBe('labour_only');
+    expect(kitchen('Cabinets by others').supply).toBe('labour_only');
+    expect(kitchen('Excludes the cabinetry').supply).toBe('labour_only');
+  });
+
+  it('reads a genuine supply-and-install sentence as one', () => {
+    expect(kitchen('Supply and install new kitchen cabinetry').supply).toBe('supply_and_install');
+    expect(kitchen('We supply the cabinets and fit them').supply).toBe('supply_and_install');
+    expect(kitchen('Standard custom kitchen cabinetry package').supply).toBe('supply_and_install');
+  });
+
+  it('says nothing when the page does not', () => {
+    expect(kitchen('Standard kitchen installation $2,850').supply).toBeUndefined();
+  });
+});
+
+describe('kitchen: the size, which is what finds the price', () => {
+  it('reads a layout as the size it implies', () => {
+    expect(kitchen('U-shaped kitchen with island').kitchenSize).toBe('large');
+    expect(kitchen('Galley kitchen, single run').kitchenSize).toBe('small');
+    expect(kitchen('L-shaped kitchen installation').kitchenSize).toBe('standard');
+  });
+
+  it('reads the plain size words too', () => {
+    expect(kitchen('Large Kitchen Installation Price: $4,250').kitchenSize).toBe('large');
+    expect(kitchen('Small Kitchen Installation Price: $1,950').kitchenSize).toBe('small');
+    expect(kitchen('Medium Kitchen Installation Price: $2,850').kitchenSize).toBe('standard');
+  });
+
+  /* A quantity is not a size, and this trade has no quantity. "12 square metres" and "nine
+     cabinets" both look like answers and neither one is: a small kitchen in a big room is still a
+     small kitchen. Nothing here may fill the field. */
+  it('refuses a measurement or a cabinet count', () => {
+    expect(kitchen('Kitchen floor area 14 square metres').kitchenSize).toBeUndefined();
+    expect(kitchen('Nine base cabinets and four wall cabinets').kitchenSize).toBeUndefined();
+  });
+});
+
+describe('kitchen: the job, and what is coming out', () => {
+  /* `install_only` is ordered first because its sentence contains the other two trades' words -
+     "install the new kitchen the customer supplied" is not a new-kitchen job. */
+  it('reads an install-only job as one, however much else the sentence says', () => {
+    expect(kitchen('Installation only of owner-supplied flat-pack kitchen').jobType).toBe('install_only');
+    expect(kitchen('Flat-pack kitchen install').jobType).toBe('install_only');
+  });
+
+  it('tells a replacement from a new kitchen', () => {
+    expect(kitchen('Remove existing kitchen and install new cabinetry').jobType).toBe('replacement');
+    expect(kitchen('New kitchen to new build').jobType).toBe('new_kitchen');
+  });
+
+  it('reads a removal only when one is actually being quoted', () => {
+    expect(kitchen('Full kitchen demolition $1,650').removal).toBe('full_demolition');
+    expect(kitchen('Remove existing kitchen cabinets').removal).toBe('cabinets_only');
+    // No removal mentioned at all is not the same as "there is nothing to remove".
+    expect(kitchen('Standard kitchen installation $2,850').removal).toBeUndefined();
+  });
+
+  /**
+   * A negated sentence closes the gate rather than answering it, and kitchen behaves exactly as
+   * tiling does here - verified against both, not assumed.
+   *
+   * `none` would be defensible and is deliberately not what happens: `negatedBy` runs on the
+   * `requires` gate, so "no kitchen removal" reads as "this page is not talking about a removal"
+   * and the customer is asked. The safe direction is the one that asks. What this rules out is the
+   * damaging read - pricing a $1,650 demolition off a sentence that says there is none.
+   */
+  it('leaves a negated removal unread rather than pricing one, the same way tiling does', () => {
+    for (const line of ['No kitchen removal required', 'Kitchen to remain', 'Nothing to remove']) {
+      expect(kitchen(line).removal, line).toBeUndefined();
+    }
+  });
+});
+
+describe('kitchen: the benchtop gate', () => {
+  /* "Stone" and "timber" are all over a kitchen page - a timber door, a stone splashback - so the
+     field is gated on the word benchtop itself, the same way tiling gates waterproofing. */
+  it('does not read a benchtop out of a sentence that is not about one', () => {
+    expect(kitchen('Timber-look cabinet doors and a stone splashback').benchtop).toBeUndefined();
+  });
+
+  it('reads one when the sentence is about a benchtop', () => {
+    expect(kitchen('Stone Benchtop Installation Price: $1,250').benchtop).toBe('stone');
+    expect(kitchen('Laminate benchtop installation $850').benchtop).toBe('laminate');
+    expect(kitchen('Benchtop not included - by others').benchtop).toBe('none');
+  });
+});

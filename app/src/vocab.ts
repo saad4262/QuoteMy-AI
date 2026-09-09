@@ -195,7 +195,102 @@ export const TILING_BOUNDS = {
   radiusKm: { min: 0, max: 500 },
 } as const;
 
-export const TRADES = ['fencing', 'tiling'] as const; // decking and retaining_wall follow
+// --- kitchen ------------------------------------------------------------------------------------
+
+/**
+ * What the customer is having done, which decides which of a fitter's rates applies at all.
+ *
+ * `install_only` is not the same statement as `labour_only` below, and both are needed. This one is
+ * about the WORK - there is a kitchen sitting in boxes and it needs fitting, with no demolition and
+ * no design. `supply` is about who BOUGHT it. A replacement kitchen the fitter supplies is
+ * `replacement` + `supply_and_install`; a flat-pack the customer bought and wants fitted into an
+ * empty room is `install_only` + `labour_only`. Folding the two into one field loses the difference
+ * between a job with demolition in it and a job without.
+ */
+export const KITCHEN_JOB_TYPES = ['new_kitchen', 'replacement', 'install_only'] as const;
+
+/**
+ * How big the job is - and the reason kitchen has no `lengthMeters` or `areaSqm`.
+ *
+ * Fitters do not price kitchens by the metre. They publish "small $1,950, standard $2,850, large
+ * $4,250" and then itemise everything else, so the SIZE is the rate key and the quantity is one
+ * whole kitchen. A customer knows roughly which of three their kitchen is; almost none of them can
+ * count their cabinets correctly, and a miscount is a wrong price rather than a missing one.
+ */
+export const KITCHEN_SIZES = ['small', 'standard', 'large'] as const;
+
+/**
+ * Who buys the cabinetry. Kitchen's version of `TILE_SUPPLY`, and the same rule applies: the
+ * fitting price is the same either way, and what differs is whether the cabinetry package price is
+ * added on top - from the business's own published list and nowhere else.
+ */
+export const KITCHEN_SUPPLY = ['supply_and_install', 'labour_only'] as const;
+
+/** Priced per benchtop as one item, by what it is made of - never by the metre. */
+export const KITCHEN_BENCHTOPS = ['laminate', 'timber', 'stone'] as const;
+
+/**
+ * What is being taken out, which is what the removal is priced against.
+ *
+ * `any` is the business-side wildcard, as it is in both other trades: somebody replacing a kitchen
+ * knows there is one there and has not thought about whether the benchtop comes out separately.
+ */
+export const KITCHEN_REMOVES = [
+  'full_demolition',
+  'cabinets_only',
+  'benchtop_only',
+  'splashback_only',
+  'any',
+] as const;
+
+/** Getting the room ready. The half most often missing from a cheap-looking kitchen quote. */
+export const KITCHEN_PREP = ['wall_prep', 'floor_prep', 'floor_levelling', 'plaster_repair'] as const;
+
+/**
+ * The parts of a kitchen that are quoted as their own item rather than folded into the fitting
+ * price. Every one of these is a real line on a fitter's list, and each is priced once.
+ */
+export const KITCHEN_EXTRAS = [
+  'island',
+  'pantry',
+  'splashback_prep',
+  'appliance_integration',
+  'sink',
+  'laundry',
+] as const;
+
+export const KITCHEN_TAGS = [
+  'flat-pack-capable',
+  'custom-cabinetry',
+  'customer-supply-accepted',
+  'stone-benchtop',
+  'appliance-integration',
+  'laundry-capable',
+  'insured',
+] as const;
+
+export type KitchenJobType = (typeof KITCHEN_JOB_TYPES)[number];
+export type KitchenSize = (typeof KITCHEN_SIZES)[number];
+export type KitchenSupply = (typeof KITCHEN_SUPPLY)[number];
+export type KitchenBenchtop = (typeof KITCHEN_BENCHTOPS)[number];
+export type KitchenRemoves = (typeof KITCHEN_REMOVES)[number];
+export type KitchenPrep = (typeof KITCHEN_PREP)[number];
+export type KitchenExtra = (typeof KITCHEN_EXTRAS)[number];
+export type KitchenTag = (typeof KITCHEN_TAGS)[number];
+
+/**
+ * Kitchen's bounds. There is no per-unit rate here at all - every figure is a price for a thing -
+ * so `price` does the work `pricePerMetre` and `pricePerSqm` do in the other two trades.
+ *
+ * The floor is deliberately not zero on `price`: a fitter's cheapest real line is a $35 handle, and
+ * a $0 line is a heading that was read as a rate.
+ */
+export const KITCHEN_BOUNDS = {
+  price: { min: 0, max: 100_000 },
+  radiusKm: { min: 0, max: 500 },
+} as const;
+
+export const TRADES = ['fencing', 'tiling', 'kitchen'] as const; // decking and retaining_wall follow
 export type Trade = (typeof TRADES)[number];
 
 /**
@@ -248,7 +343,23 @@ export const TILING_VOCAB: TradeVocab = {
   bounds: TILING_BOUNDS,
 };
 
+export const KITCHEN_VOCAB: TradeVocab = {
+  core: {
+    jobTypes: KITCHEN_JOB_TYPES,
+    sizes: KITCHEN_SIZES,
+    supply: KITCHEN_SUPPLY,
+    benchtops: KITCHEN_BENCHTOPS,
+    removes: KITCHEN_REMOVES,
+    prep: KITCHEN_PREP,
+    extras: KITCHEN_EXTRAS,
+    units: UNITS,
+    tags: KITCHEN_TAGS,
+  },
+  bounds: KITCHEN_BOUNDS,
+};
+
 export const TRADE_VOCAB: Record<Trade, TradeVocab> = {
   fencing: FENCING_VOCAB,
   tiling: TILING_VOCAB,
+  kitchen: KITCHEN_VOCAB,
 };

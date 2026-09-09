@@ -2,6 +2,14 @@ import { z } from 'zod';
 import {
   CONDITIONS,
   GATE_TYPES,
+  KITCHEN_BENCHTOPS,
+  KITCHEN_EXTRAS,
+  KITCHEN_JOB_TYPES,
+  KITCHEN_PREP,
+  KITCHEN_REMOVES,
+  KITCHEN_SIZES,
+  KITCHEN_SUPPLY,
+  KITCHEN_TAGS,
   MATERIALS,
   REMOVES,
   TAGS,
@@ -367,8 +375,131 @@ export const tilingExtractionSchema = z.object({
 });
 export type TilingExtraction = z.infer<typeof tilingExtractionSchema>;
 
+export const kitchenExtractionSchema = z.object({
+  businessName: z.string().nullable(),
+  gstIncluded: z.boolean().nullable(),
+  gstSourceQuote: z.string().nullable(),
+
+  serviceArea: z.object({
+    baseLocation: z.string().nullable(),
+    radiusKm: z.number().nullable(),
+    radiusSourceQuote: z.string().nullable(),
+    excludedAreas: z.string().array(),
+  }),
+
+  minimumCharge: z.number().nullable(),
+  minimumChargeSourceQuote: z.string().nullable(),
+  /** What they charge to come and measure or consult. Kitchen fitters charge this; fencers do not. */
+  siteMeasureFee: z.number().nullable(),
+  siteMeasureFeeSourceQuote: z.string().nullable(),
+  travelFee: z.number().nullable(),
+  travelFeeSourceQuote: z.string().nullable(),
+
+  /**
+   * The core rates, and the place kitchen differs in kind from both other trades.
+   *
+   * There is no per-unit rate here at all. Fitters price the WHOLE JOB by its size - "standard
+   * kitchen installation $2,850" - and itemise everything else, so `unit` is `per_job` for a
+   * kitchen and `per_item` for a single cabinet, and there is no third possibility.
+   *
+   * Both keys are NULLABLE, and for the same reason `tileType` is on a tiling rate. A list that
+   * says only "kitchen installation $2,850" has named neither the job nor the size; that is a
+   * general rate covering all three sizes, not a missing value. A named size beats a null one at
+   * quoting time, exactly as a named tile beats a general tiling rate.
+   */
+  rates: z
+    .object({
+      jobType: z.enum(KITCHEN_JOB_TYPES).nullable(),
+      size: z.enum(KITCHEN_SIZES).nullable(),
+      /**
+       * WHICH item, on a per-item rate. Null on a per-job one, where the size already says it.
+       *
+       * Found on a live submission: "base $180, wall $165, tall $280, drawer unit $190" is four
+       * different cabinets, and with nothing to tell them apart they read as one rate priced four
+       * times - three real prices dropped, and the business told its own list contradicted itself.
+       * The business's own wording, because there is no closed list of cabinet types and inventing
+       * one would be exactly the drift the vocabulary exists to prevent.
+       */
+      label: z.string().nullable(),
+      price: z.number(),
+      unit: z.enum(['per_job', 'per_item']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Cabinetry they SELL, when they supply as well as install. Never a figure off a website. */
+  cabinetSupply: z
+    .object({
+      label: z.string(),
+      price: z.number(),
+      unit: z.enum(['per_job', 'per_item']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Which of the two models they work under. Empty means they never said. */
+  supplyModels: z.enum(KITCHEN_SUPPLY).array(),
+
+  /** Priced per benchtop as one item, by what it is made of. A cut-out is an extra, not a benchtop. */
+  benchtops: z
+    .object({ material: z.enum(KITCHEN_BENCHTOPS), price: z.number(), sourceQuote: z.string() })
+    .array(),
+
+  /** Taking out what is there, priced by what is coming OUT - not by what is going in. */
+  removals: z
+    .object({ removes: z.enum(KITCHEN_REMOVES), price: z.number(), sourceQuote: z.string() })
+    .array(),
+
+  /** Getting the room ready, priced separately from the installation. */
+  prep: z
+    .object({
+      type: z.enum(KITCHEN_PREP),
+      price: z.number(),
+      unit: z.enum(['per_job', 'per_hour']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Every other priced line, and in this trade that is most of the quote.
+   *
+   * `type` carries one of the closed extra values where one applies and null otherwise - a handle
+   * price is a real priced line with no home in the vocabulary, and null is the right answer rather
+   * than the nearest guess. `label` is always the business's own wording, so nothing is lost.
+   */
+  extras: z
+    .object({
+      type: z.enum(KITCHEN_EXTRAS).nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      isFromPrice: z.boolean(),
+      sourceQuote: z.string().nullable(),
+    })
+    .array(),
+
+  warranty: z.object({ text: z.string().nullable(), sourceQuote: z.string().nullable() }),
+
+  inclusions: z.string().array(),
+  exclusions: z.string().array(),
+  tags: z.enum(KITCHEN_TAGS).array(),
+
+  otherOfferings: z
+    .object({
+      slug: z.string().nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  couldNotUse: z.string().array(),
+});
+export type KitchenExtraction = z.infer<typeof kitchenExtractionSchema>;
+
 /** Whatever the extraction stage returns, for the code between the model and the verifier. */
-export type AnyExtraction = Extraction | TilingExtraction;
+export type AnyExtraction = Extraction | TilingExtraction | KitchenExtraction;
 
 /**
  * One trade per extraction call (`CLAUDE.md` non-negotiable #5), so the schema is chosen by trade
@@ -380,6 +511,7 @@ export type AnyExtraction = Extraction | TilingExtraction;
 export const TRADE_EXTRACTION: Record<Trade, z.ZodType<AnyExtraction>> = {
   fencing: extractionSchema,
   tiling: tilingExtractionSchema,
+  kitchen: kitchenExtractionSchema,
 };
 
 /**

@@ -1,6 +1,7 @@
 import type { ServiceExtract } from '../store.js';
 import {
   isFencingPricing,
+  isKitchenPricing,
   isTilingPricing,
   type VerifiedCapabilities,
   type VerifiedOffering,
@@ -8,6 +9,7 @@ import {
 } from '../verify/index.js';
 import { NO_MATCH_MESSAGES } from '../messages.js';
 import { budgetText } from './budget.js';
+import { quoteKitchen, type KitchenBrief } from './pricing/kitchen.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { quoteTotal } from './pricing/total.js';
@@ -260,6 +262,16 @@ function asFencing(extract: ServiceExtract): FencingExtract | null {
   return { pricing, capabilities: extract.capabilities as FencingExtract['capabilities'] };
 }
 
+/**
+ * How much of it there is, in whatever the trade measures.
+ *
+ * Zero for a trade that measures nothing - kitchen prices the whole job - and zero is the right
+ * answer rather than a missing one: `quoteKitchen` never reads it, and a per-unit trade with no
+ * quantity given has genuinely nothing to multiply by.
+ */
+const quantityOf = (checklist: Checklist, spec: PricingSpec): number =>
+  (spec.quantityField ? asNumber(checklist[spec.quantityField]) : null) ?? 0;
+
 /** The tiling checklist, read the same defensive way fencing's is - coerced at the boundary. */
 function tilingBrief(checklist: Checklist, spec: PricingSpec): TilingBrief {
   const removal = asText(checklist.removal);
@@ -267,7 +279,7 @@ function tilingBrief(checklist: Checklist, spec: PricingSpec): TilingBrief {
   return {
     jobType: slug(asText(checklist.jobType)),
     tileType: slug(asText(checklist.tileType)),
-    areaSqm: asNumber(checklist[spec.quantityField]) ?? 0,
+    areaSqm: quantityOf(checklist, spec),
     removal: removal && removal !== 'none' ? slug(removal) : null,
     waterproofing: waterproofing && waterproofing !== 'none' ? slug(waterproofing) : null,
     conditions: asTextList(checklist.conditions),
@@ -276,6 +288,24 @@ function tilingBrief(checklist: Checklist, spec: PricingSpec): TilingBrief {
        closed vocabulary value, and slugging turns `supply_and_install` into `supply-and-install`,
        which matches nothing. Golden conversation 22 is what caught it - the tile price silently
        stopped being added to a supply-and-install quote. */
+    supply: asText(checklist.supply) ?? '',
+  };
+}
+
+/** The kitchen checklist. No quantity to read - the whole job is what is priced. */
+function kitchenBrief(checklist: Checklist): KitchenBrief {
+  const removal = asText(checklist.removal);
+  const benchtop = asText(checklist.benchtop);
+  return {
+    jobType: slug(asText(checklist.jobType)),
+    kitchenSize: slug(asText(checklist.kitchenSize)),
+    benchtop: benchtop && benchtop !== 'none' ? slug(benchtop) : null,
+    removal: removal && removal !== 'none' ? slug(removal) : null,
+    extras: asTextList(checklist.extras),
+    /* NOT slugged, for exactly the reason tiling's is not: this is compared against a closed
+       vocabulary value, and slugging turns `supply_and_install` into `supply-and-install`, which
+       matches nothing. Tiling's golden conversation 22 is what caught it there, and the same
+       mistake here would silently drop an $8,950 cabinetry package out of every quote. */
     supply: asText(checklist.supply) ?? '',
   };
 }
@@ -306,7 +336,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     material: wantedMaterial,
     heightMetres: wantedHeight,
     // Named by the trade's pricing spec: metres of fence, square metres of floor.
-    lengthMetres: asNumber(checklist[spec.quantityField]) ?? 0,
+    lengthMetres: quantityOf(checklist, spec),
     conditions: asTextList(checklist.conditions),
     removal: removal && removal !== 'none' ? slug(removal) : null,
     gateType: gateType && gateType !== 'none' ? slug(gateType) : null,
@@ -341,6 +371,37 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         suburb: business.suburb,
         distanceKm: business.distanceKm,
         material: slug(quote.tileKey),
+        heightKey: quote.rateKey,
+        ratePerMeter: quote.ratePerUnit,
+        autoAcceptsAi: business.autoAcceptsAi,
+        currency: 'AUD',
+        projectTotalMin: quote.total,
+        projectTotalMax: quote.total,
+        estimatedTotal: quote.total,
+        warranty: (stored.capabilities as { warranty?: { text?: string | null } } | null)?.warranty?.text ?? null,
+        badges: quote.badges,
+      });
+      continue;
+    }
+
+    if (schema.trade === 'kitchen') {
+      const pricing = stored.pricing;
+      if (!pricing || !isKitchenPricing(pricing)) continue;
+
+      const quote = quoteKitchen(business, pricing, kitchenBrief(checklist));
+      if ('blocked' in quote) {
+        /* The nearest equivalents again, and the same reason: these keys choose the sentence a
+           customer reads. A kitchen nobody prices at that size is fencing's `height` problem. */
+        blocked[quote.blocked === 'kitchenSize' ? 'height' : 'removal'] += 1;
+        continue;
+      }
+
+      quotes.push({
+        uid: business.uid,
+        businessName: business.businessName,
+        suburb: business.suburb,
+        distanceKm: business.distanceKm,
+        material: slug(quote.sizeKey),
         heightKey: quote.rateKey,
         ratePerMeter: quote.ratePerUnit,
         autoAcceptsAi: business.autoAcceptsAi,

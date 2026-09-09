@@ -1,13 +1,19 @@
-import type { AnyExtraction, Extraction, TilingExtraction } from '../schemas.js';
+import type { AnyExtraction, Extraction, KitchenExtraction, TilingExtraction } from '../schemas.js';
 import type { Trade } from '../vocab.js';
 import { verifyFencing, type VerifiedResult as FencingResult } from './fencing.js';
 import { verifyTiling, type TilingVerifiedResult } from './tiling.js';
+import { verifyKitchen, type KitchenVerifiedResult } from './kitchen.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './fencing.js';
 import type {
   TilingVerifiedCapabilities,
   TilingVerifiedOffering,
   TilingVerifiedPricing,
 } from './tiling.js';
+import type {
+  KitchenVerifiedCapabilities,
+  KitchenVerifiedOffering,
+  KitchenVerifiedPricing,
+} from './kitchen.js';
 
 /**
  * Verification, by trade.
@@ -38,6 +44,8 @@ export function verifyExtraction(
       return verifyFencing(x as Extraction, sourceText, trade, knownSlugs);
     case 'tiling':
       return verifyTiling(x as TilingExtraction, sourceText, trade, knownSlugs);
+    case 'kitchen':
+      return verifyKitchen(x as KitchenExtraction, sourceText, trade, knownSlugs);
   }
 }
 
@@ -49,15 +57,16 @@ export function verifyExtraction(
  * narrows on `trade` first - `isFencingPricing` and `isTilingPricing` below are the honest way to
  * do that at a boundary where the value came out of Firestore.
  */
-export type AnyVerifiedPricing = VerifiedPricing | TilingVerifiedPricing;
-export type AnyVerifiedCapabilities = VerifiedCapabilities | TilingVerifiedCapabilities;
-export type AnyVerifiedOffering = VerifiedOffering | TilingVerifiedOffering;
-export type VerifiedResult = FencingResult | TilingVerifiedResult;
+export type AnyVerifiedPricing = VerifiedPricing | TilingVerifiedPricing | KitchenVerifiedPricing;
+export type AnyVerifiedCapabilities = VerifiedCapabilities | TilingVerifiedCapabilities | KitchenVerifiedCapabilities;
+export type AnyVerifiedOffering = VerifiedOffering | TilingVerifiedOffering | KitchenVerifiedOffering;
+export type VerifiedResult = FencingResult | TilingVerifiedResult | KitchenVerifiedResult;
 
 /**
  * Which shape this is, decided by a field only one of them has.
  *
- * Keyed on `enabledMaterials` / `enabledJobTypes` rather than on a stored `trade` field, because
+ * Keyed on `enabledMaterials` / `enabledJobTypes` / `enabledKitchenSizes` rather than on a stored
+ * `trade` field, because
  * these are read back out of Firestore where a document can be older than the code. A missing
  * discriminant would silently pick a branch; a missing list cannot.
  */
@@ -66,6 +75,9 @@ export const isFencingPricing = (p: AnyVerifiedPricing): p is VerifiedPricing =>
 
 export const isTilingPricing = (p: AnyVerifiedPricing): p is TilingVerifiedPricing =>
   Array.isArray((p as TilingVerifiedPricing).enabledJobTypes);
+
+export const isKitchenPricing = (p: AnyVerifiedPricing): p is KitchenVerifiedPricing =>
+  Array.isArray((p as KitchenVerifiedPricing).enabledKitchenSizes);
 
 export type {
   VerifiedCapabilities,
@@ -81,3 +93,11 @@ export type {
   TilingVerifiedPricing,
   TilingVerifiedResult,
 } from './tiling.js';
+
+export type {
+  KitchenRate,
+  KitchenVerifiedCapabilities,
+  KitchenVerifiedOffering,
+  KitchenVerifiedPricing,
+  KitchenVerifiedResult,
+} from './kitchen.js';

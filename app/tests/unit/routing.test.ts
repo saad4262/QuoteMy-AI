@@ -50,6 +50,33 @@ describe('reading the trade out of what they said', () => {
     ]) {
       expect(detectTrade(message, both), message).toEqual(['tiling']);
     }
+
+    for (const message of [
+      'I need a new kitchen',
+      'kitchen renovation quote',
+      'replacing our kitchen cabinets',
+      'flat pack kitchen install',
+      'stone benchtop and cupboards',
+      'need a cabinetmaker',
+      'walk in pantry',
+    ]) {
+      expect(detectTrade(message, both), message).toEqual(['kitchen']);
+    }
+  });
+
+  /**
+   * The one overlap the compiler cannot see, and the reason kitchen's pattern is not simply
+   * /kitchen/. A kitchen splashback is TILING work and tiling has published `kitchen_splashback`
+   * as a job type since before this trade existed - so the bare noun is excluded where it is
+   * qualifying a tiled surface, and the specific nouns carry the trade on their own.
+   */
+  it('leaves a tiled surface to tiling, however much it says kitchen', () => {
+    for (const message of ['kitchen splashback quote', 'how much to tile the kitchen floor', 'retile the kitchen walls']) {
+      expect(detectTrade(message, both), message).toEqual(['tiling']);
+    }
+
+    // Two jobs named at once is still two jobs, and still goes to the question.
+    expect(detectTrade('new kitchen and retile the bathroom', both)).toEqual(['tiling', 'kitchen']);
   });
 
   /* A keyword that fires for both trades is worse than no keyword at all: it turns a clear message
@@ -111,8 +138,8 @@ describe('the conversation', () => {
 
     expect(asked.type).toBe('question');
     expect(asked.trade).toBeNull();
-    expect(asked.message).toBe('Are you looking for Fencing or Tiling services?');
-    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling']);
+    expect(asked.message).toBe('Are you looking for Fencing, Tiling or Kitchen fitting services?');
+    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen']);
   });
 
   it('says so differently when they named two jobs at once', async () => {

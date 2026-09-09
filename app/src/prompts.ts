@@ -45,6 +45,7 @@ const generalSop = read('sop', '_general.md');
 const tradeRules: Record<Trade, string> = {
   fencing: read('sop', 'fencing', 'rules.md'),
   tiling: read('sop', 'tiling', 'rules.md'),
+  kitchen: read('sop', 'kitchen', 'rules.md'),
 };
 
 /**
@@ -55,6 +56,7 @@ const tradeRules: Record<Trade, string> = {
 const tradeChat: Record<Trade, string> = {
   fencing: read('chat', 'fencing.md'),
   tiling: read('chat', 'tiling.md'),
+  kitchen: read('chat', 'kitchen.md'),
 };
 
 export function chatPrompt(trade: Trade): string {
@@ -64,6 +66,7 @@ export function chatPrompt(trade: Trade): string {
 const tradeExtraction: Record<Trade, string> = {
   fencing: read('extraction.fencing.md'),
   tiling: read('extraction.tiling.md'),
+  kitchen: read('extraction.kitchen.md'),
 };
 
 /** Rough, deliberately pessimistic: ~3.6 chars per token for English prose. */

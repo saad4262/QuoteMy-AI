@@ -1,4 +1,4 @@
-import { QUESTIONS, TILING_QUESTIONS } from '../messages.js';
+import { KITCHEN_QUESTIONS, QUESTIONS, TILING_QUESTIONS } from '../messages.js';
 import type { Trade } from '../vocab.js';
 import { HEIGHT_FALLBACK, QUANTITIES } from './vocab.js';
 
@@ -789,6 +789,212 @@ export const TILING_FIELDS: FieldSpec[] = [
 ];
 
 /**
+ * Kitchen's seven, and the shape that makes it different from both other trades.
+ *
+ * There is no quantity question here at all. Fencing asks how many metres and tiling how many
+ * square metres; a kitchen fitter prices the whole job by its SIZE, so `kitchenSize` is both the
+ * question a customer can actually answer and the key that finds the rate. Everything after it is
+ * an itemised addition to that one price.
+ */
+export const KITCHEN_FIELDS: FieldSpec[] = [
+  {
+    key: 'suburb',
+    namedBy: /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i,
+    aliases: ['suburb', 'location', 'postcode'],
+    type: 'place',
+    title: 'Suburb',
+    question: 'Which suburb is the job in? A postcode works too.',
+  },
+  {
+    key: 'jobType',
+    namedBy: /\b(jobs?|new kitchen|replacement|what.{0,12}(?:doing|having done))\b/i,
+    aliases: ['job'],
+    type: 'enum',
+    title: 'Job',
+    question: KITCHEN_QUESTIONS.jobType,
+    source: 'core.jobTypes',
+    labelGroup: 'jobTypes',
+    /* `install_only` first, and that order is the rule. "Install the kitchen the customer supplies"
+       contains the words for the other two, and read the other way round a job with no demolition
+       in it gets quoted as a replacement. `replacement` before `new_kitchen` for the same reason:
+       "new kitchen replacing the old one" is a replacement, and the word "new" is in both. */
+    docHints: {
+      values: [
+        [
+          'install_only',
+          /\binstall(?:ation)?\s+only\b|\bcustomer[-\s]?supplied\b|\bowner[-\s]?supplied\b|\bfit\s+(?:only|the\s+customer)\b|\bflat[-\s]?pack\b[^.\n]{0,20}\binstall/i,
+        ],
+        [
+          'replacement',
+          /\breplac\w*\b|\bexisting\s+kitchen\b|\bold\s+kitchen\b|\bstrip\s*out\b|\brenovation\b/i,
+        ],
+        ['new_kitchen', /\bnew\s+kitchen\b|\bnew\s+build\b/i],
+      ],
+    },
+  },
+  {
+    key: 'kitchenSize',
+    namedBy: /\b(sizes?|how big|small|standard|large|layouts?)\b/i,
+    aliases: ['size'],
+    type: 'enum',
+    title: 'Size',
+    question: KITCHEN_QUESTIONS.kitchenSize,
+    source: 'core.sizes',
+    labelGroup: 'sizes',
+    /* Layout words before the plain size words, because a layout is what a fitter's list actually
+       says and it is the more specific statement: "U-shaped kitchen" is large whatever else the
+       page calls it. `standard` last of the three, because it is the word a quote falls back on. */
+    docHints: {
+      values: [
+        ['large', /\blarge\s+kitchen\b|\bu[-\s]?shaped?\b|\bisland\s+kitchen\b|\bpeninsula\b/i],
+        ['small', /\bsmall\s+kitchen\b|\bgalley\b|\bsingle\s+run\b|\bstraight\s+kitchen\b/i],
+        ['standard', /\b(?:standard|medium)\s+kitchen\b|\bl[-\s]?shaped?\b/i],
+      ],
+    },
+  },
+  {
+    key: 'supply',
+    namedBy: /\b(supply|supplied|who.{0,12}buying|who.{0,12}supplies|cabinets?)\b/i,
+    aliases: ['supply', 'cabinets'],
+    type: 'enum',
+    title: 'Cabinets',
+    question: KITCHEN_QUESTIONS.supply,
+    source: 'core.supply',
+    labelGroup: 'supply',
+    /* Two real answers and no "none" - somebody is buying the cabinets either way. */
+    pageSize: 2,
+    /* `labour_only` first, exactly as in tiling and for the same reason: "supply and install the
+       client's own cabinets" contains the standard phrase for the other answer, and reading it as
+       `supply_and_install` would add a cabinetry package to a quote that was only ever for fitting.
+       This trade makes that mistake more expensive than tiling does - a kitchen package is $8,950
+       where a room of tiles is a few hundred. */
+    docHints: {
+      values: [
+        [
+          'labour_only',
+          /\binstall(?:ation)?\s+only\b|\b(?:client|customer|owner|you)(?:'s)?\s+(?:to\s+|own\s+)?(?:supply|supplies|supplying|provide|provides|cabinets?|kitchen)\b|\bcabinets?\s+(?:supplied|provided)\s+by\s+(?:client|customer|owner|others)\b|\bcabinets?\s+by\s+others\b|\bexcludes?\s+(?:the\s+)?(?:cabinets?|cabinetry)\b/i,
+        ],
+        [
+          'supply_and_install',
+          /\bsupply\s*(?:and|&|\+)\s*(?:install|build|fit)\b|\bwe\s+supply\b|\bcabinet(?:ry|s)?\s+(?:are\s+)?included\b|\bincludes?\s+(?:the\s+)?cabinet(?:ry|s)?\b|\bcabinetry\s+package\b/i,
+        ],
+      ],
+    },
+  },
+  {
+    key: 'benchtop',
+    recap: { prefix: 'a ', lower: true, words: { laminate: 'laminate benchtop', timber: 'timber benchtop', stone: 'stone benchtop' } },
+    namedBy: /\b(bench\s?tops?|benches|counter\s?tops?)\b/i,
+    aliases: ['benchtop', 'benchtops'],
+    type: 'enum',
+    title: 'Benchtop',
+    question: KITCHEN_QUESTIONS.benchtop,
+    source: 'core.benchtops',
+    labelGroup: 'benchtops',
+    /* Not blocking, and the pinned answer says so plainly: a fitter who does not install benchtops
+       can still fit the kitchen, and a customer who has one already is not asking us to price it. */
+    pinned: { label: 'Not needed', value: 'none' },
+    /* `requires` IS this field, the same way it is tiling's waterproofing. "Stone" and "timber" are
+       words that appear all over a kitchen page - a timber cabinet door, a stone splashback - so
+       without the gate a submission naming either would fill in a benchtop nobody quoted. */
+    docHints: {
+      requires: [/\bbench\s?tops?\b|\bcounter\s?tops?\b/gi],
+      values: [
+        [
+          'none',
+          /\b(?:no|not|nil|excl\w*|without)\b[^.\n]{0,25}bench\s?tops?|bench\s?tops?[^.\n]{0,25}\b(?:not included|excluded|by others|n\/a|not required)\b/i,
+        ],
+        ['stone', /\bstone\b|\bgranite\b|\bengineered\s+stone\b|\bquartz\b|\bcaesarstone\b/i],
+        ['timber', /\btimber\b|\bwood(?:en)?\b|\bbutcher\s?block\b/i],
+        ['laminate', /\blaminate[sd]?\b|\bmelamine\b/i],
+      ],
+    },
+  },
+  {
+    key: 'removal',
+    recap: { prefix: 'taking out ', lower: true, words: { any: 'the old kitchen', full_demolition: 'the whole old kitchen' } },
+    namedBy: /\b(removals?|remove|removing|demolition|old kitchen|existing kitchen|strip ?out)\b/i,
+    aliases: ['removal', 'removing', 'demolition'],
+    type: 'enum',
+    title: 'Old kitchen',
+    question: KITCHEN_QUESTIONS.removal,
+    source: 'core.removes',
+    labelGroup: 'removes',
+    pinned: { label: 'Nothing to take out', value: 'none' },
+    /* The same two stages both other trades use: is a removal being quoted for at all, and only
+       then what is coming out. Silence stays silence - a quote that never mentions the old kitchen
+       has not said there is none, so the customer is still asked.
+       `any` last, and deliberately: it is what a removal reads as when the page says a kitchen is
+       coming out without saying how much of it, which is most of the time. */
+    docHints: {
+      requires: [
+        new RegExp(
+          String.raw`\b(?:remov\w*|strip\w*|demoli\w*|dispos\w*|take\s*out|taking\s*out|tear\s*out|rip\s*out)\b[^.\n]{0,40}\b(?:kitchen|cabinet\w*|bench\s?top|splash\s?back)\b`,
+          'gi',
+        ),
+        new RegExp(
+          String.raw`\b(?:old|existing|current)\b[^.\n]{0,30}?\b(?:kitchen|cabinet\w*|bench\s?top|splash\s?back)\b[^.\n]{0,40}?\b(?:remov\w*|strip\w*|demoli\w*|taken\s*out|out)\b`,
+          'gi',
+        ),
+        /* The noun before the verb, with nothing in front of it: "Full kitchen demolition" and
+           "Cabinet removal" are how a fitter's own price list writes this, and neither says "old"
+           or "existing" anywhere. Found by the test, not reasoned about. */
+        new RegExp(
+          String.raw`\b(?:kitchen|cabinet\w*|bench\s?top|splash\s?back)\b[^.\n]{0,20}\b(?:remov\w*|strip\w*|demoli\w*|dispos\w*)\b`,
+          'gi',
+        ),
+      ],
+      // "no removal of the existing kitchen" prices a demolition nobody asked for.
+      negatedBy: /\b(?:no|not|excl\w*|without|nil)\b[^.\n]{0,24}$/i,
+      values: [
+        [
+          'none',
+          /\bno\s+(?:kitchen\s+)?(?:removal|demolition)\b|\bnothing\s+to\s+(?:take\s*out|remove)\b|\bkitchen\s+to\s+remain\b/i,
+        ],
+        ['full_demolition', /\bfull\s+(?:kitchen\s+)?demoli\w*|\bcomplete\s+strip\s*out\b|\bwhole\s+kitchen\s+(?:out|removed)\b/i],
+        ['benchtop_only', /\bbench\s?top\s+(?:removal|only)\b/i],
+        ['splashback_only', /\bsplash\s?back\s+(?:removal|only)\b/i],
+        ['cabinets_only', /\bcabinets?\s+(?:removal|only)\b|\bremov\w*\b[^.\n]{0,25}\bcabinets?\b/i],
+        ['any', /\bkitchen\b/i],
+      ],
+    },
+  },
+  {
+    key: 'extras',
+    namedBy: /\b(extras?|islands?|pantr(?:y|ies)|splash\s?backs?|appliances?|sinks?|laundr(?:y|ies))\b/i,
+    aliases: ['extras'],
+    recap: { lower: true },
+    type: 'multiEnum',
+    title: 'Extras',
+    question: KITCHEN_QUESTIONS.extras,
+    source: 'core.extras',
+    labelGroup: 'extras',
+    pinned: { label: 'Nothing else', value: 'none' },
+    /* In this trade the extras are most of the quote, so a page that names one has said something
+       worth keeping. No `none` pattern: a kitchen list that simply does not mention an island has
+       not said there is no island, and the customer is asked. */
+    docHints: {
+      values: [
+        ['island', /\bislands?\b/i],
+        ['pantry', /\bpantr(?:y|ies)\b/i],
+        ['splashback_prep', /\bsplash\s?backs?\b/i],
+        [
+          'appliance_integration',
+          /\bappliances?\b|\bdishwashers?\b|\bovens?\b|\bcook\s?tops?\b|\brange\s?hoods?\b|\bintegrated\b/i,
+        ],
+        ['sink', /\bsinks?\b/i],
+        ['laundry', /\blaundr(?:y|ies)\b/i],
+      ],
+    },
+  },
+  {
+    key: 'existingPrice',
+    type: 'money',
+    asked: false,
+  },
+];
+
+/**
  * Each trade's checklist, by trade. Read by anything that serves a trade generically - the chat's
  * fallback schema and the Firestore seed - so that publishing `schema/tiling` cannot seed it with
  * fencing's questions.
@@ -796,6 +1002,7 @@ export const TILING_FIELDS: FieldSpec[] = [
 export const TRADE_FIELDS: Record<Trade, FieldSpec[]> = {
   fencing: FENCING_FIELDS,
   tiling: TILING_FIELDS,
+  kitchen: KITCHEN_FIELDS,
 };
 
 /** Every spec entry, asked or not. */

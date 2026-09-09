@@ -578,7 +578,10 @@ describe('a call that is not about fencing', () => {
     const { body } = await startCall({});
 
     expect(body.greeting).toBe(openingLine(TRADES));
-    expect(body.greeting).toContain('fencing or tiling quotes');
+    /* Asserted per trade rather than as one fixed sentence: the line is generated from `TRADES`,
+       so a hardcoded copy of it has to be edited every time a trade is added and says nothing
+       about whether the new one is actually named. */
+    for (const word of ['fencing', 'tiling', 'kitchen fitting']) expect(body.greeting).toContain(word);
   });
 
   /* Pressing the microphone part-way through a typed tiling conversation. The page sends what it
@@ -632,16 +635,19 @@ describe('a call that is not about fencing', () => {
     const { body } = await startCall({});
 
     const asked = await runVoiceTurn(body.sessionId, { spokenText: 'hi, I need a quote' }, { repo });
-    expect(asked.speakText).toContain('Fencing or Tiling');
+    /* Every live trade gets its own letter, and the third one is the point of asserting all of
+       them: the letters are generated, so a trade added to `TRADES` has to be readable down a
+       phone line without anybody remembering to come back here. */
     expect(asked.speakText).toContain('Option A, Fencing.');
     expect(asked.speakText).toContain('Option B, Tiling.');
+    expect(asked.speakText).toContain('Option C, Kitchen fitting.');
     expect((await repo.readVoiceSession(body.sessionId))?.trade).toBeNull();
 
     const answered = await runVoiceTurn(body.sessionId, { spokenText: 'tiling thanks' }, { repo });
 
     // What reached the pipeline was the option's own value, not the sentence around it.
     expect((await repo.readVoiceSession(body.sessionId))?.trade).toBe('tiling');
-    expect(answered.speakText).not.toContain('Fencing or Tiling');
+    expect(answered.speakText).not.toContain('Option A, Fencing.');
     expect(answered.speakText).not.toContain('fence');
   });
 

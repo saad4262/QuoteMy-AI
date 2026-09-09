@@ -149,7 +149,7 @@ export interface Conversation {
   turns: Turn[];
   ai?: AiClient;
   /** Omitted means fencing, so every conversation written before there was a second trade is unchanged. */
-  trade?: 'fencing' | 'tiling';
+  trade?: 'fencing' | 'tiling' | 'kitchen';
 }
 
 /**
@@ -568,6 +568,184 @@ export function seedTiler(
     updatedAt: now,
   } as unknown as CapabilitiesDoc);
 }
+
+// --- kitchen ------------------------------------------------------------------------------------
+
+/**
+ * Beky Kitchens, from `SOPS/kitchen.pdf` - a real submission's real figures, so a wrong total here
+ * is a wrong total a customer would actually have been shown.
+ *
+ * This business is why kitchen is a third trade rather than a third vocabulary. It sells no unit at
+ * all: the installation is one price by SIZE, and the eight itemised lines around it are most of
+ * the money. A per-cabinet row is in here too, priced and stored and deliberately unreachable from
+ * a quote - the conversation never asks for a cabinet count, so nothing can multiply by one.
+ */
+export function seedKitchenFitter(
+  repo: MemoryRepository,
+  uid: string,
+  businessName: string,
+  pricingOverrides: Record<string, unknown> = {},
+): void {
+  const now = '2026-01-01T00:00:00.000Z';
+
+  repo.addCandidate({
+    uid,
+    businessName,
+    servicesProvided: ['kitchen'],
+    rating: 4.7,
+    reviewCount: 64,
+    isAutoAcceptEnabled: false,
+    isAiAutoAcceptEnabled: true,
+  });
+
+  repo.savePricing(uid, {
+    trade: 'kitchen',
+    status: 'confirmed',
+    schemaVersion: 1,
+    updatedAt: now,
+    confirmedAt: now,
+    ratesSaved: 4,
+    gstIncluded: true,
+    supplyModels: ['supply_and_install', 'labour_only'],
+    enabledKitchenSizes: ['small', 'standard', 'large'],
+    rates: {
+      /* Filed under `general`, which is the common case: one installation price list covering a
+         new kitchen, a replacement and an install-only job alike. The per-item row is real and is
+         never quotable - see the note above. */
+      general: [
+        { size: 'small', label: null, price: 1950, unit: 'per_job' },
+        { size: 'standard', label: null, price: 2850, unit: 'per_job' },
+        { size: 'large', label: null, price: 4250, unit: 'per_job' },
+        { size: null, label: 'Base cabinet installation', price: 180, unit: 'per_item' },
+      ],
+    },
+    cabinetSupply: [{ label: 'Standard Custom Kitchen Cabinet Package', price: 8950, unit: 'per_job' }],
+    benchtops: [
+      { material: 'laminate', price: 850 },
+      { material: 'timber', price: 1150 },
+      { material: 'stone', price: 1250 },
+    ],
+    removals: [
+      { removes: 'full_demolition', price: 1650 },
+      { removes: 'cabinets_only', price: 950 },
+      { removes: 'benchtop_only', price: 380 },
+    ],
+    prep: [{ type: 'wall_prep', price: 350, unit: 'per_job' }],
+    extras: [
+      { type: 'island', label: 'Standard island installation', price: 650, unit: 'per_item', isFromPrice: false },
+      { type: 'pantry', label: 'Pantry cabinet installation', price: 420, unit: 'per_item', isFromPrice: false },
+      { type: 'splashback_prep', label: 'Splashback preparation', price: 480, unit: 'per_job', isFromPrice: false },
+      { type: 'sink', label: 'Sink installation', price: 320, unit: 'per_item', isFromPrice: false },
+      { type: null, label: 'Cabinet handle installation', price: 35, unit: 'per_item', isFromPrice: false },
+    ],
+    serviceArea: {
+      baseLocation: 'Pakenham',
+      resolved: { suburb: 'Pakenham', state: 'VIC', postcode: '3810', lat: PAKENHAM.latitude, lng: PAKENHAM.longitude, source: 'google' },
+      radiusKm: 30,
+      excludedAreas: [],
+    },
+    minimumCharge: 450,
+    siteMeasureFee: 120,
+    travelFee: 85,
+    ...pricingOverrides,
+  } as unknown as PricingDoc);
+
+  repo.saveCapabilities(uid, {
+    trade: 'kitchen',
+    businessName,
+    warranty: { text: 'Workmanship warranty as per contract' },
+    tags: [],
+    inclusions: [],
+    exclusions: [],
+    otherOfferings: [],
+    couldNotUse: [],
+    schemaVersion: 1,
+    updatedAt: now,
+  } as unknown as CapabilitiesDoc);
+}
+
+const openKitchen: Turn[] = [{ say: 'I need a kitchen quote' }, { say: 'yes go ahead' }];
+
+export const KITCHEN_CONVERSATIONS: Conversation[] = [
+  {
+    name: '30 kitchen, install only, the customer buys the cabinets',
+    why: 'the third trade end to end: no quantity question at all, size as the rate key, and a total built from one job price plus fixed items',
+    trade: 'kitchen',
+    seed: (repo) => seedKitchenFitter(repo, 'kitchen-1', 'Beky Kitchens'),
+    turns: [
+      ...openKitchen,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'install_only' },
+      { say: 'standard' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '31 kitchen, supply and install, so the cabinetry is in the price',
+    why: 'the labour/material split, which is the whole reason this trade copies tiling: the same job with the cabinetry package on top, and $8,950 is the difference',
+    trade: 'kitchen',
+    seed: (repo) => seedKitchenFitter(repo, 'kitchen-1', 'Beky Kitchens'),
+    turns: [
+      ...openKitchen,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'replacement' },
+      { say: 'standard' },
+      { say: 'supply_and_install' },
+      { say: 'stone' },
+      { say: 'full_demolition' },
+      { say: 'island' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '32 kitchen, nobody prices a kitchen that size',
+    why: "the no-match sentence is kitchen's own - never a fence height and never a tile",
+    trade: 'kitchen',
+    seed: (repo) =>
+      seedKitchenFitter(repo, 'kitchen-1', 'Beky Kitchens', {
+        enabledKitchenSizes: ['small'],
+        rates: { general: [{ size: 'small', label: null, price: 1950, unit: 'per_job' }] },
+      }),
+    turns: [
+      ...openKitchen,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'new_kitchen' },
+      { say: 'large' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '33 kitchen, correcting the size from the recap',
+    why: 'a correction re-asks one field and keeps the rest, on a trade whose corrected field is the one the price is found by',
+    trade: 'kitchen',
+    seed: (repo) => seedKitchenFitter(repo, 'kitchen-1', 'Beky Kitchens'),
+    turns: [
+      ...openKitchen,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'replacement' },
+      { say: 'small' },
+      { say: 'labour_only' },
+      { say: 'laminate' },
+      { say: 'cabinets_only' },
+      { say: 'none' },
+      { say: 'no' },
+      { say: 'the size is wrong' },
+      { say: 'large' },
+      { say: 'yes' },
+    ],
+  },
+];
 
 const openTiling: Turn[] = [{ say: 'I need a tiling quote' }, { say: 'yes go ahead' }];
 

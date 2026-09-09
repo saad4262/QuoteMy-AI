@@ -31,6 +31,21 @@ export const TRADE_KEYWORDS: Record<Trade, RegExp> = {
     /\b(fenc(?:e|es|ing|er|ers)|paling|palings|boundary|colou?rbond|gate|gates|picket|pickets|chainmesh|chain\s?wire|post\s?and\s?rail)\b/i,
   tiling:
     /\b(tile|tiles|tiling|tiler|tilers|retile|retiling|bathroom|bathrooms|ensuite|laundry|splashback|splashbacks|grout|regrout|regrouting|mosaic|porcelain|ceramic|terrazzo|waterproof|waterproofing|screed|screeding|floor|floors|flooring|shower)\b/i,
+  /**
+   * The one trade whose own noun belongs to another trade half the time.
+   *
+   * "Kitchen splashback", "kitchen floor tiles", "tiling the kitchen" are all TILING jobs that say
+   * "kitchen", and tiling has published `kitchen_splashback` as a job type since before this trade
+   * existed. So the bare word is excluded when it is qualifying a tiled surface, and the specific
+   * nouns - cabinetry, benchtop, flat-pack - carry the trade on their own. A message that names a
+   * kitchen AND a tiling job still matches both and is correctly sent to the question: somebody
+   * saying "new kitchen and retile the bathroom" wants two jobs.
+   *
+   * What is left out matters as much: no bare `bench`, because a fencer's rails are benched and a
+   * garden bench is not a kitchen, and no `install`, which is in half of what anybody writes.
+   */
+  kitchen:
+    /\b(?:kitchens?\b(?!\s+(?:splash\s?backs?|floors?|walls?|tiles?|tiling|retile))|cabinetry|cabinets?|cabinetmakers?|bench\s?tops?|kickboards?|flat\s?packs?|cupboards?|pantry|joinery)\b/i,
 };
 
 export interface TradeRouting {

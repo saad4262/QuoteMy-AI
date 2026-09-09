@@ -26,8 +26,15 @@ export const UNIT_WORDS: Record<QuantityUnit, { short: string; long: string; spo
  * The model never writes a formula (`CLAUDE.md` non-negotiable #4).
  */
 export interface PricingSpec {
-  /** The checklist field holding how much of it there is: `lengthMeters`, `areaSqm`, a count. */
-  quantityField: string;
+  /**
+   * The checklist field holding how much of it there is: `lengthMeters`, `areaSqm`, a count.
+   *
+   * NULL when the trade has no such number. A kitchen fitter does not sell metres or square
+   * metres - they sell one whole kitchen at a price set by its size - so there is no quantity to
+   * name and the formula runs at a quantity of one. That is not a special case in the arithmetic:
+   * `quoteTotal` is `(rate + perUnit) x (1 + pct) x qty + fixed`, and one is a perfectly good qty.
+   */
+  quantityField: string | null;
   /**
    * What that quantity is measured in. Wording only - the arithmetic does not care - but it is
    * what stops a square-metre trade being read back to a customer as "$85 a metre".
@@ -75,5 +82,23 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
     minimumCharge: true,
     headlineField: 'tileType',
     rateSentence: { order: 'other-first', joiner: 'in', lowerOther: true },
+  },
+  kitchen: {
+    /* No quantity field at all - see the comment on `quantityField`. The whole kitchen is the
+       thing being priced, and its size is a rate key rather than an amount. */
+    quantityField: null,
+    /* Nothing is quoted per unit here, so this only ever decides wording, and `item` is the
+       honest one: a guide figure read off a web page for "a kitchen" is a price each, not a rate. */
+    unit: 'item',
+    /* pricing.rates is { jobType|general: [ { size, price, unit } ] }. `size` is nullable on a row -
+       one installation price covering every size - so the lookup prefers a named size and falls
+       back to the general one, the same way a tiling rate prefers a named tile. */
+    rateKeys: ['jobType', 'kitchenSize'],
+    minimumCharge: true,
+    headlineField: 'kitchenSize',
+    /* "a standard kitchen for a replacement" reads backwards; "replacing one, standard size" is
+       what a person says. Same `other-first` shape as tiling, where the room is the job and the
+       choice sits inside it. */
+    rateSentence: { order: 'other-first', joiner: 'for', lowerOther: true },
   },
 };
