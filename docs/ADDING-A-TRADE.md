@@ -451,6 +451,8 @@ outsideRadius, excluded }` — which names the drop reason without any of this.
 | | |
 |---|---|
 | `tests/golden/conversations.ts` | add a `KITCHEN_CONVERSATIONS` array and include it in the loop in `golden.test.ts`; whole responses snapshotted, one file per conversation |
+| ⚠ `src/ai.ts` — `MockAiClient` | **a `review{Trade}` and an `extraction{Trade}`, plus the arm that picks them.** Without these the offline stand-in answers a kitchen call in fencing's shape and `call.schema.parse` throws — so there is no business-side test of the new trade at all, and nothing says so |
+| ⚠ `tests/golden/business.test.ts` | a fixture in `tests/fixtures/`, a row in `SUBMISSIONS`, and a count in `FIXTURES_PER_TRADE`. **This is the only net over submission → review → extraction → verification**, and kitchen shipped without it |
 | `tests/unit/publishedSchema.test.ts` | the published schema and `vocab.ts` agree |
 | `tests/unit/verify.test.ts` | feed an **invented** vocabulary value on purpose and watch it be refused gracefully rather than throwing |
 | `tests/unit/attachmentFacts.test.ts` | every `docHints` regex, including what it must **not** match |
@@ -460,6 +462,26 @@ outsideRadius, excluded }` — which names the drop reason without any of this.
 **Read the golden diff, do not just accept it.** The snapshots are meant to be reviewed in the same
 way code is. Adding a trade should add files and change nothing in the existing ones — a deletion in
 fencing's or tiling's snapshot is exactly what this net exists to catch.
+
+And read the new snapshot itself, line by line, against the source document. Kitchen's first run
+came back green with two wrong figures in it: the site measure fee carried the minimum charge's
+price, because the fixture put both on one line and the mock took the line's first `$`; and "drawer
+adjustment $45 each" had been filed as an *installation rate*, which would have quoted a whole
+kitchen at $45 for any customer whose size found no other row. Both passed every assertion. The only
+thing that caught them was a person reading the file.
+
+---
+
+## 13. `retell/agent.json` — ⚠ `boosted_keywords`
+
+The voice flow carries no trade content, so a new trade needs no node, no edge and no prompt there.
+The one exception is `boosted_keywords`, the speech recogniser's vocabulary: without it `benchtop`,
+`cabinetry` and `kickboard` come back as something else entirely, and the backend then reads a word
+the customer never said.
+
+Append the trade's own words as a block after the last one, and do not repeat a word an earlier
+trade already contributed (`splashback` and `laundry` belong to tiling and serve kitchen unchanged).
+Nothing else in `retell/` changes. See [`retell/README.md`](../retell/README.md).
 
 ---
 
@@ -479,7 +501,10 @@ fencing's or tiling's snapshot is exactly what this net exists to catch.
 ⚠  9  fieldSpec docHints  how a PDF is read. When in doubt, leave it out
 ⚠ 10  askAbout.ts         TRADE_GUIDANCE
 □ 11  Firestore           nothing to create; check `confirmed`, not `verified`
-□ 12  tests               goldens, published schema, verify, docHints, routing
+□ 12  tests               customer goldens, published schema, verify, docHints, routing
+⚠ 12a ai.ts MockAiClient  review{Trade} + extraction{Trade} + the arm that picks them
+⚠ 12b business.test.ts    a fixture, a SUBMISSIONS row, a FIXTURES_PER_TRADE count — then READ it
+⚠ 13  retell/agent.json   boosted_keywords, appended as their own block
 ```
 
 `□` the compiler will ask for. `⚠` it will not.

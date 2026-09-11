@@ -4,6 +4,7 @@ import { clearGeocodeCache } from '../../src/geocode.js';
 import { runOnboarding } from '../../src/pipeline.js';
 import type { BusinessBody } from '../../src/schemas.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
+import { TRADES, type Trade } from '../../src/vocab.js';
 import { clearVocabularyCache } from '../../src/vocabulary.js';
 
 /**
@@ -43,7 +44,8 @@ interface Submission {
   file: string;
   /** Why this fixture is in the net - what a later refactor could silently drop. */
   why: string;
-  trade?: 'fencing' | 'tiling';
+  /** `Trade` rather than a hand-written union, which said `'fencing' | 'tiling'` while kitchen shipped. */
+  trade?: Trade;
 }
 
 const SUBMISSIONS: Submission[] = [
@@ -68,7 +70,26 @@ const SUBMISSIONS: Submission[] = [
     trade: 'tiling',
     why: 'the second trade end to end - per-m2 rates and a per-job bathroom package surviving in one table, tiling\'s own couldNotUse wording, and no fencing field anywhere in the response',
   },
+  {
+    name: '05 a complete kitchen price list, approved and extracted',
+    file: 'description-COMPLETE-kitchen.txt',
+    trade: 'kitchen',
+    why: 'the trade with no unit to measure - per-job prices keyed by size and per-item cabinet prices surviving in one table, the four cabinet types kept apart by their labels rather than collapsed into one rate priced four times, and no fencing or tiling field anywhere in the response',
+  },
 ];
+
+/**
+ * The checklist the compiler writes. A fourth trade added to `TRADES` is a type error on this
+ * object, and the only way to satisfy it is to decide - out loud, in a diff - whether that trade
+ * gets a fixture here. Kitchen shipped without one because nothing anywhere said it was missing.
+ *
+ * Zero is a legal answer, but it has to be typed deliberately.
+ */
+const FIXTURES_PER_TRADE: Record<Trade, number> = {
+  fencing: 3,
+  tiling: 1,
+  kitchen: 1,
+};
 
 /**
  * One submission, rendered for reading in review rather than only for diffing - the same reason
@@ -135,4 +156,10 @@ describe('golden business submissions', () => {
       await expect(transcript).toMatchFileSnapshot(`./__snapshots__/business-${slugOf(submission.name)}.md`);
     });
   }
+
+  it('has the fixtures every trade was signed off with', () => {
+    const counted = Object.fromEntries(TRADES.map((trade) => [trade, 0])) as Record<Trade, number>;
+    for (const submission of SUBMISSIONS) counted[submission.trade ?? 'fencing'] += 1;
+    expect(counted).toEqual(FIXTURES_PER_TRADE);
+  });
 });

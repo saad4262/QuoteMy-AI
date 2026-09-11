@@ -480,7 +480,7 @@ export class MockAiClient implements AiClient {
     const text = call.user;
     /* `wrapDescription` puts "Trade: x" at the top of every business-side call, so the mock can
        tell which shape it is being asked for without the model API growing a field for it. */
-    const trade: Trade = /^Trade:\s*tiling\b/im.test(text) ? 'tiling' : 'fencing';
+    const trade: Trade = /^Trade:\s*tiling\b/im.test(text) ? 'tiling' : /^Trade:\s*kitchen\b/im.test(text) ? 'kitchen' : 'fencing';
     const rates = readRates(text);
 
     let data: unknown;
@@ -489,10 +489,14 @@ export class MockAiClient implements AiClient {
     if (call.name === 'transcribe') {
       data = this.transcribe(call.files ?? [], /NOTHING WRITTEN TO COPY/.test(call.system));
     }
-    else if (call.name === 'review') data = trade === 'tiling' ? this.reviewTiling(text) : this.review(text, rates);
+    else if (call.name === 'review') {
+      data = trade === 'tiling' ? this.reviewTiling(text) : trade === 'kitchen' ? this.reviewKitchen(text) : this.review(text, rates);
+    }
     else if (call.name === 'turn') data = this.turn(text);
     else if (call.name === 'answer') data = this.answer();
-    else data = trade === 'tiling' ? this.extractionTiling(text) : this.extraction(text, rates);
+    else {
+      data = trade === 'tiling' ? this.extractionTiling(text) : trade === 'kitchen' ? this.extractionKitchen(text) : this.extraction(text, rates);
+    }
 
     const usage = {
       name: call.name,
@@ -665,6 +669,202 @@ export class MockAiClient implements AiClient {
       otherOfferings: [],
       couldNotUse: [
         'Read by the offline mock reader - tile types, preparation and tile supply are not extracted in mock mode.',
+      ],
+    };
+  }
+
+  /**
+   * Kitchen, as far as a regex can see it, in the same crude spirit as the two above.
+   *
+   * The blocking list is K1-K9 from `sop/kitchen/rules.md`, in the same order, so an offline run
+   * and a real one are at least asking the same questions.
+   */
+  private reviewKitchen(text: string) {
+    const stated = (re: RegExp) => re.test(text);
+    const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
+
+    /* The one figure without which there is nothing to assess: an installation price. Unlike the
+       other two trades there is no unit to look for - a kitchen price is just money against a size
+       or a cabinet - so the test is the word beside the number, not the word after it. */
+    const installs = [...text.matchAll(/\b(?:kitchen|cabinet|drawer unit)\s+(?:installation|install)\b[^\n$]*\$\s?[0-9,]+/gi)];
+    if (!installs.length) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge to install a kitchen, by size or per cabinet.', example: 'Standard kitchen installation $2,850' });
+    }
+    if (!stated(/supply|customer.{0,25}(?:cabinet|kitchen)|labour only|flat.?pack|package/i)) {
+      fixes.push({ kind: 'missing', what: 'Say whether you supply the cabinetry, install what the customer buys, or both.', example: null });
+    }
+    if (!stated(/demolition|removal|remove|strip.?out/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge to take the old kitchen out, or say you do not do it.', example: 'Full kitchen demolition $1,650' });
+    }
+    if (!stated(/benchtop/i)) {
+      fixes.push({ kind: 'missing', what: 'Add your benchtop installation prices by material, or say who handles them.', example: 'Laminate benchtop installation $850' });
+    }
+    if (!stated(/preparation|levelling|plaster|wall prep/i)) {
+      fixes.push({ kind: 'missing', what: 'Say what you charge for preparation, separately from the installation itself.', example: 'Wall preparation $350' });
+    }
+    if (!stated(/island|pantry|splashback|sink|appliance|laundry/i)) {
+      fixes.push({ kind: 'missing', what: 'Add the add-ons you offer with a price each - islands, pantries, sinks, appliance cabinet work.', example: 'Island installation $650' });
+    }
+    if (!stated(/minimum/i)) {
+      fixes.push({ kind: 'missing', what: 'Add the smallest job you will take on and what you charge for it.', example: 'Minimum installation charge $450' });
+    }
+    if (!stated(/\b\d+\s*km\b/i)) {
+      fixes.push({ kind: 'missing', what: 'Say where you work out of and how far you travel.', example: 'Based in Pakenham, we travel 30km' });
+    }
+    if (!stated(/gst/i)) {
+      fixes.push({ kind: 'missing', what: 'Say whether your prices include GST.', example: 'All prices include GST' });
+    }
+    if (/\bpoa\b|call (?:us|for pricing)|\$\d+\s*(?:to|-)\s*\$?\d/i.test(text)) {
+      fixes.push({ kind: 'unclear', what: 'Give one set price for each kitchen size - some of what you sent is a range or a "call us".', example: null });
+    }
+
+    return {
+      outcome: installs.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      fixes: installs.length ? fixes.slice(0, 5) : [],
+      alsoWorthAdding: [],
+    };
+  }
+
+  /**
+   * Kitchen rates, read off the page. What this one has to get right that the other two do not is
+   * the LABEL on a per-item row: "base $180, wall $165, tall $280, drawer unit $190" is four
+   * different cabinets, and a reader that drops the label hands the verifier one rate priced four
+   * times. That is a real bug this trade shipped with once, so the mock reproduces the shape it
+   * broke on rather than a tidier one.
+   */
+  private extractionKitchen(text: string) {
+    const gstLine = sentenceWith(text, /gst/i);
+    const radiusLine = sentenceWith(text, /\b\d+\s*km\b/i);
+
+    const money = (line: string) => Number(/\$\s?([0-9,]+)/.exec(line)?.[1]?.replace(/,/g, '') ?? 0) || null;
+
+    /**
+     * The fee named by `re`, and the figure that FOLLOWS the name rather than the first one on the
+     * line. Real price lists put several fees on one line - "Minimum installation charge $450. Site
+     * measure and consultation $120." - and taking the line's first dollar sign gave the site
+     * measure the minimum's price. Caught by reading the snapshot, which is what it is for.
+     */
+    const fee = (re: RegExp): [number | null, string | null] => {
+      const line = sentenceWith(text, re);
+      if (!line) return [null, null];
+      const at = re.exec(line);
+      const after = at ? line.slice(at.index) : line;
+      return [money(after), line];
+    };
+
+    const [minimumCharge, minLine] = fee(/minimum/i);
+    const [siteMeasureFee, measureLine] = fee(/site measure/i);
+    const [travelFee, travelLine] = fee(/travel fee/i);
+
+    const SIZES: [RegExp, string][] = [
+      [/\bsmall\b/i, 'small'],
+      [/\b(?:medium|standard)\b/i, 'standard'],
+      [/\blarge\b/i, 'large'],
+    ];
+    const BENCHTOPS: [RegExp, string][] = [
+      [/laminate/i, 'laminate'],
+      [/timber/i, 'timber'],
+      [/stone/i, 'stone'],
+    ];
+    const REMOVES: [RegExp, string][] = [
+      [/demolition|strip.?out/i, 'full_demolition'],
+      [/cabinet removal/i, 'cabinets_only'],
+      [/benchtop removal/i, 'benchtop_only'],
+      [/splashback removal/i, 'splashback_only'],
+    ];
+
+    const rates: unknown[] = [];
+    const benchtops: unknown[] = [];
+    const removals: unknown[] = [];
+    const cabinetSupply: unknown[] = [];
+    const seen = new Set<string>();
+
+    for (const raw of text.split(/\n|(?<=\.)\s+(?=[A-Z])/)) {
+      const line = raw.trim();
+      const price = /\$\s?([0-9,]+)/.test(line) ? money(line) : null;
+      if (!price) continue;
+
+      /* Order matters and is the whole of this reader's judgement. "Benchtop removal $380" carries
+         both words; read as a benchtop it becomes a benchtop that costs less than taking one out. */
+      const removes = REMOVES.find(([re]) => re.test(line))?.[1];
+      if (removes) {
+        if (seen.has('rm' + removes)) continue;
+        seen.add('rm' + removes);
+        removals.push({ removes, price, sourceQuote: line });
+        continue;
+      }
+
+      if (/benchtop/i.test(line)) {
+        const material = BENCHTOPS.find(([re]) => re.test(line))?.[1];
+        if (!material || seen.has('bt' + material)) continue;
+        seen.add('bt' + material);
+        benchtops.push({ material, price, sourceQuote: line });
+        continue;
+      }
+
+      if (/package/i.test(line)) {
+        cabinetSupply.push({ label: line.replace(/\s*\$[\s0-9,]+\.?$/, '').trim(), price, unit: 'per_job', sourceQuote: line });
+        continue;
+      }
+
+      /* A per-item cabinet price. `each` is what separates it from a whole-kitchen price, and the
+         label is the business's own wording for which cabinet - there is no closed list to map to. */
+      if (/\beach\b/i.test(line) && /cabinet|drawer/i.test(line)) {
+        /* Assembly, adjustment, modification and replacement all name a cabinet and all cost money
+           per item, and none of them is an installation rate. "Drawer adjustment $45 each" came
+           back as a rate on the first run of this fixture, which would have priced a whole kitchen
+           at $45 for anyone whose size found no other row. */
+        if (/assembly|adjust|modif|replacement|cut.?out|front\b|handle/i.test(line)) continue;
+        const label = line.replace(/\s*\$[\s0-9,]+\s*each\.?$/i, '').trim();
+        if (!label || seen.has('it' + label.toLowerCase())) continue;
+        seen.add('it' + label.toLowerCase());
+        rates.push({ jobType: null, size: null, label, price, unit: 'per_item', sourceQuote: line });
+        continue;
+      }
+
+      if (/kitchen install/i.test(line)) {
+        const size = SIZES.find(([re]) => re.test(line))?.[1] ?? null;
+        if (seen.has('jb' + size)) continue;
+        seen.add('jb' + size);
+        rates.push({ jobType: null, size, label: null, price, unit: 'per_job', sourceQuote: line });
+      }
+    }
+
+    const supplyModels: string[] = [];
+    if (/package|we (?:also )?supply/i.test(text)) supplyModels.push('supply_and_install');
+    if (/customer.{0,25}(?:buys|supplied|own)|labour only|flat.?pack/i.test(text)) supplyModels.push('labour_only');
+
+    return {
+      // Past the wrapper's own preamble, to the business's first real line.
+      businessName: text.split('<<<DESCRIPTION>>>')[1]?.split('\n').find((l) => l.trim())?.split('—')[0]?.trim() ?? null,
+      gstIncluded: gstLine ? /include/i.test(gstLine) : null,
+      gstSourceQuote: gstLine,
+      serviceArea: {
+        baseLocation: /based in ([A-Z][a-zA-Z ]+)/i.exec(text)?.[1]?.trim() ?? null,
+        radiusKm: radiusLine ? Number(/(\d+)\s*km/i.exec(radiusLine)?.[1] ?? 0) || null : null,
+        radiusSourceQuote: radiusLine,
+        excludedAreas: [],
+      },
+      minimumCharge,
+      minimumChargeSourceQuote: minLine,
+      siteMeasureFee,
+      siteMeasureFeeSourceQuote: measureLine,
+      travelFee,
+      travelFeeSourceQuote: travelLine,
+      rates,
+      cabinetSupply,
+      supplyModels,
+      benchtops,
+      removals,
+      prep: [],
+      extras: [],
+      warranty: { text: null, sourceQuote: null },
+      inclusions: [],
+      exclusions: [],
+      tags: [],
+      otherOfferings: [],
+      couldNotUse: [
+        'Read by the offline mock reader - preparation, extras and other offerings are not extracted in mock mode.',
       ],
     };
   }

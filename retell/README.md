@@ -4,9 +4,10 @@ You do not need to know Retell. Follow this in order — it is four commands and
 
 Everything the customer hears is written by our backend. Retell only turns speech into text, text into
 speech, and takes turns. The flow in this folder contains **no trade content at all** — no
-questions, no materials, no prices. That is on purpose, and it has now been tested: adding tiling
-touched no node and no edge here. The only change either file needed was `boosted_keywords`, which
-is the speech recogniser's vocabulary rather than anything the agent says.
+questions, no materials, no prices. That is on purpose, and it has now been tested twice: adding
+tiling touched no node and no edge here, and neither did adding kitchen. The only change either file
+needed was `boosted_keywords`, which is the speech recogniser's vocabulary rather than anything the
+agent says.
 
 **One agent serves every trade.** Which trade a call is about is the backend's decision, and it
 reaches the agent as the `greeting` dynamic variable like everything else.
@@ -148,8 +149,10 @@ words are normalised on our side already ([`toSpeech.ts`](../app/src/client/voic
 number-reading would fight each other.
 
 `boosted_keywords` is the one place trade vocabulary leaks into this folder. There is no
-trade-agnostic way to bias a transcriber, so a second trade adds its materials to that list — the
-flow itself still needs no change.
+trade-agnostic way to bias a transcriber, so each new trade appends its own words to that list — the
+flow itself still needs no change. The list now runs fencing, then tiling, then kitchen, in that
+order; keep the blocks separate so it is obvious what a trade contributed. Words a trade shares with
+one already there (`splashback`, `laundry`) are not repeated.
 
 ---
 
