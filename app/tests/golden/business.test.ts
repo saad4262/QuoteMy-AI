@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { MockAiClient } from '../../src/ai.js';
 import { clearGeocodeCache } from '../../src/geocode.js';
 import { runOnboarding } from '../../src/pipeline.js';
 import type { BusinessBody } from '../../src/schemas.js';
@@ -161,5 +163,62 @@ describe('golden business submissions', () => {
     const counted = Object.fromEntries(TRADES.map((trade) => [trade, 0])) as Record<Trade, number>;
     for (const submission of SUBMISSIONS) counted[submission.trade ?? 'fencing'] += 1;
     expect(counted).toEqual(FIXTURES_PER_TRADE);
+  });
+});
+
+/**
+ * The offline reviewer has to be as hard to satisfy as the rule it mirrors.
+ *
+ * It was not. K5 names four preparation items and asks for each; `reviewKitchen` tested a single
+ * loose pattern, so fixture 05 - which carried two of the four - came back approved here while the
+ * real model correctly asked for the other two on a live submission. A green suite said the
+ * business side worked and a business was told to go and edit its price list.
+ *
+ * Pinned in both directions, because only one of them fails loudly: a gap must be named, and the
+ * blanket "quoted after the site measure" must still be enough on its own.
+ */
+describe('the offline reviewer, held to K5', () => {
+  const reviewSchema = z.object({
+    outcome: z.string(),
+    fixes: z.object({ kind: z.string(), what: z.string(), example: z.string().nullable() }).array(),
+    alsoWorthAdding: z.string().array(),
+  });
+
+  const review = async (body: string) => {
+    const result = await new MockAiClient().callStructured({
+      name: 'review',
+      system: '',
+      user: 'Trade: kitchen\n<<<DESCRIPTION>>>\n' + body,
+      schema: reviewSchema,
+    } as never);
+    return (result as { data: z.infer<typeof reviewSchema> }).data;
+  };
+
+  const prepFix = (fixes: { what: string }[]) => fixes.find((f) => /preparation|levelling|plaster/i.test(f.what))?.what;
+  const complete = () => readFileSync('tests/fixtures/description-COMPLETE-kitchen.txt', 'utf8');
+
+  it('passes the fixture, which must therefore price all four', async () => {
+    const result = await review(complete());
+    expect(prepFix(result.fixes)).toBeUndefined();
+    expect(result.outcome).toBe('approved');
+  });
+
+  it('names the ones that are missing, rather than waving two of four through', async () => {
+    const twoOfFour = complete()
+      .replace('Minor floor preparation $350.\n', '')
+      .replace(' Wall plaster repair $420.', '');
+
+    const result = await review(twoOfFour);
+    expect(result.outcome).toBe('needs_updates');
+    expect(prepFix(result.fixes)).toBe('Add prices or site-measure wording for floor preparation, plaster repair.');
+  });
+
+  it('takes "quoted after the site measure" as the answer to all four', async () => {
+    const blanket = complete().replace(
+      /Minor wall preparation[\s\S]*?Wall plaster repair \$420\.\n/,
+      'All preparation is quoted after the site measure.\n',
+    );
+
+    expect(prepFix((await review(blanket)).fixes)).toBeUndefined();
   });
 });

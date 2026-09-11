@@ -699,8 +699,24 @@ export class MockAiClient implements AiClient {
     if (!stated(/benchtop/i)) {
       fixes.push({ kind: 'missing', what: 'Add your benchtop installation prices by material, or say who handles them.', example: 'Laminate benchtop installation $850' });
     }
-    if (!stated(/preparation|levelling|plaster|wall prep/i)) {
-      fixes.push({ kind: 'missing', what: 'Say what you charge for preparation, separately from the installation itself.', example: 'Wall preparation $350' });
+    /* K5 names FOUR preparation items and asks for each. A single loose test here said "approved"
+       on a fixture carrying two of them, while the real model correctly asked for the other two -
+       so the offline net was quietly easier than the rule it claims to mirror. The blanket
+       satisfier is real and has to stay: a business may price none of these and say so once. */
+    const PREP: [RegExp, string][] = [
+      [/wall prep/i, 'wall preparation'],
+      [/floor prep/i, 'floor preparation'],
+      [/level(?:l)?ing/i, 'floor levelling'],
+      [/plaster/i, 'plaster repair'],
+    ];
+    const prepQuotedOnSite = /prep\w*[^.\n]{0,40}quoted (?:after|on)\b|quoted (?:after|on)[^.\n]{0,30}(?:site measure|inspection)/i.test(text);
+    const missingPrep = prepQuotedOnSite ? [] : PREP.filter(([re]) => !stated(re)).map(([, what]) => what);
+    if (missingPrep.length) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Add prices or site-measure wording for ' + missingPrep.join(', ') + '.',
+        example: 'Floor preparation $350',
+      });
     }
     if (!stated(/island|pantry|splashback|sink|appliance|laundry/i)) {
       fixes.push({ kind: 'missing', what: 'Add the add-ons you offer with a price each - islands, pantries, sinks, appliance cabinet work.', example: 'Island installation $650' });

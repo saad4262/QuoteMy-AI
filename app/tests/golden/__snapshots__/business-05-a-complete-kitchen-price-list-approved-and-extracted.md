@@ -2,7 +2,7 @@
 
 Guards: the trade with no unit to measure - per-job prices keyed by size and per-item cabinet prices surviving in one table, the four cabinet types kept apart by their labels rather than collapsed into one rate priced four times, and no fencing or tiling field anywhere in the response
 
-Fixture: `tests/fixtures/description-COMPLETE-kitchen.txt` (2045 characters)
+Fixture: `tests/fixtures/description-COMPLETE-kitchen.txt` (2107 characters)
 
 ## what the business is told
 
@@ -180,7 +180,7 @@ Fixture: `tests/fixtures/description-COMPLETE-kitchen.txt` (2045 characters)
           "label": "typed",
           "kind": "text",
           "readBy": "text",
-          "chars": 2044,
+          "chars": 2106,
           "unreadable": false
         }
       ]
@@ -207,6 +207,6 @@ Fixture: `tests/fixtures/description-COMPLETE-kitchen.txt` (2045 characters)
     "otherOfferings": 0,
     "couldNotUse": 1
   },
-  "textChars": 2044
+  "textChars": 2106
 }
 ```
