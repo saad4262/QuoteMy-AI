@@ -85,7 +85,8 @@ customer: "I need a tiling quote"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -177,7 +178,8 @@ customer: "yes go ahead"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -318,7 +320,8 @@ picked place: Berwick, VIC 3806
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -464,7 +467,8 @@ customer: "bathroom"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -601,7 +605,8 @@ customer: "porcelain"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -758,7 +763,8 @@ customer: "8"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -921,7 +927,8 @@ customer: "labour_only"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -1095,7 +1102,8 @@ customer: "any"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -1275,7 +1283,8 @@ customer: "bathroom"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -1449,7 +1458,8 @@ customer: "none"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m2"
 }
 ```
 
@@ -1485,6 +1495,7 @@ customer: "yes"
     }
   ],
   "avgRatePerMeter": 770,
+  "unit": "m2",
   "comparison": {
     "potentialSavings": null,
     "marketAverage": 6160,

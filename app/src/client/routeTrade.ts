@@ -133,6 +133,8 @@ export function askWhichTrade(
     checklistPending: [],
     results: [],
     avgRatePerMeter: null,
+    /* The one turn with no trade behind it, so there is nothing for a rate to be per. */
+    unit: null,
   };
 }
 

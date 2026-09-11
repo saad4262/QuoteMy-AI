@@ -485,5 +485,6 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
     checklistPending,
     results: [],
     avgRatePerMeter: null,
+    unit: TRADE_PRICING[state.trade].unit,
   };
 }

@@ -80,7 +80,8 @@ customer: "I need a kitchen quote"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -167,7 +168,8 @@ customer: "yes go ahead"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -303,7 +305,8 @@ picked place: Berwick, VIC 3806
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -444,7 +447,8 @@ customer: "replacement"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -586,7 +590,8 @@ customer: "small"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -739,7 +744,8 @@ customer: "labour_only"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -898,7 +904,8 @@ customer: "laminate"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1067,7 +1074,8 @@ customer: "cabinets_only"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1230,7 +1238,8 @@ customer: "none"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1381,7 +1390,8 @@ customer: "no"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1554,7 +1564,8 @@ customer: "the size is wrong"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1721,7 +1732,8 @@ customer: "large"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1757,6 +1769,7 @@ customer: "yes"
     }
   ],
   "avgRatePerMeter": 6170,
+  "unit": "item",
   "comparison": {
     "potentialSavings": null,
     "marketAverage": 6170,

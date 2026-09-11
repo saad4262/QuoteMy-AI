@@ -80,7 +80,8 @@ customer: "I need a kitchen quote"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -167,7 +168,8 @@ customer: "yes go ahead"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -303,7 +305,8 @@ picked place: Berwick, VIC 3806
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -444,7 +447,8 @@ customer: "replacement"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -586,7 +590,8 @@ customer: "standard"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -739,7 +744,8 @@ customer: "supply_and_install"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -902,7 +908,8 @@ customer: "stone"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1071,7 +1078,8 @@ customer: "full_demolition"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1236,7 +1244,8 @@ customer: "island"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "item"
 }
 ```
 
@@ -1272,6 +1281,7 @@ customer: "yes"
     }
   ],
   "avgRatePerMeter": 15470,
+  "unit": "item",
   "comparison": {
     "potentialSavings": null,
     "marketAverage": 15470,

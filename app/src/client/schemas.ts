@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { TRADES, type Trade } from '../vocab.js';
 import { FENCING_FIELDS, type FieldSpec, type FieldType } from './fieldSpec.js';
+import type { QuantityUnit } from './pricing/spec.js';
 import type { ChecklistField } from './vocab.js';
 
 /**
@@ -479,6 +480,21 @@ export interface ChatResponse {
   checklistPending: ChecklistPendingEntry[];
   results: QuoteResult[];
   avgRatePerMeter: number | null;
+  /**
+   * What `ratePerMeter` and `avgRatePerMeter` are actually PER, for whatever renders them.
+   *
+   * Those two names are fencing's and every trade reuses them, which was harmless while a second
+   * trade only made them mean a square metre instead of a metre. Kitchen sells no unit at all, so
+   * `ratePerMeter` there is the whole job price - and a card printing `${ratePerMeter}/m` shows
+   * "$15,470 per metre" for a kitchen. A wrong unit in one trade is a nonsense number in this one.
+   *
+   * `item` means there is no per-unit figure to label: show the total. Null only on the turn that
+   * asks which trade, where no trade has answered yet and there is nothing to be per.
+   *
+   * The names stay as they are on purpose: renaming a field that shipped clients read would break
+   * them to improve a word. This says what they hold instead.
+   */
+  unit: QuantityUnit | null;
   comparison?: Comparison | null;
   alternatives?: AlternativeOffer[];
   /**

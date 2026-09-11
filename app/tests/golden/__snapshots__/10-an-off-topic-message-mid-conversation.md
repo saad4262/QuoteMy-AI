@@ -85,7 +85,8 @@ customer: "I need a fence quote"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -177,7 +178,8 @@ customer: "yes go ahead"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -318,7 +320,8 @@ picked place: Berwick, VIC 3806
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -440,7 +443,8 @@ customer: "I want GTA 6"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -594,7 +598,8 @@ customer: "colorbond"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -739,7 +744,8 @@ customer: "1.8m"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -904,7 +910,8 @@ customer: "20"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1080,7 +1087,8 @@ customer: "none"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1262,7 +1270,8 @@ customer: "none"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1434,7 +1443,8 @@ customer: "none"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1470,6 +1480,7 @@ customer: "yes"
     }
   ],
   "avgRatePerMeter": 110,
+  "unit": "m",
   "comparison": {
     "potentialSavings": null,
     "marketAverage": 2200,

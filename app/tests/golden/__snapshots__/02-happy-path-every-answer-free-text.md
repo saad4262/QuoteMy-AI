@@ -85,7 +85,8 @@ customer: "I need a fence quote"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -177,7 +178,8 @@ customer: "yes go ahead"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -318,7 +320,8 @@ picked place: Berwick, VIC 3806
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -468,7 +471,8 @@ customer: "aluminium"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -613,7 +617,8 @@ customer: "1800mm"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -778,7 +783,8 @@ customer: "30 metres"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -954,7 +960,8 @@ customer: "old timber fence"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1136,7 +1143,8 @@ customer: "nothing tricky"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1324,7 +1332,8 @@ customer: "a single pedestrian gate"
     }
   ],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1506,7 +1515,8 @@ customer: "2 gates"
   ],
   "checklistPending": [],
   "results": [],
-  "avgRatePerMeter": null
+  "avgRatePerMeter": null,
+  "unit": "m"
 }
 ```
 
@@ -1542,6 +1552,7 @@ customer: "yes please"
     }
   ],
   "avgRatePerMeter": 155,
+  "unit": "m",
   "comparison": {
     "potentialSavings": null,
     "marketAverage": 5850,

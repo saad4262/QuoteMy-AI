@@ -140,6 +140,26 @@ describe('the conversation', () => {
     expect(asked.trade).toBeNull();
     expect(asked.message).toBe('Are you looking for Fencing, Tiling or Kitchen fitting services?');
     expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen']);
+    /* The only turn with no trade behind it, so there is nothing for a rate to be per. The golden
+       conversations all name their trade and never reach here, and a result card reading `unit` has
+       to survive the one turn that cannot answer it. */
+    expect(asked.unit).toBeNull();
+  });
+
+  /**
+   * What a result card should print the rate as. `ratePerMeter` is fencing's name and all three
+   * trades reuse it - a per-metre price, a per-SQUARE-metre one, and for kitchen the whole job - so
+   * a card printing `${ratePerMeter}/m` shows "$15,470 per metre" for a kitchen.
+   *
+   * Pinned here rather than left to the goldens because it is a wire contract a separate frontend
+   * reads, and because the alternative it replaces was a guess: inferring "no unit" from
+   * `ratePerMeter === estimatedTotal` is true for kitchen by construction, and also true for any
+   * fencing job of exactly one metre.
+   */
+  it('says what a rate is per, for every trade', async () => {
+    expect((await turn('I need a fence quote', null)).unit).toBe('m');
+    expect((await turn('I want my bathroom tiled', null)).unit).toBe('m2');
+    expect((await turn('I need a new kitchen', null)).unit).toBe('item');
   });
 
   it('says so differently when they named two jobs at once', async () => {

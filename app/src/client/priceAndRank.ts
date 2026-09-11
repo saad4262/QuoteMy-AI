@@ -226,7 +226,7 @@ function quoteFor(
   };
 }
 
-function fail(base: Pick<ChatResponse, 'sessionId' | 'trade' | 'place' | 'checklist' | 'checklistDisplay' | 'checklistAnswered' | 'checklistPending'>, message: string, reason: string): ChatResponse {
+function fail(base: Pick<ChatResponse, 'sessionId' | 'trade' | 'place' | 'checklist' | 'checklistDisplay' | 'checklistAnswered' | 'checklistPending' | 'unit'>, message: string, reason: string): ChatResponse {
   return {
     sessionId: base.sessionId,
     trade: base.trade,
@@ -237,6 +237,7 @@ function fail(base: Pick<ChatResponse, 'sessionId' | 'trade' | 'place' | 'checkl
     options: [],
     results: [],
     avgRatePerMeter: null,
+    unit: base.unit,
     comparison: null,
     noMatchReason: reason,
     checklistComplete: true,
@@ -319,7 +320,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
   const words = NO_MATCH_MESSAGES[schema.trade];
   const { canonicalMaterial, materialLabel } = makeMaterialNaming(schema, spec);
   const checklist = gate.checklist as Checklist;
-  const base = { sessionId: gate.sessionId, trade: schema.trade, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending };
+  const base = { sessionId: gate.sessionId, trade: schema.trade, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending, unit: spec.unit };
 
   if (!matcher.matched) {
     return fail(base, words.area!, matcher.noMatchReason || 'area');
@@ -611,6 +612,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         checklistPending: gate.checklistPending,
         results: [],
         avgRatePerMeter: null,
+        unit: spec.unit,
         alternatives: alternativesOut,
       };
     }
@@ -675,6 +677,7 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
     options: [],
     results: resultsOut,
     avgRatePerMeter: Math.round(top.reduce((sum, q) => sum + q.ratePerMeter, 0) / top.length),
+    unit: spec.unit,
     comparison: {
       ...(guide ? { marketGuide: guide } : {}),
       potentialSavings: benchmark !== null && benchmark > cheapest ? benchmark - cheapest : null,

@@ -186,15 +186,9 @@ Fencing shows `$/m`. Tiling shows `$/m²`. The wire field names stay `ratePerMet
 `avgRatePerMeter` — they are what you already read, and renaming them would break the shipped app to
 improve a name — but for tiling they carry a **per square metre** figure.
 
-Still open, and worth deciding when you build the picker:
-
-- the server adds a `unit` field to the response (`"m" | "m2" | "item"`), and you render whatever it
-  says — **recommended**; or
-- the frontend maps trade → unit itself, which is one small duplicated fact.
-
-It was not added yet because it puts a new field on every response, including fencing's, and that
-belongs in a change you are ready to consume. Until then, do not print a hardcoded "per metre"
-anywhere you would show tiling.
+**Settled since — the server now sends `unit`** (`"m" | "m2" | "item"`) on every response. Render
+whatever it says and do not map the trade slug yourself. See `docs/KITCHEN-FRONTEND.md` §4.1, which
+is where it is documented, because kitchen is what made it worth doing.
 
 ---
 

@@ -183,15 +183,29 @@ A real kitchen result:
 So a card that prints `${ratePerMeter}/m` shows **"$15,470 per metre"** for a kitchen. For tiling the
 same bug is a wrong unit; for kitchen it is a nonsense number.
 
-Two options, same as before, and the first is now clearly worth doing:
+### 4.1 `unit` is now on every response — use it
 
-- **The server adds a `unit` field** (`"m" | "m2" | "item"`) and you render whatever it says —
-  **recommended**. `PricingSpec.unit` already carries exactly this value per trade; it simply is not
-  on the wire yet. Ask for it and it is a small change.
-- The frontend maps trade → unit itself.
+The server sends it. Read it instead of mapping the trade slug yourself:
 
-**Until one of those lands, do not print a hardcoded "per metre" on any screen that can show
-kitchen.** For kitchen, prefer `estimatedTotal` and the `notes` string, which are already correct:
+```jsonc
+{ "trade": "kitchen", "ratePerMeter": 15470, "estimatedTotal": 15470, "unit": "item" }
+```
+
+| `unit` | render |
+|---|---|
+| `"m"` | `$110/m` |
+| `"m2"` | `$65/m²` |
+| `"item"` | **no per-unit line at all** — show `estimatedTotal` and the badges |
+| `null` | only on the "which trade?" turn, where nothing has answered yet |
+
+It is on **every** response, not only result turns, so a card can read it without waiting.
+
+**Do not infer this from `ratePerMeter === estimatedTotal`.** That is true for kitchen by
+construction — `ratePerUnit` is literally assigned the total — but it is also true for a fencing job
+of exactly one metre and a tiling job of exactly one square metre, and it would silently drop the
+unit on both. `unit` is the contract; the equality is a coincidence.
+
+For kitchen, `estimatedTotal` and the `notes` string are what to show, and both are already correct:
 
 ```
 "incl. GST · 12.6 km away · 4.7★ (64) · Cabinetry supplied · Old kitchen removed ·
