@@ -2,7 +2,7 @@
 
 Guards: the second trade end to end - per-m2 rates and a per-job bathroom package surviving in one table, tiling's own couldNotUse wording, and no fencing field anywhere in the response
 
-Fixture: `tests/fixtures/description-COMPLETE-tiling.txt` (1813 characters)
+Fixture: `tests/fixtures/description-COMPLETE-tiling.txt` (2036 characters)
 
 ## what the business is told
 
@@ -146,7 +146,7 @@ Fixture: `tests/fixtures/description-COMPLETE-tiling.txt` (1813 characters)
           "label": "typed",
           "kind": "text",
           "readBy": "text",
-          "chars": 1812,
+          "chars": 2035,
           "unreadable": false
         }
       ]
@@ -174,6 +174,6 @@ Fixture: `tests/fixtures/description-COMPLETE-tiling.txt` (1813 characters)
     "otherOfferings": 0,
     "couldNotUse": 1
   },
-  "textChars": 1812
+  "textChars": 2035
 }
 ```

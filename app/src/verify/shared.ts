@@ -49,12 +49,27 @@ export interface Checks {
 /** One section of a submission can be long; nothing sensible has 200 entries in it. */
 export const MAX_ENTRIES = 200;
 
+/**
+ * The same words, ready to be compared for being the same words.
+ *
+ * A line break is not a different fact from a space. Every real price list is pasted from something
+ * that wraps, and a model quoting a sentence that spans a wrap returns it with the break normalised
+ * - so the substring test failed and the figure was dropped, telling a business we could not verify
+ * a number they had plainly written. Live, that silently cost a kitchen submission its $8,950
+ * cabinetry package: the single biggest figure in the trade, and the whole labour/material split.
+ *
+ * This is deliberately the ONLY latitude given. The words must still all be present, in the same
+ * order, in what the business actually wrote (`CLAUDE.md` non-negotiable #2). Nothing here tolerates
+ * a paraphrase, a reordering, a missing word or a different number.
+ */
+const sameWords = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+
 export function makeChecks(sourceText: string, unmapped: string[]): Checks {
-  const rawText = sourceText.toLowerCase();
+  const rawText = sameWords(sourceText);
 
   const quoted = (q: string | null | undefined) => {
-    const s = String(q ?? '').trim();
-    return s ? rawText.includes(s.toLowerCase()) : false;
+    const s = sameWords(String(q ?? ''));
+    return s ? rawText.includes(s) : false;
   };
 
   const num = (n: unknown, max: number): n is number =>

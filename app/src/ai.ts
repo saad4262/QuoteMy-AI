@@ -554,8 +554,36 @@ export class MockAiClient implements AiClient {
     if (!perSqm.length) {
       fixes.push({ kind: 'missing', what: 'Add your tiling rates per square metre, floor and wall separately.', example: 'Standard floor tiling $65 per m2' });
     }
-    if (!stated(/prep|level|screed|grind|primer/i)) {
-      fixes.push({ kind: 'missing', what: 'Say what you charge for preparation, or that it is quoted on site.', example: 'Floor levelling $650' });
+    /* T3 names six preparation items and says each carries a figure WITH ITS UNIT - per square
+       metre, per job, or an hourly rate - or is stated as quoted on inspection. A single loose
+       `/prep|level|screed/` test passed a fixture whose prep lines were bare dollar amounts, which
+       the real model refused on the grounds that "$350" does not say per what. Third time this
+       shape of gap has been found by running the thing rather than by reading it. */
+    const PREP: [RegExp, string][] = [
+      [/surface prep/i, 'surface preparation'],
+      [/level(?:l)?ing/i, 'floor levelling'],
+      [/screed/i, 'screeding'],
+      [/adhesive removal/i, 'adhesive removal'],
+      [/grind/i, 'grinding'],
+      [/primer|priming/i, 'priming'],
+    ];
+    const prepOnInspection = /prep\w*[^.\n]{0,40}quoted (?:after|on)\b|quoted (?:after|on)[^.\n]{0,30}(?:site inspection|inspection)/i.test(text);
+    if (!prepOnInspection) {
+      const missing = PREP.filter(([re]) => !stated(re)).map(([, what]) => what);
+      if (missing.length) {
+        fixes.push({ kind: 'missing', what: 'Add prices or inspection wording for ' + missing.join(', ') + '.', example: 'Floor levelling $650 per job' });
+      }
+      /* A figure with no unit is not a rate. "Surface preparation $350" could be per m2 or per job
+         and the difference is the whole quote. */
+      const unpriced = PREP.filter(([re]) => stated(re)).filter(([re]) => {
+        const line = text.split('\n').find((l) => re.test(l)) ?? '';
+        const at = re.exec(line);
+        const after = at ? line.slice(at.index) : line;
+        return !/\$\s?[0-9,]+\s*(?:per\s*(?:m2|m²|square\s*metre|job|hour)|\/\s*(?:m2|m²|hr|hour))/i.test(after);
+      }).map(([, what]) => what);
+      if (unpriced.length) {
+        fixes.push({ kind: 'unclear', what: 'Add a unit to each preparation rate: ' + unpriced.join(', ') + '.', example: 'Surface preparation $350 per job' });
+      }
     }
     if (!stated(/waterproof/i)) {
       fixes.push({ kind: 'missing', what: 'Add your waterproofing prices per wet area, or say you do not do it.', example: 'Bathroom waterproofing $950' });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { verifyExtraction } from '../../src/verify/index.js';
+import { makeChecks } from '../../src/verify/shared.js';
 import type { Extraction } from '../../src/schemas.js';
 
 const empty: Extraction = {
@@ -284,5 +285,46 @@ describe('surcharge stated two ways', () => {
     expect(r.pricing.siteConditions).toHaveLength(1);
     expect(r.pricing.siteConditions[0]).toEqual({ condition: 'sloped', extraPerMetre: 14, extraPercent: null });
     expect(r.couldNotUse.join(' ')).toContain('twice');
+  });
+});
+
+/**
+ * A line break is not a different fact from a space.
+ *
+ * Found live, not by reading: a kitchen submission lost its $8,950 cabinetry package - the biggest
+ * single figure in that trade and the whole of its labour/material split - because the fixture
+ * wrapped mid-sentence and the model quoted across the wrap. The business was told we could not
+ * verify a number they had plainly written, which is the one kind of rejection they cannot act on.
+ *
+ * The latitude stops there, and the second half of this is what says so.
+ */
+describe('the source-quote gate and whitespace', () => {
+  const WRAPPED = [
+    'Beky Kitchens, Pakenham.',
+    'Standard Custom Kitchen Cabinet Package $8,950. Includes base cabinets, wall cabinets, a pantry',
+    'cabinet, standard hardware, doors, kickboards, fillers and installation.',
+  ].join('\n');
+
+  const { quoted } = makeChecks(WRAPPED, []);
+
+  it('accepts a quote that spans a wrapped line', () => {
+    expect(quoted('Standard Custom Kitchen Cabinet Package $8,950. Includes base cabinets, wall cabinets, a pantry cabinet')).toBe(true);
+  });
+
+  it('does not care which side of the wrap the run of space fell on', () => {
+    expect(quoted('a pantry\ncabinet, standard hardware')).toBe(true);
+    expect(quoted('a pantry     cabinet, standard hardware')).toBe(true);
+  });
+
+  it('still refuses everything it refused before', () => {
+    // A word that is not there.
+    expect(quoted('Standard Custom Kitchen Cabinet Package $8,950 including delivery')).toBe(false);
+    // The right words in the wrong order.
+    expect(quoted('Cabinet Package Custom Standard $8,950')).toBe(false);
+    // A different number.
+    expect(quoted('Standard Custom Kitchen Cabinet Package $8,960')).toBe(false);
+    // A paraphrase of something true.
+    expect(quoted('The cabinet package costs $8,950')).toBe(false);
+    expect(quoted('')).toBe(false);
   });
 });
