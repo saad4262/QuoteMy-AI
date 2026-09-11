@@ -106,6 +106,68 @@ describe('publishing every trade before anybody reads the list', () => {
     expect((written['schema/tiling']?.core as Record<string, string[]>).removes).not.toContain('adhesive');
   });
 
+  /**
+   * Firestore cannot hold an array directly inside an array, and it does not half-accept one: the
+   * whole document is rejected.
+   *
+   * This shipped. `docHints.values` is a list of `[value, /pattern/]` pairs, and `publishable`
+   * dropped the pattern and left `[["small"], ["large"]]` behind - so every `schema/{trade}` write
+   * carrying `fields` was refused. Nothing broke visibly because the write is caught and logged as
+   * a warning, and because fencing's and tiling's documents predate `fields` and are therefore
+   * never rewritten. Kitchen was the first trade seeded after `fields` existed, so it was the first
+   * whose document simply never appeared - and a customer typing "i need kitchen trade" was asked
+   * to choose between Fencing and Tiling, because a trade with no document is not published.
+   *
+   * Checked by walking what is actually written rather than by asserting on `docHints`, so any
+   * future spec key that cannot survive the trip is caught the first time it is added.
+   */
+  it('writes nothing Firestore will refuse', async () => {
+    const { FirestoreRepository } = await import('../../src/firestore.store.js');
+
+    letWritesFinish();
+    await new FirestoreRepository().seedTradeSchemas();
+
+    const nested: string[] = [];
+    const walk = (value: unknown, path: string, insideArray: boolean): void => {
+      if (Array.isArray(value)) {
+        if (insideArray) nested.push(path);
+        value.forEach((entry, i) => walk(entry, `${path}[${i}]`, true));
+        return;
+      }
+      if (value && typeof value === 'object') {
+        for (const [key, entry] of Object.entries(value)) walk(entry, `${path}.${key}`, false);
+      }
+    };
+
+    for (const trade of TRADES) {
+      const doc = written[`schema/${trade}`];
+      expect(doc, `${trade} was never written`).toBeTruthy();
+      walk(doc, `schema/${trade}`, false);
+    }
+
+    expect(nested, 'an array inside an array - Firestore rejects the whole document').toEqual([]);
+  });
+
+  /** The other half of the same rule: what cannot be published is not published at all. */
+  it('leaves out the keys the reader takes from the code anyway', async () => {
+    const { FirestoreRepository } = await import('../../src/firestore.store.js');
+
+    letWritesFinish();
+    await new FirestoreRepository().seedTradeSchemas();
+
+    for (const trade of TRADES) {
+      const fields = written[`schema/${trade}`]?.fields as Record<string, unknown>[];
+      expect(fields?.length, trade).toBeGreaterThan(0);
+      // A husk is worse than an absence: `structurallyUsable` overrides it from the code regardless.
+      for (const field of fields) {
+        expect(field, `${trade}.${String(field.key)}`).not.toHaveProperty('docHints');
+        expect(field, `${trade}.${String(field.key)}`).not.toHaveProperty('namedBy');
+      }
+      // What a document IS for still goes out.
+      expect(fields.every((f) => typeof f.key === 'string'), trade).toBe(true);
+    }
+  });
+
   it('seeds once per instance, however many turns read the list', async () => {
     const { FirestoreRepository } = await import('../../src/firestore.store.js');
     const repo = new FirestoreRepository();

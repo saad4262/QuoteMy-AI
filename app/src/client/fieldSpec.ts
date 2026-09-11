@@ -196,6 +196,26 @@ export interface FieldSpec {
   docKey?: string;
 }
 
+/**
+ * Does this value carry a regular expression or a function, at any depth?
+ *
+ * The one question both ends of the Firestore round trip have to answer the same way. The writer
+ * (`syncTradeSchema`) must not publish these, and the reader (`structurallyUsable`) takes them from
+ * the code whatever a document says - so anything this returns true for is compiled-only, and
+ * publishing it is at best noise.
+ *
+ * It was worse than noise. `docHints.values` is a list of `[value, /pattern/]` pairs; dropping the
+ * pattern left `[["small"], ["large"]]`, an array inside an array, which Firestore rejects outright
+ * - and the rejection took the WHOLE document with it. Fencing and tiling never noticed because
+ * their documents predate `fields` and are never rewritten. Kitchen was the first trade seeded
+ * after it, so it was the first one that simply never appeared.
+ */
+export const holdsCode = (value: unknown): boolean => {
+  if (value instanceof RegExp || typeof value === 'function') return true;
+  if (!value || typeof value !== 'object') return false;
+  return Object.values(value).some(holdsCode);
+};
+
 export const DEFAULT_PAGE_SIZE = 3;
 
 /**

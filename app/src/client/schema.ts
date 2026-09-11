@@ -3,7 +3,7 @@ import { CUSTOMER_CORE, CUSTOMER_LABELS, QUESTIONS } from '../messages.js';
 import { getRepository, type BusinessRepository } from '../store.js';
 import type { Trade } from '../vocab.js';
 import type { ExtraValue } from '../vocabulary.js';
-import { FIELD_TYPES, specOf, TRADE_FIELDS, type FieldSpec } from './fieldSpec.js';
+import { FIELD_TYPES, holdsCode, specOf, TRADE_FIELDS, type FieldSpec } from './fieldSpec.js';
 import { type ChecklistField, offListWords } from './vocab.js';
 
 /**
@@ -149,12 +149,8 @@ const mergeMaps = (
  * question this asks is "does this value carry code at any depth", which is what the paragraph
  * above always claimed it asked.
  */
-const holdsCode = (value: unknown): boolean => {
-  if (value instanceof RegExp || typeof value === 'function') return true;
-  if (!value || typeof value !== 'object') return false;
-  return Object.values(value).some(holdsCode);
-};
-
+/* Shared with `syncTradeSchema`, which must not PUBLISH what this refuses to read. The two drifting
+   apart is what left kitchen unpublished - see `holdsCode` in `fieldSpec.ts`. */
 const codeOnly = (spec: FieldSpec | undefined): Partial<FieldSpec> =>
   Object.fromEntries(Object.entries(spec ?? {}).filter(([, value]) => holdsCode(value)));
 

@@ -18,7 +18,7 @@ import type {
   VoiceSession,
   VoiceTurnRecord,
 } from './store.js';
-import { describeFieldDrift, TRADE_FIELDS } from './client/fieldSpec.js';
+import { describeFieldDrift, holdsCode, TRADE_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_CORE, CUSTOMER_LABELS, TRADE_QUESTIONS } from './messages.js';
 import { SCHEMA_VERSION } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
@@ -57,6 +57,13 @@ function publishable(value: unknown): unknown {
   if (typeof value === 'object') {
     const kept: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value)) {
+      /* Dropped whole rather than emptied out, and this is the half a shallow check missed.
+         `docHints` is an OBJECT holding expressions, so it survived the line above and arrived as
+         `{ values: [["small"], ["large"]] }` once each `[value, /pattern/]` pair lost its pattern -
+         an array inside an array, which Firestore refuses, taking the entire document with it.
+         `structurallyUsable` takes these from the code whatever a document says, so there was never
+         anything to publish here. */
+      if (holdsCode(entry)) continue;
       const usable = publishable(entry);
       if (usable !== undefined) kept[key] = usable;
     }
