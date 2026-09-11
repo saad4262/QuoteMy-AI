@@ -59,12 +59,27 @@ function findRate(rows: KitchenRate[], size: string): KitchenRate | undefined {
 }
 
 /**
- * The rate for this job, falling back to the general bucket.
+ * The rate for this job, falling back to the general bucket and then to any other.
  *
  * Most fitters publish one installation price that covers a new kitchen, a replacement and an
  * install-only job alike, and the verifier files that under `general`. A rate written for this
  * particular job beats it - "customer-supplied kitchen installation $2,850" is a better answer to
  * an install-only job than a general figure - which is why the job's own bucket is tried first.
+ *
+ * THE LAST STEP IS WHY THIS IS NOT TWO LINES. A price list is written in sections, and a section
+ * heading is not a restriction: Beky Kitchens prints its three sizes under "Installation-only
+ * pricing", so every rate was filed under `install_only` and a customer REPLACING a kitchen was
+ * told nobody prices a kitchen that size - by the one business that prices all three. The size was
+ * never the problem, which made the sentence they read untrue as well as unhelpful.
+ *
+ * What actually separates the three job types is already asked elsewhere: who buys the cabinets is
+ * `supply`, and taking the old kitchen out is `removal`. Both are priced separately. The
+ * installation labour for a large kitchen is the same job whatever the customer calls it, so a
+ * published installation price is usable whatever heading it sat under.
+ *
+ * The DEAREST such rate, for the same reason the cabinetry package takes the dearest: the one
+ * number nobody may be shown is a total below what they will actually be charged. A quote from
+ * another bucket is a fallback, not a claim about what that business calls the job.
  */
 function rateForJob(
   pricing: KitchenVerifiedPricing,
@@ -76,7 +91,14 @@ function rateForJob(
     const rate = findRate(pricing.rates[key] ?? [], size);
     if (rate) return { rate, rateKey: key };
   }
-  return undefined;
+
+  let dearest: { rate: KitchenRate; rateKey: string } | undefined;
+  for (const [key, rows] of Object.entries(pricing.rates)) {
+    if (key === jobType || key === GENERAL_JOB) continue;
+    const rate = findRate(rows, size);
+    if (rate && (!dearest || rate.price > dearest.rate.price)) dearest = { rate, rateKey: key };
+  }
+  return dearest;
 }
 
 export function quoteKitchen(
