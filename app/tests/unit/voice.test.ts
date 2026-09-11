@@ -65,6 +65,40 @@ describe('matchSpokenToOption', () => {
     expect(matchSpokenToOption('no gates mate', options(['No gates', 'none'], ['Single gate', 'single']))).toBe('none');
   });
 
+  /**
+   * The same sentence in two trades. Tiling's noun was filler and kitchen's was not, so "a large
+   * kitchen" paid a model round trip on almost every turn of a call where "just the floor tiles"
+   * resolved here for nothing. Three seconds, every question, only on the phone - the kind of gap
+   * that shows up in no test and no type.
+   *
+   * The second half is why the fix stops at the noun. Kitchen's other words are each an ANSWER in
+   * its own options, so filing them here would swallow a real second answer - which costs far more
+   * than the three seconds it would save.
+   */
+  describe('kitchen, whose own nouns are mostly answers', () => {
+    const SIZES = options(['Small — a galley or one run', 'small'], ['Standard — an L-shape', 'standard'], ['Large — a U-shape or an island', 'large']);
+    const REMOVAL = options(['Everything — cabinets, bench, splashback', 'full_demolition'], ['Just the cabinets', 'cabinets_only'], ['Just the benchtop', 'benchtop_only']);
+
+    it('takes the shortcut when the trade noun is all they added', () => {
+      expect(matchSpokenToOption('a large kitchen', SIZES)).toBe('large');
+      expect(matchSpokenToOption('standard kitchen please', SIZES)).toBe('standard');
+      expect(matchSpokenToOption('small kitchen', SIZES)).toBe('small');
+    });
+
+    it('still sends a hidden second answer to the model', () => {
+      // Each of these carries a removal or an extra as well as the size, and the guard must see it.
+      expect(matchSpokenToOption('standard, and take the benchtop out', SIZES)).toBe(null);
+      expect(matchSpokenToOption('large kitchen, just the cabinets', SIZES)).toBe(null);
+      expect(matchSpokenToOption('small, with an island', SIZES)).toBe(null);
+    });
+
+    it('leaves the words that distinguish its own options alone', () => {
+      expect(matchSpokenToOption('just the cabinets', REMOVAL)).toBe('cabinets_only');
+      expect(matchSpokenToOption('just the benchtop', REMOVAL)).toBe('benchtop_only');
+      expect(matchSpokenToOption('everything', REMOVAL)).toBe('full_demolition');
+    });
+  });
+
   it('returns nothing rather than guessing', () => {
     // A wrong match silently records an answer they never gave, and they find out at the price.
     expect(matchSpokenToOption('umm, hang on', MATERIALS)).toBe(null);

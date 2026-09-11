@@ -58,6 +58,19 @@ const FILLER = new Set([
      whether a caller said more than their answer. Filing an answer here is how a second answer gets
      silently thrown away, which is the one thing that guard exists to prevent. */
   'square', 'squares', 'sqm', 'm2', 'tile', 'tiles', 'tiled', 'tiling',
+  /* Kitchen's own noun, and only that. "A large kitchen please" is the size and the word for it;
+     without this line it read as a caller saying more than their answer and paid a model round
+     trip on nearly every turn of the call, where the same sentence in tiling resolved here.
+
+     The list stops at the noun deliberately, and this trade is where that restraint matters most:
+     almost every other kitchen word IS an answer somewhere in its own options. `cabinets` is "Just
+     the cabinets", `benchtop` is "Just the benchtop", `bench` is in "Everything - cabinets, bench,
+     splashback", and `island`, `pantry`, `sink` and `laundry` are each an extra a caller can ask
+     for. Any of those filed here would swallow a second answer whole - "standard, and take the
+     benchtop out" would lose the removal - which is the one failure this set exists to prevent.
+     Tiling could afford `tile` and `square` because neither ever distinguishes one of its options;
+     kitchen cannot afford the equivalents, so it gets one word instead of eight. */
+  'kitchen', 'kitchens',
   /* Verbs and hedges. Safe to ignore wholesale: a second answer is a thing or a number, never a
      verb, so nothing here can be the piece of the sentence worth sending to the model. */
   'need', 'want', 'wanted', 'looking', 'prefer', 'reckon', 'think', 'get', 'have', 'take', 'do',
