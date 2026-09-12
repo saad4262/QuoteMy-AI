@@ -354,8 +354,8 @@ customer: "floor_only"
       "value": "porcelain"
     },
     {
-      "label": "Large format 600×1200",
-      "value": "large_format_600x1200"
+      "label": "Natural stone",
+      "value": "natural_stone"
     },
     {
       "label": "Other",
@@ -384,7 +384,7 @@ customer: "floor_only"
       "lastValues": [
         "ceramic",
         "porcelain",
-        "large_format_600x1200",
+        "natural_stone",
         "__other__"
       ],
       "lastType": "question",
@@ -1655,8 +1655,8 @@ customer: "the tile's wrong"
       "value": "porcelain"
     },
     {
-      "label": "Large format 600×1200",
-      "value": "large_format_600x1200"
+      "label": "Natural stone",
+      "value": "natural_stone"
     },
     {
       "label": "Other",
@@ -1690,7 +1690,7 @@ customer: "the tile's wrong"
       "lastValues": [
         "ceramic",
         "porcelain",
-        "large_format_600x1200",
+        "natural_stone",
         "__other__"
       ],
       "lastType": "question",

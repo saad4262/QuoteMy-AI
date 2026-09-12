@@ -136,6 +136,21 @@ export interface FieldSpec {
    */
   measureIn?: 'm2' | 'm';
   /**
+   * Words a customer uses for a value the vocabulary holds under another name, keyed by that value.
+   *
+   * The vocabulary is closed on purpose and a customer's vocabulary is not. Tiling publishes one
+   * `natural_stone` rate because a tiler charges one price to lay stone - but nobody says "natural
+   * stone" about their own floor, they say marble, or travertine, or slate. Typed, those matched
+   * nothing at all: the answer was dropped and the same question came back, which is the silent
+   * failure this codebase treats as worse than an error.
+   *
+   * Plain strings, so a published document can carry them - unlike `namedBy` and `aliases`, which
+   * are expressions and are always taken from the code.
+   *
+   * Consulted only AFTER `oneOf` has found nothing, so an alias can never shadow a real value.
+   */
+  valueAliases?: Record<string, string[]>;
+  /**
    * How a customer NAMES this field when they say which answer is wrong - "no, the height's wrong",
    * "can I redo the length". Phrases, matched as written.
    */
@@ -576,6 +591,15 @@ export const TILING_FIELDS: FieldSpec[] = [
     source: 'core.tileTypes',
     labelGroup: 'tileTypes',
     acceptsExtras: true,
+    /* What people call their own floor. A tiler publishes ONE stone rate because laying stone is
+       one job at one price, so these are not missing values - they are the words the single value
+       already covers. Typed, they used to match nothing and the question came back unchanged. */
+    valueAliases: {
+      natural_stone: ['marble', 'granite', 'travertine', 'limestone', 'slate', 'bluestone', 'sandstone', 'stone'],
+      mosaic: ['kit kat', 'kitkat', 'penny round', 'penny'],
+      subway: ['metro', 'brick'],
+      terrazzo: ['terazzo', 'terrazo'],
+    },
     /* Sizes first, because a size IS the tile here: a business publishes a large-format rate and a
        porcelain rate as two different rows, so "600x600 porcelain" is the large-format one and
        reading it as porcelain quotes the wrong price. After the sizes, specific before generic -
@@ -911,6 +935,13 @@ export const KITCHEN_FIELDS: FieldSpec[] = [
     question: KITCHEN_QUESTIONS.benchtop,
     source: 'core.benchtops',
     labelGroup: 'benchtops',
+    /* Every engineered and natural stone brand a customer might name. The fitter charges one
+       price to install a stone top whatever it is cut from - the slab is somebody else's trade. */
+    valueAliases: {
+      stone: ['caesarstone', 'caesar stone', 'engineered stone', 'quartz', 'granite', 'marble', 'porcelain', 'sintered', 'dekton', 'silestone'],
+      timber: ['wood', 'oak', 'bamboo', 'butcher block', 'butchers block'],
+      laminate: ['formica', 'melamine', 'laminex'],
+    },
     /* Not blocking, and the pinned answer says so plainly: a fitter who does not install benchtops
        can still fit the kitchen, and a customer who has one already is not asking us to price it. */
     pinned: { label: 'Not needed', value: 'none' },

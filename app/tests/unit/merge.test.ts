@@ -850,3 +850,66 @@ describe('reading a number the customer typed', () => {
   });
 });
 
+
+/**
+ * The words a customer uses for a value the vocabulary holds under another name.
+ *
+ * Tiling publishes ONE `natural_stone` rate because laying stone is one job at one price. Nobody
+ * says "natural stone" about their own floor - they say marble, or travertine, or slate. Typed,
+ * those matched nothing, so the answer was dropped and the same question came back: the silent
+ * failure, and the one a customer cannot work around because there is no wording that succeeds.
+ *
+ * Verified live before the fix: typing "marble" left `tileType` null and re-asked.
+ */
+describe('a customer naming a value by their own word', () => {
+  const read = async (trade: 'tiling' | 'kitchen', field: string, known: Record<string, unknown>, message: string) => {
+    const schema = await loadTradeSchema(trade, new MemoryRepository());
+    const state = mergeAndDecide({
+      sessionId: 'a1',
+      message,
+      place: PLACE,
+      known: { ...known, _ui: ui({ lastAsked: field }) } as unknown as Partial<Checklist>,
+      turnExtraction: turn(),
+      docFacts: {},
+      docSuburbHint: null,
+      haystackText: message + ' ',
+      schema,
+    });
+    return (state.checklist as Record<string, unknown>)[field] ?? null;
+  };
+
+  const tile = (message: string) =>
+    read('tiling', 'tileType', { suburb: 'Berwick, VIC 3806', jobType: 'bathroom', tileType: null }, message);
+  const bench = (message: string) =>
+    read('kitchen', 'benchtop', { suburb: 'Berwick, VIC 3806', jobType: 'replacement', kitchenSize: 'large', supply: 'labour_only', benchtop: null }, message);
+
+  it('reads the stones a tiler charges one rate for', async () => {
+    for (const word of ['marble', 'travertine', 'limestone', 'slate', 'bluestone']) {
+      expect(await tile(word), word).toBe('natural_stone');
+    }
+    // People qualify. "A marble floor" is still marble.
+    expect(await tile('marble tiles')).toBe('natural_stone');
+  });
+
+  it('reads the brands people call a benchtop by', async () => {
+    for (const word of ['caesarstone', 'quartz', 'granite', 'engineered stone']) {
+      expect(await bench(word), word).toBe('stone');
+    }
+    expect(await bench('laminex')).toBe('laminate');
+    expect(await bench('oak')).toBe('timber');
+  });
+
+  /* An alias fills a gap; it never covers one of the vocabulary's own words. Checked because the
+     lookup order is the whole safety of this: `oneOf` first, aliases only on its failure. */
+  it('never shadows a value the vocabulary already holds', async () => {
+    expect(await tile('porcelain')).toBe('porcelain');
+    expect(await tile('ceramic')).toBe('ceramic');
+    expect(await tile('terrazzo')).toBe('terrazzo');
+    expect(await bench('timber')).toBe('timber');
+    expect(await bench('stone')).toBe('stone');
+  });
+
+  it('still reads nothing from a word that means nothing here', async () => {
+    expect(await tile('hexagonal gold leaf')).toBeNull();
+  });
+});

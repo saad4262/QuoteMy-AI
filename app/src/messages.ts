@@ -236,7 +236,18 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
       'kitchen_splashback',
       ...TILE_JOB_TYPES.filter((j) => j !== 'bathroom' && j !== 'floor_only' && j !== 'kitchen_splashback'),
     ],
-    tileTypes: [...TILE_TYPES],
+    /* Materials first, because the first page is three chips and a customer looking at their own
+       floor knows what it is MADE of long before they know what it MEASURES. The sizes are still
+       one page away and still matter - a business prices large format as its own row - but leading
+       with one of them put "Large format 600x1200" beside "Ceramic" as though they answered the
+       same question. Ordered here rather than in the vocabulary, which is also the business side's
+       and must not be reshuffled for a screen. */
+    tileTypes: [
+      'ceramic',
+      'porcelain',
+      'natural_stone',
+      ...TILE_TYPES.filter((t) => t !== 'ceramic' && t !== 'porcelain' && t !== 'natural_stone'),
+    ],
     supply: [...TILE_SUPPLY],
     /* Same shape as fencing's: "yes, take them up" first, and the kinds behind it for anyone who
        knows which they have. `adhesive` is left off - it is a business-side line, not something a

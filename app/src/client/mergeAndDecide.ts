@@ -28,6 +28,24 @@ import { OFF_LIST, offListValue, type ChecklistField } from './vocab.js';
  * trade's own schema document, so a business-side vocabulary change is accepted the moment it is
  * published.
  */
+/**
+ * The value a customer's own word stands for - "marble" for `natural_stone` - or null.
+ *
+ * Word by word rather than whole-string, because people qualify: "marble tiles", "a slate floor".
+ * Only ever returns a value the field is actually offering, so a published list that drops one
+ * cannot be reintroduced through the back door.
+ */
+function aliasIn(spec: FieldSpec, value: unknown, list: readonly string[]): string | null {
+  if (!spec.valueAliases) return null;
+  const words = new Set(slug(value).split('-').filter(Boolean));
+  if (!words.size) return null;
+  for (const [canonical, aliases] of Object.entries(spec.valueAliases)) {
+    if (!list.includes(canonical)) continue;
+    if (aliases.some((alias) => slug(alias).split('-').every((word) => words.has(word)))) return canonical;
+  }
+  return null;
+}
+
 function validate(field: string, value: unknown, schema: TradeSchema, labelFor: LabelFor): unknown {
   if (value === null || value === undefined) return null;
   const spec = specOf(schema.fields, field);
@@ -57,7 +75,9 @@ function validate(field: string, value: unknown, schema: TradeSchema, labelFor: 
          deliberately absent from the choice list, so they never push out something everybody
          sells. A customer who names one by hand is naming something real, so it is recognised. */
       const list = spec.acceptsExtras ? [...choices(), ...Object.keys(schema.extras)] : choices();
-      return oneOf(value, list, label);
+      /* Aliases AFTER the real lookup, never before: a word the vocabulary already knows must keep
+         resolving to itself, and an alias only fills a gap it left. */
+      return oneOf(value, list, label) ?? aliasIn(spec, value, list);
     }
 
     case 'multiEnum':

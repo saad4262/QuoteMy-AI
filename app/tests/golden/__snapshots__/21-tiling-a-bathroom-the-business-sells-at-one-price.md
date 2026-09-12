@@ -354,8 +354,8 @@ customer: "bathroom"
       "value": "porcelain"
     },
     {
-      "label": "Large format 600×1200",
-      "value": "large_format_600x1200"
+      "label": "Natural stone",
+      "value": "natural_stone"
     },
     {
       "label": "Other",
@@ -384,7 +384,7 @@ customer: "bathroom"
       "lastValues": [
         "ceramic",
         "porcelain",
-        "large_format_600x1200",
+        "natural_stone",
         "__other__"
       ],
       "lastType": "question",
