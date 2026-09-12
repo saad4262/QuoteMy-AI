@@ -11,7 +11,7 @@
   "version": 1,
   "refresh": "30s",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
@@ -19,26 +19,42 @@
       {
         "name": "env",
         "label": "Environment",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "qryType": 1,
-          "query": "label_values(loki_process_custom_http_requests_total, env)",
-          "refId": "env"
-        },
-        "definition": "label_values(loki_process_custom_http_requests_total, env)",
-        "includeAll": true,
-        "allValue": ".*",
+        "type": "custom",
+        "query": ".* : All, production : production, local.* : local, preview : preview, development : development",
+        "includeAll": false,
         "multi": false,
-        "refresh": 1,
         "current": {
+          "selected": true,
           "text": "All",
-          "value": "$__all"
+          "value": ".*"
         },
-        "options": [],
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          {
+            "selected": false,
+            "text": "production",
+            "value": "production"
+          },
+          {
+            "selected": false,
+            "text": "local",
+            "value": "local.*"
+          },
+          {
+            "selected": false,
+            "text": "preview",
+            "value": "preview"
+          },
+          {
+            "selected": false,
+            "text": "development",
+            "value": "development"
+          }
+        ],
         "hide": 0
       }
     ]
@@ -52,21 +68,14 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_submissions_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_submissions_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -99,7 +108,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
@@ -110,12 +126,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
@@ -123,8 +133,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -165,7 +174,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
@@ -176,21 +192,14 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_rates_saved_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_rates_saved_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -223,22 +232,139 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Rates per submission",
+      "description": "A published profile with two rates answers almost no customer. This is how much of a price list actually makes it through.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(loki_process_custom_rates_saved_total{env=~\"$env\"}[$__range])) / clamp_min(sum(increase(loki_process_custom_submissions_total{env=~\"$env\", outcome=\"approved\"}[$__range])), 1)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Figures dropped",
+      "description": "Each one was reported to the business. Rising means the model and the verifier are disagreeing more often.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(loki_process_custom_figures_not_used_total{env=~\"$env\"}[$__range])) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
       "type": "stat",
       "title": "Alerts firing",
-      "description": "Prometheus rules currently firing. The Telemetry pipe dashboard lists which. These do not notify anyone yet - see prometheus/rules/quotemy.yml.",
+      "description": "Prometheus rules currently firing; the Telemetry pipe page lists which. These do not notify anyone yet - see prometheus/rules/quotemy.yml.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
-        "h": 4
       },
       "targets": [
         {
@@ -247,8 +373,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -284,81 +409,24 @@
         },
         "textMode": "auto",
         "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Figures dropped",
-      "description": "Each one was reported to the business. A rising line means the model and the verifier are disagreeing more often.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
       },
       "gridPos": {
-        "x": 0,
-        "y": 4,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(loki_process_custom_figures_not_used_total{env=~\"$env\"}[$__range]))",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
       "type": "timeseries",
       "title": "Submissions by outcome",
-      "description": "approved \u00b7 rejected \u00b7 not_a_price_list. The third is caught twice over - by code for a keyboard mash, by the review otherwise.",
+      "description": "not_a_price_list is caught twice over - by code for a keyboard mash, by the review otherwise.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 4,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -375,16 +443,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 35,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "normal",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -406,21 +483,21 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "timeseries",
-      "title": "Approved but nothing left standing",
-      "description": "The review let it through and then every figure failed verification. Rare, and the worst experience the product can give - so it is on its own axis.",
+      "title": "Approved, but nothing left standing",
+      "description": "The review let it through and then every figure failed verification. Rare, and the worst experience the onboarding can give.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 12,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -446,16 +523,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -477,6 +563,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -486,12 +578,6 @@
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 12,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -510,14 +596,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -539,6 +634,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -548,12 +649,6 @@
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -581,14 +676,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -610,21 +714,21 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "timeseries",
       "title": "Why a figure could not be used",
-      "description": "Grouped by the text the BUSINESS was shown. 'Not in the vocabulary' should sit at zero - strict json_schema is supposed to make it impossible, so anything there is worth reading. If the grouped lines do not add up to the total line, a message has been reworded and a filter here needs updating.",
+      "description": "Grouped by the text the BUSINESS was shown. 'Not in the vocabulary' should sit at zero - strict json_schema is supposed to make it impossible, so anything there is worth reading.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -680,7 +784,7 @@
         {
           "refId": "F",
           "expr": "sum(count_over_time({service=\"quotemy-api\", env=~\"$env\"} | json | msg=`not used` [$__auto]))",
-          "legendFormat": "\u2014 all drops (the stack should reach this) \u2014",
+          "legendFormat": "\u2014 all drops (the rest should add up to this) \u2014",
           "datasource": {
             "type": "loki",
             "uid": "loki"
@@ -694,14 +798,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -723,6 +836,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 9
       }
     },
     {
@@ -733,12 +852,6 @@
         "type": "loki",
         "uid": "loki"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 12,
-        "h": 9
-      },
       "targets": [
         {
           "refId": "A",
@@ -747,16 +860,25 @@
           "datasource": {
             "type": "loki",
             "uid": "loki"
-          }
+          },
+          "maxLines": 500
         }
       ],
       "options": {
         "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
         "wrapLogMessage": true,
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
         "prettifyLogMessage": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 12,
+        "h": 10
       }
     },
     {
@@ -767,12 +889,6 @@
         "type": "loki",
         "uid": "loki"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 28,
-        "w": 12,
-        "h": 9
-      },
       "targets": [
         {
           "refId": "A",
@@ -781,16 +897,25 @@
           "datasource": {
             "type": "loki",
             "uid": "loki"
-          }
+          },
+          "maxLines": 500
         }
       ],
       "options": {
         "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
         "wrapLogMessage": true,
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
         "prettifyLogMessage": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 30,
+        "w": 12,
+        "h": 10
       }
     }
   ]

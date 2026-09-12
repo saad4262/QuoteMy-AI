@@ -11,7 +11,7 @@
   "version": 1,
   "refresh": "1m",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
@@ -19,26 +19,42 @@
       {
         "name": "env",
         "label": "Environment",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "qryType": 1,
-          "query": "label_values(loki_process_custom_http_requests_total, env)",
-          "refId": "env"
-        },
-        "definition": "label_values(loki_process_custom_http_requests_total, env)",
-        "includeAll": true,
-        "allValue": ".*",
+        "type": "custom",
+        "query": ".* : All, production : production, local.* : local, preview : preview, development : development",
+        "includeAll": false,
         "multi": false,
-        "refresh": 1,
         "current": {
+          "selected": true,
           "text": "All",
-          "value": "$__all"
+          "value": ".*"
         },
-        "options": [],
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          {
+            "selected": false,
+            "text": "production",
+            "value": "production"
+          },
+          {
+            "selected": false,
+            "text": "local",
+            "value": "local.*"
+          },
+          {
+            "selected": false,
+            "text": "preview",
+            "value": "preview"
+          },
+          {
+            "selected": false,
+            "text": "development",
+            "value": "development"
+          }
+        ],
         "hide": 0
       }
     ]
@@ -52,12 +68,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
@@ -65,8 +75,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -101,8 +110,15 @@
         },
         "textMode": "auto",
         "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
@@ -113,12 +129,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
@@ -126,8 +136,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -162,23 +171,24 @@
         },
         "textMode": "auto",
         "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto"
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
       "type": "stat",
-      "title": "Lines received (range)",
+      "title": "Lines received",
       "description": "",
       "datasource": {
         "type": "loki",
         "uid": "loki"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 4
       },
       "targets": [
         {
@@ -221,7 +231,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
@@ -232,12 +249,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
@@ -245,8 +256,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -279,70 +289,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Log lines per second, by environment",
-      "description": "`local` and `production` side by side. A production line that stops is the thing to notice.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "justifyMode": "auto",
+        "wideLayout": true
       },
       "gridPos": {
-        "x": 0,
-        "y": 4,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (env) (count_over_time({service=\"quotemy-api\"} [$__auto]))",
-          "legendFormat": "{{env}}",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "queryType": "range"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisSoftMin": 0
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
@@ -352,12 +306,6 @@
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 12,
-        "w": 24,
-        "h": 7
       },
       "targets": [
         {
@@ -407,63 +355,34 @@
             }
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "State"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "firing": {
-                        "color": "red",
-                        "index": 0,
-                        "text": "FIRING"
-                      },
-                      "pending": {
-                        "color": "orange",
-                        "index": 1,
-                        "text": "pending"
-                      }
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "showHeader": true,
         "footer": {
           "show": false
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 7
       }
     },
     {
       "type": "timeseries",
-      "title": "Lines per second, by level",
-      "description": "`unknown` here means something that is not this service's pino output is pushing to the gate.",
+      "title": "Log lines per minute, by environment",
+      "description": "`production` and `local` side by side. A production line that stops is the thing to notice, and it is invisible on every other page.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 19,
-        "w": 12,
-        "h": 8
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (level) (count_over_time({service=\"quotemy-api\", env=~\"$env\"} [$__auto]))",
-          "legendFormat": "{{level}}",
+          "expr": "sum by (env) (count_over_time({service=\"quotemy-api\"} [$__auto]))",
+          "legendFormat": "{{env}}",
           "datasource": {
             "type": "loki",
             "uid": "loki"
@@ -475,16 +394,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 25,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
-              "mode": "normal",
+              "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -506,6 +434,121 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Lines per minute, by level",
+      "description": "`unknown` means something that is not this service's pino output is pushing to the gate.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (level) (count_over_time({service=\"quotemy-api\", env=~\"$env\"} [$__auto]))",
+          "legendFormat": "{{level}}",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "type": "logs",
+      "title": "The chat and the extractor disagreeing about a trade",
+      "description": "`schema/{trade}` is what the customer chat builds its questions from, and vocab.ts is what the extractor enforces. When they drift apart, a customer can be offered something no business can be matched on - and nothing else reports it.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=\"quotemy-api\", env=~\"$env\"} |~ `differs from vocab.ts|published field spec is unusable|could not load trade`",
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "maxLines": 500
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 10
       }
     }
   ]

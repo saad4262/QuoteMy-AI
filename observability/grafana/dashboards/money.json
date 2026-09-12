@@ -1,7 +1,7 @@
 {
   "uid": "quotemy-money",
   "title": "QuoteMy \u00b7 Model & Money",
-  "description": "What the model costs, by pipeline stage. Counters live in Alloy's memory and reset when it restarts - fine for rates, wrong for lifetime totals. The ledger is chatSpend/{day} in Firestore.",
+  "description": "What the model costs, by pipeline stage. Counters live in Alloy's memory and reset when it restarts - right for rates, wrong for lifetime totals. The ledger is chatSpend/{day} in Firestore.",
   "tags": [
     "quotemy"
   ],
@@ -11,7 +11,7 @@
   "version": 1,
   "refresh": "30s",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
@@ -19,26 +19,42 @@
       {
         "name": "env",
         "label": "Environment",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "qryType": 1,
-          "query": "label_values(loki_process_custom_http_requests_total, env)",
-          "refId": "env"
-        },
-        "definition": "label_values(loki_process_custom_http_requests_total, env)",
-        "includeAll": true,
-        "allValue": ".*",
+        "type": "custom",
+        "query": ".* : All, production : production, local.* : local, preview : preview, development : development",
+        "includeAll": false,
         "multi": false,
-        "refresh": 1,
         "current": {
+          "selected": true,
           "text": "All",
-          "value": "$__all"
+          "value": ".*"
         },
-        "options": [],
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          {
+            "selected": false,
+            "text": "production",
+            "value": "production"
+          },
+          {
+            "selected": false,
+            "text": "local",
+            "value": "local.*"
+          },
+          {
+            "selected": false,
+            "text": "preview",
+            "value": "preview"
+          },
+          {
+            "selected": false,
+            "text": "development",
+            "value": "development"
+          }
+        ],
         "hide": 0
       }
     ]
@@ -46,27 +62,20 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Spent (selected range)",
-      "description": "Model spend over the dashboard's time range.",
+      "title": "Spent",
+      "description": "",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_model_cost_usd_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_model_cost_usd_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -99,7 +108,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
@@ -110,21 +126,14 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_model_calls_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_model_calls_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -157,22 +166,23 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
       "type": "stat",
       "title": "Cost per call",
-      "description": "Divided rather than averaged, so a stage with more calls weighs more - which is what a bill does.",
+      "description": "Divided, not averaged - a stage with more calls weighs more, which is what a bill does.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 4
       },
       "targets": [
         {
@@ -181,8 +191,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -215,32 +224,32 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
       "type": "stat",
-      "title": "Alerts firing",
-      "description": "Prometheus rules currently firing. The Telemetry pipe dashboard lists which. These do not notify anyone yet - see prometheus/rules/quotemy.yml.",
+      "title": "Output tokens",
+      "description": "Output costs several times input, so this is the half that moves the bill.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "expr": "sum(increase(loki_process_custom_model_tokens_out_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -254,12 +263,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "text",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
               }
             ]
           }
@@ -277,32 +282,32 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
       "type": "stat",
       "title": "Schema violations",
-      "description": "Replies that arrived and did not fit the schema. One is a bad day; a run of them is a broken prompt.",
+      "description": "Replies that arrived and did not fit the schema. One is a bad day; a run is a broken prompt.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 4,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_model_schema_violations_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_model_schema_violations_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -343,7 +348,76 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Alerts firing",
+      "description": "Prometheus rules currently firing; the Telemetry pipe page lists which. These do not notify anyone yet - see prometheus/rules/quotemy.yml.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 5
       }
     },
     {
@@ -353,12 +427,6 @@
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 4,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -377,14 +445,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 25,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "normal",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -406,6 +483,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -415,12 +498,6 @@
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 12,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -439,14 +516,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -468,21 +554,21 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "timeseries",
       "title": "Tokens per minute",
-      "description": "Output tokens cost several times input. A stage whose output line climbs is the one to look at.",
+      "description": "",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 12,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -510,14 +596,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -539,21 +634,21 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "timeseries",
-      "title": "Model latency, by stage",
-      "description": "Includes any retry, because that is what the caller waited for.",
+      "title": "How long a model call took",
+      "description": "Including any retry, because that is what the caller waited for.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -581,14 +676,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -610,21 +714,21 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "timeseries",
-      "title": "Schema retries folded into a successful call",
+      "title": "Retries folded into a successful call",
       "description": "The call succeeded on the second attempt. Invisible in the response, and the earliest sign a prompt is drifting.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -641,16 +745,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -672,6 +785,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
       }
     },
     {
@@ -682,12 +801,6 @@
         "type": "loki",
         "uid": "loki"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 12,
-        "h": 8
-      },
       "targets": [
         {
           "refId": "A",
@@ -696,16 +809,25 @@
           "datasource": {
             "type": "loki",
             "uid": "loki"
-          }
+          },
+          "maxLines": 500
         }
       ],
       "options": {
         "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
         "wrapLogMessage": true,
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
         "prettifyLogMessage": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
       }
     }
   ]

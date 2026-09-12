@@ -75,7 +75,7 @@ echo "dashboards"
 # Grafana 13 loads new dashboard FILES at startup. Dropping one in and waiting for the rescan is
 # not enough - it stayed invisible for twenty minutes here with nothing logged either way. If this
 # fails and the file exists, the answer is `docker compose restart grafana`.
-want="quotemy-money quotemy-traffic quotemy-chat quotemy-pipe quotemy-onboarding"
+want="quotemy-overview quotemy-money quotemy-traffic quotemy-onboarding quotemy-chat quotemy-pipe"
 have=$(curl -fsS --max-time 5 -u "${GRAFANA_USER:-admin}:${GRAFANA_PASSWORD:-admin}" \
   'http://localhost:3000/api/search?type=dash-db' 2>/dev/null || echo '')
 for uid in $want; do

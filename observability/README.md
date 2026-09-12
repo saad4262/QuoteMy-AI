@@ -135,6 +135,7 @@ we spent in total, ever". For that, read `chatSpend/{day}` in Firestore, which i
 
 | | Answers |
 |---|---|
+| **Overview** | ← start here. Anything firing, is traffic normal, did submissions and chats go through |
 | **Model & Money** | What is the model costing, at which stage, and is that changing? |
 | **Traffic & Errors** | Rate, errors, duration — what the service itself says happened |
 | **Customer chat** | Matching time, how the trade was decided, questions and voice turns |
@@ -144,6 +145,19 @@ we spent in total, ever". For that, read `chatSpend/{day}` in Firestore, which i
 Firing alerts appear on the Telemetry pipe page as a table, and as a count on Money and Business
 onboarding — so a critical alert interrupts whatever you were reading rather than waiting on a page
 nobody has open.
+
+### Two things that had every Loki panel showing nothing
+
+The `Environment` dropdown used to be a `label_values()` query against a **Prometheus** metric. That
+was wrong twice over. The filter is also used by **Loki**, which knows about environments Prometheus
+has never seen; and an Alloy restart empties those metrics, so the dropdown could come back with no
+options at all. When it resolved to empty the panels asked for `env=~""`, which matches nothing —
+every log panel on every page went blank while the data sat in Loki perfectly intact. It is a fixed
+list now, and it cannot fail to populate.
+
+The stat rows also used to wrap automatically at 24 columns, so five 6-wide stats came out as a row
+of four and an orphan with a hole beside it. Rows are counted explicitly now, and `build-dashboards.py`
+refuses to build a row that is not exactly 24 wide.
 
 They are generated:
 

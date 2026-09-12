@@ -1,7 +1,7 @@
 {
-  "uid": "quotemy-traffic",
-  "title": "QuoteMy \u00b7 Traffic & Errors",
-  "description": "Rate, errors, duration. Vercel's own Observability tab shows invocations and a 0% error rate; this shows what the service itself said happened.",
+  "uid": "quotemy-overview",
+  "title": "QuoteMy \u00b7 Overview",
+  "description": "One screen: is anything firing, is traffic normal, did submissions and chats go through, and what did the service complain about.",
   "tags": [
     "quotemy"
   ],
@@ -11,7 +11,7 @@
   "version": 1,
   "refresh": "30s",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
@@ -62,8 +62,8 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Requests",
-      "description": "",
+      "title": "Alerts firing",
+      "description": "Prometheus rules currently firing; the Telemetry pipe page lists which. These do not notify anyone yet - see prometheus/rules/quotemy.yml.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -71,7 +71,69 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_http_requests_total{env=~\"$env\"}[$__range])) or vector(0)",
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Requests",
+      "description": "Everything the API answered in the selected range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(loki_process_custom_http_requests_total{env=~\"$env\"}[$__range]))",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -112,7 +174,7 @@
         "wideLayout": true
       },
       "gridPos": {
-        "x": 0,
+        "x": 6,
         "y": 0,
         "w": 6,
         "h": 5
@@ -120,8 +182,8 @@
     },
     {
       "type": "stat",
-      "title": "Server errors (5xx)",
-      "description": "",
+      "title": "Server errors",
+      "description": "A rejected price list is a 200 - this is only the service itself failing.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -174,64 +236,6 @@
         "wideLayout": true
       },
       "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 5
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Rejected (4xx)",
-      "description": "Not a fault. A rejected price list is a 200 here - these are bad requests and rate limits.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(loki_process_custom_http_requests_total{env=~\"$env\", status=~\"4..\"}[$__range])) or vector(0)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "decimals": 0,
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "text",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "wideLayout": true
-      },
-      "gridPos": {
         "x": 12,
         "y": 0,
         "w": 6,
@@ -240,7 +244,7 @@
     },
     {
       "type": "stat",
-      "title": "p95 latency",
+      "title": "Model spend",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -249,7 +253,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(loki_process_custom_http_duration_ms_bucket{env=~\"$env\"}[$__range])))",
+          "expr": "sum(increase(loki_process_custom_model_cost_usd_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -258,8 +262,8 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ms",
-          "decimals": 0,
+          "unit": "currencyUSD",
+          "decimals": 4,
           "color": {
             "mode": "thresholds"
           },
@@ -298,8 +302,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Requests per minute, by status",
-      "description": "The spike panel. Bars rather than a line: at this volume a line between two sparse points invents traffic that never happened.",
+      "title": "Traffic",
+      "description": "Requests per minute, stacked by status. Drawn as bars so a burst reads as a burst rather than as a line that happens to be steep.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -319,10 +323,10 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "bars",
-            "lineWidth": 1,
-            "fillOpacity": 70,
-            "gradientMode": "none",
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
@@ -369,8 +373,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Latency",
-      "description": "",
+      "title": "Business side \u00b7 submissions",
+      "description": "approved \u00b7 rejected \u00b7 not_a_price_list.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -378,26 +382,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(loki_process_custom_http_duration_ms_bucket{env=~\"$env\"}[$__rate_interval])))",
-          "legendFormat": "p50",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
-          "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(loki_process_custom_http_duration_ms_bucket{env=~\"$env\"}[$__rate_interval])))",
-          "legendFormat": "p95",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          }
-        },
-        {
-          "refId": "C",
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(loki_process_custom_http_duration_ms_bucket{env=~\"$env\"}[$__rate_interval])))",
-          "legendFormat": "p99",
+          "expr": "sum by (outcome) (increase(loki_process_custom_submissions_total{env=~\"$env\"}[$__rate_interval]))",
+          "legendFormat": "{{outcome}}",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -406,16 +392,16 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ms",
+          "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 18,
-            "gradientMode": "opacity",
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
-              "mode": "none",
+              "mode": "normal",
               "group": "A"
             },
             "axisSoftMin": 0,
@@ -458,22 +444,21 @@
     },
     {
       "type": "timeseries",
-      "title": "Requests by route",
-      "description": "From Loki, not Prometheus: `path` is deliberately not a metric label - too many values for one.",
+      "title": "Customer side \u00b7 chat turns",
+      "description": "A conversation that never reaches `result` never reached a price.",
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (path) (count_over_time({service=\"quotemy-api\", env=~\"$env\"} | json | msg=`request` [$__auto]))",
-          "legendFormat": "{{path}}",
+          "expr": "sum by (type) (increase(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__rate_interval]))",
+          "legendFormat": "{{type}}",
           "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "queryType": "range"
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
       ],
       "fieldConfig": {
@@ -529,81 +514,9 @@
       }
     },
     {
-      "type": "timeseries",
-      "title": "Slowest routes (p95)",
-      "description": "",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "quantile_over_time(0.95, {service=\"quotemy-api\", env=~\"$env\"} | json | msg=`request` | unwrap ms [$__auto]) by (path)",
-          "legendFormat": "{{path}}",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "queryType": "range"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms",
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 18,
-            "gradientMode": "opacity",
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisSoftMin": 0,
-            "barAlignment": 0,
-            "lineInterpolation": "linear",
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "color": {
-            "mode": "palette-classic"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "mean",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 22,
-        "w": 24,
-        "h": 9
-      }
-    },
-    {
       "type": "logs",
-      "title": "Everything the service complained about",
-      "description": "",
+      "title": "What the service complained about",
+      "description": "Warn and above, newest first. When a number above looks wrong, this is why.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -632,7 +545,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 22,
         "w": 24,
         "h": 11
       }

@@ -1,7 +1,7 @@
 {
   "uid": "quotemy-chat",
   "title": "QuoteMy \u00b7 Customer chat",
-  "description": "The customer side, read from the lines it already logs. Empty until customer traffic arrives - these panels are built and waiting, not broken.",
+  "description": "The customer side: how many conversations ran, how many reached a price, and how many turns needed the model at all.",
   "tags": [
     "quotemy"
   ],
@@ -11,7 +11,7 @@
   "version": 1,
   "refresh": "30s",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
@@ -19,26 +19,42 @@
       {
         "name": "env",
         "label": "Environment",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "qryType": 1,
-          "query": "label_values(loki_process_custom_http_requests_total, env)",
-          "refId": "env"
-        },
-        "definition": "label_values(loki_process_custom_http_requests_total, env)",
-        "includeAll": true,
-        "allValue": ".*",
+        "type": "custom",
+        "query": ".* : All, production : production, local.* : local, preview : preview, development : development",
+        "includeAll": false,
         "multi": false,
-        "refresh": 1,
         "current": {
+          "selected": true,
           "text": "All",
-          "value": "$__all"
+          "value": ".*"
         },
-        "options": [],
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          {
+            "selected": false,
+            "text": "production",
+            "value": "production"
+          },
+          {
+            "selected": false,
+            "text": "local",
+            "value": "local.*"
+          },
+          {
+            "selected": false,
+            "text": "preview",
+            "value": "preview"
+          },
+          {
+            "selected": false,
+            "text": "development",
+            "value": "development"
+          }
+        ],
         "hide": 0
       }
     ]
@@ -52,21 +68,14 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -99,22 +108,23 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
       "type": "stat",
       "title": "Resolved without the model",
-      "description": "A tapped option comes off a list this code generated last turn, so it is resolved in code and costs nothing - no model, no three-second spinner. It is the commonest turn in the conversation, and this is the number that says the shortcut still works.",
+      "description": "A tapped option comes off a list this code generated last turn, so it is resolved in code: no model, no money, no three-second spinner. It is the commonest turn in the conversation, and this is the number that says the shortcut still works.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 4
       },
       "targets": [
         {
@@ -123,8 +133,7 @@
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -165,7 +174,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
@@ -176,21 +192,14 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_chat_quotes_shown_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_chat_quotes_shown_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -223,7 +232,14 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
@@ -234,21 +250,14 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(loki_process_custom_chat_cost_usd_total{env=~\"$env\"}[$__range]))",
+          "expr": "sum(increase(loki_process_custom_chat_cost_usd_total{env=~\"$env\"}[$__range])) or vector(0)",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
-          },
-          "instant": true
+          }
         }
       ],
       "fieldConfig": {
@@ -281,27 +290,28 @@
         "textMode": "auto",
         "colorMode": "value",
         "graphMode": "area",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
       }
     },
     {
       "type": "timeseries",
-      "title": "Turns per minute, by what we replied with",
+      "title": "Turns by what we replied with",
       "description": "question \u00b7 confirmation \u00b7 result \u00b7 message. A conversation that never reaches `result` never reached a price.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 0,
-        "y": 4,
-        "w": 12,
-        "h": 8
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (type) (rate(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__rate_interval])) * 60",
+          "expr": "sum by (type) (increase(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__rate_interval]))",
           "legendFormat": "{{type}}",
           "datasource": {
             "type": "prometheus",
@@ -313,16 +323,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 25,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "normal",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -344,6 +363,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -354,17 +379,11 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 4,
-        "w": 12,
-        "h": 8
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(loki_process_custom_chat_turns_total{env=~\"$env\", tapped=\"true\"}[$__rate_interval])) * 60",
-          "legendFormat": "tapped - free",
+          "expr": "sum(increase(loki_process_custom_chat_turns_total{env=~\"$env\", tapped=\"true\"}[$__rate_interval]))",
+          "legendFormat": "tapped \u00b7 free",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -372,8 +391,8 @@
         },
         {
           "refId": "B",
-          "expr": "sum(rate(loki_process_custom_chat_turns_total{env=~\"$env\", tapped=\"false\"}[$__rate_interval])) * 60",
-          "legendFormat": "free text - model",
+          "expr": "sum(increase(loki_process_custom_chat_turns_total{env=~\"$env\", tapped=\"false\"}[$__rate_interval]))",
+          "legendFormat": "free text \u00b7 model",
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
@@ -384,16 +403,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
-              "mode": "none",
+              "mode": "normal",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -415,6 +443,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -424,12 +458,6 @@
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 12,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -457,14 +485,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -486,6 +523,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -496,16 +539,10 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "gridPos": {
-        "x": 12,
-        "y": 12,
-        "w": 12,
-        "h": 8
-      },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (trade) (rate(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__rate_interval])) * 60",
+          "expr": "sum by (trade) (increase(loki_process_custom_chat_turns_total{env=~\"$env\"}[$__rate_interval]))",
           "legendFormat": "{{trade}}",
           "datasource": {
             "type": "prometheus",
@@ -517,16 +554,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
-              "mode": "none",
+              "mode": "normal",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -548,6 +594,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -557,12 +609,6 @@
       "datasource": {
         "type": "loki",
         "uid": "loki"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 20,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -592,14 +638,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -621,6 +676,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -630,12 +691,6 @@
       "datasource": {
         "type": "loki",
         "uid": "loki"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 20,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -665,14 +720,23 @@
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
-            "fillOpacity": 0,
+            "fillOpacity": 18,
+            "gradientMode": "opacity",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -694,21 +758,21 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "timeseries",
       "title": "Which trade, and how we knew",
-      "description": "Asking is a worse experience. If this line climbs, the routing keywords need a look.",
+      "description": "Asking is a worse experience. If that line climbs, the routing keywords need a look.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 28,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -736,16 +800,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -767,6 +840,12 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 12,
+        "h": 8
       }
     },
     {
@@ -776,12 +855,6 @@
       "datasource": {
         "type": "loki",
         "uid": "loki"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 28,
-        "w": 12,
-        "h": 8
       },
       "targets": [
         {
@@ -809,16 +882,25 @@
         "defaults": {
           "unit": "short",
           "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 0,
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 70,
+            "gradientMode": "none",
             "showPoints": "never",
             "spanNulls": true,
             "stacking": {
               "mode": "none",
               "group": "A"
             },
-            "axisSoftMin": 0
+            "axisSoftMin": 0,
+            "barAlignment": 0,
+            "lineInterpolation": "linear",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "color": {
             "mode": "palette-classic"
@@ -840,21 +922,58 @@
           "mode": "multi",
           "sort": "desc"
         }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 8
       }
     },
     {
       "type": "logs",
-      "title": "Chat turns that failed",
+      "title": "Recent chat turns",
       "description": "",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=\"quotemy-api\", env=~\"$env\"} | json | msg=`chat turn`",
+          "queryType": "range",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "maxLines": 500
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": true
+      },
       "gridPos": {
         "x": 0,
-        "y": 36,
-        "w": 24,
+        "y": 37,
+        "w": 12,
         "h": 10
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Turns that failed",
+      "description": "",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
       },
       "targets": [
         {
@@ -864,16 +983,25 @@
           "datasource": {
             "type": "loki",
             "uid": "loki"
-          }
+          },
+          "maxLines": 500
         }
       ],
       "options": {
         "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
         "wrapLogMessage": true,
         "sortOrder": "Descending",
         "enableLogDetails": true,
         "dedupStrategy": "none",
         "prettifyLogMessage": true
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 37,
+        "w": 12,
+        "h": 10
       }
     }
   ]
