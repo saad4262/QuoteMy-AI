@@ -1,0 +1,34 @@
+# The gate.
+#
+# Alloy's push endpoint has no authentication of its own, and in Phase 4 it sits behind a public
+# tunnel URL. Without something in front, anyone who finds that URL can inject fake log lines into
+# your dashboards or fill the disk. This is the something.
+#
+# It checks one header and proxies; that is the whole job. Ten lines of a well-understood server
+# beats hand-rolling auth anywhere else in this stack.
+
+{
+	admin off
+	auto_https off
+	log {
+		level WARN
+	}
+}
+
+:8080 {
+	# Health, deliberately outside the auth check: the tunnel and `docker compose ps` both need to
+	# know this is up without holding the secret.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	@authorized header X-Telemetry-Key {$TELEMETRY_SECRET}
+	handle @authorized {
+		reverse_proxy alloy:3101
+	}
+
+	# Deliberately says nothing about why. A probe learns only that something is here.
+	handle {
+		respond "unauthorized" 401
+	}
+}

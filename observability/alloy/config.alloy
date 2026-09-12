@@ -1,0 +1,406 @@
+// Alloy: the one pipe. Everything QuoteMy emits arrives here and leaves in two directions -
+// whole log lines to Loki, and numbers derived from those same lines to Prometheus.
+//
+// WHY A PIPE AND NOT A SCRAPE: Vercel freezes a function instance as soon as it answers, so there
+// is no long-lived process holding counters for Prometheus to come and collect. The app pushes
+// instead. That also means this receiver is the only thing exposed to the internet (through the
+// Caddy gate, then the tunnel), which is why the gate checks a secret before anything reaches here.
+
+// max_idle_duration is on EVERY metric below, and it is not decoration.
+//
+// Alloy drops a metric series that has not been updated for `max_idle_duration`, and the default is
+// FIVE MINUTES. At this service's traffic - 78 function invocations in six hours - a five-minute gap
+// between matching lines is the normal state, so every counter was being destroyed and recreated
+// from zero between bursts. Verified here: ten minutes after the last request, every custom series
+// had vanished from both Alloy and Prometheus.
+//
+// The consequence was not a missing graph. It was rate() and increase() quietly returning nothing
+// useful, dashboards that filled and emptied, and alerts that could never fire - a stack that looks
+// healthy and reports nothing. A day of silence is now tolerated instead.
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+// ── receive ───────────────────────────────────────────────────────────────────────────────────
+// A Loki-compatible push endpoint. The app posts the standard {streams:[{stream,values}]} body to
+// /loki/api/v1/push on this port. Nothing else listens on it; the gate in front is what decides
+// who may reach it.
+loki.source.api "app" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 3101
+  }
+  forward_to = [loki.process.app.receiver]
+}
+
+// ── process ───────────────────────────────────────────────────────────────────────────────────
+// Pull the fields out of pino's JSON so they can be searched, and promote the few that are safe as
+// labels.
+//
+// LABEL RULE, and the one that breaks this stack if it is broken: a label must be a small CLOSED
+// list. `env` is two values, `level` is six, `trade` is three. businessUid, sessionId, requestId,
+// suburb and any raw value stay INSIDE the line - searchable, never a label. One label with a
+// thousand values is a thousand streams, and Loki falls over long before that is interesting.
+loki.process "app" {
+  stage.json {
+    expressions = {
+      level     = "level",
+      msg       = "msg",
+      env       = "env",
+      service   = "service",
+      trade     = "trade",
+      lstage    = "stage",
+      route     = "path",
+      status    = "status",
+      requestId = "requestId",
+      time      = "time",
+    }
+  }
+
+  // pino writes numeric levels (30 = info, 40 = warn, 50 = error). A human reading a dashboard
+  // wants the word, and so does a label value.
+  //
+  // `printf "%v"` rather than comparing to .level directly: stage.json hands numbers over as
+  // floats, so `eq .level "30"` compares a float to a string and is quietly always false - every
+  // line would have come out labelled `trace`. Printing it first makes the comparison honest
+  // whichever type it arrives as.
+  stage.template {
+    source   = "level_name"
+    template = "{{ $l := printf \"%v\" .level }}{{ if eq $l \"60\" }}fatal{{ else if eq $l \"50\" }}error{{ else if eq $l \"40\" }}warn{{ else if eq $l \"30\" }}info{{ else if eq $l \"20\" }}debug{{ else if eq $l \"10\" }}trace{{ else }}unknown{{ end }}"
+  }
+
+  stage.labels {
+    values = {
+      level   = "level_name",
+      env     = "env",
+      service = "service",
+    }
+  }
+
+  // pino's `time` is epoch milliseconds. Without this, every line is stamped when Alloy received
+  // it - which on a serverless host is after the flush, and puts a burst of unrelated requests on
+  // the same instant.
+  stage.timestamp {
+    source = "time"
+    format = "UnixMs"
+  }
+
+  // ── numbers, from the same lines ─────────────────────────────────────────────────────────────
+  // Nothing below asks the app for a metric it does not already log. `ai.ts` has written costUsd,
+  // tokensIn, tokensOut, ms and retries on every model call since before any of this existed;
+  // these stages only add them up.
+  //
+  // Each block is scoped by a line filter, because `ms` means "how long the request took" on one
+  // line and "how long the model took" on another, and summing them together would be nonsense.
+  //
+  // The selectors match pino's JSON exactly - `"msg":"model call"`, no space after the colon.
+  // pino never pretty-prints to this stream, so that is safe; but a hand-written test line built
+  // with a formatter that pads its separators will not match, and the metric will silently stay at
+  // zero while the log line itself arrives perfectly. That cost one confusing round here.
+  //
+  // The selectors are BACKTICK raw strings. LogQL needs escaped quotes of its own to match a JSON
+  // key, and writing that inside an ordinary Alloy string needs a second layer of escaping that
+  // Alloy then refuses to parse. A raw string has no layers.
+
+  // Every finished request. `status` becomes a label here - seven values, all of them ours.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "\"msg\":\"request\""`
+
+    stage.json {
+      expressions = { status = "status", reqMs = "ms" }
+    }
+
+    stage.labels {
+      values = { status = "status" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name        = "http_requests_total"
+        max_idle_duration = "24h"
+        description = "Finished HTTP requests, by status."
+        source      = "status"
+        action      = "inc"
+      }
+      metric.histogram {
+        name        = "http_duration_ms"
+        max_idle_duration = "24h"
+        description = "How long a request took, end to end."
+        source      = "reqMs"
+        buckets     = [5, 25, 100, 500, 1000, 5000, 15000, 60000]
+      }
+    }
+  }
+
+  // Every model call. This is the cost picture, and the latency one.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "\"msg\":\"model call\""`
+
+    stage.json {
+      expressions = {
+        mstage    = "stage",
+        costUsd   = "costUsd",
+        tokensIn  = "tokensIn",
+        tokensOut = "tokensOut",
+        callMs    = "ms",
+        retries   = "retries",
+      }
+    }
+
+    // `stage` is review | extraction | transcribe | chat | answer - a closed list, and the one
+    // breakdown every cost question starts from.
+    stage.labels {
+      values = { stage = "mstage" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name        = "model_calls_total"
+        max_idle_duration = "24h"
+        description = "Model calls that returned something usable, by pipeline stage."
+        source      = "costUsd"
+        action      = "inc"
+      }
+      metric.counter {
+        name        = "model_cost_usd_total"
+        max_idle_duration = "24h"
+        description = "Dollars spent on the model, by pipeline stage."
+        source      = "costUsd"
+        action      = "add"
+      }
+      metric.counter {
+        name        = "model_tokens_in_total"
+        max_idle_duration = "24h"
+        description = "Prompt tokens sent, by pipeline stage."
+        source      = "tokensIn"
+        action      = "add"
+      }
+      metric.counter {
+        name        = "model_tokens_out_total"
+        max_idle_duration = "24h"
+        description = "Completion tokens returned, by pipeline stage."
+        source      = "tokensOut"
+        action      = "add"
+      }
+      metric.counter {
+        name        = "model_retries_total"
+        max_idle_duration = "24h"
+        description = "Schema retries folded into a successful call."
+        source      = "retries"
+        action      = "add"
+      }
+      metric.histogram {
+        name        = "model_duration_ms"
+        max_idle_duration = "24h"
+        description = "How long a model call took, including any retry."
+        source      = "callMs"
+        buckets     = [250, 1000, 2500, 5000, 10000, 20000, 45000]
+      }
+    }
+  }
+
+  // A reply that arrived and did not fit the schema. Two of these in a row is a prompt that has
+  // broken, and the reason this is a metric rather than a line somebody might scroll past.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "model output failed validation"`
+
+    stage.json {
+      expressions = { vstage = "stage" }
+    }
+
+    stage.labels {
+      values = { stage = "vstage" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name        = "model_schema_violations_total"
+        max_idle_duration = "24h"
+        description = "Model replies rejected by the output schema."
+        source      = "vstage"
+        action      = "inc"
+      }
+    }
+  }
+
+  // How every submission ended. `pipeline.ts` wrote nothing at all until Phase 3, so this is the
+  // first time the business side can be counted rather than guessed at.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "\"msg\":\"submission\""`
+
+    stage.json {
+      expressions = {
+        subTrade   = "trade",
+        outcome    = "outcome",
+        subStatus  = "status",
+        ratesSaved = "ratesSaved",
+        subMs      = "ms",
+        subCost    = "costUsd",
+      }
+    }
+
+    // Three closed lists: three trades, three outcomes, two statuses. Eighteen combinations at the
+    // very most, and that is what a label is allowed to be.
+    stage.labels {
+      values = { trade = "subTrade", outcome = "outcome", status = "subStatus" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name        = "submissions_total"
+        max_idle_duration = "24h"
+        description = "Submissions that finished, by trade, outcome and verified status."
+        // `ratesSaved` is on every one of these lines, zero included - so this counts submissions,
+        // not just the ones that kept something.
+        source      = "ratesSaved"
+        action      = "inc"
+      }
+      metric.counter {
+        name        = "rates_saved_total"
+        max_idle_duration = "24h"
+        description = "Rates actually stored, which is not the same as rates the model read."
+        source      = "ratesSaved"
+        action      = "add"
+      }
+      metric.counter {
+        name        = "submission_cost_usd_total"
+        max_idle_duration = "24h"
+        description = "What one submission cost end to end - both model calls, and any transcription."
+        source      = "subCost"
+        action      = "add"
+      }
+      metric.histogram {
+        name        = "submission_duration_ms"
+        max_idle_duration = "24h"
+        description = "How long a business waited for its answer."
+        source      = "subMs"
+        buckets     = [1000, 5000, 10000, 20000, 40000, 60000, 120000]
+      }
+    }
+  }
+
+  // One per figure that could not be kept. WHY it was dropped stays in the text and is grouped by
+  // the dashboard - see the comment on `logNotUsed` in pipeline.ts. A reason carries prices and
+  // material names, which is exactly what must never become a label.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "\"msg\":\"not used\""`
+
+    stage.json {
+      expressions = { nuTrade = "trade" }
+    }
+
+    stage.labels {
+      values = { trade = "nuTrade" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name        = "figures_not_used_total"
+        max_idle_duration = "24h"
+        description = "Figures a business sent that could not be stored."
+        source      = "nuTrade"
+        action      = "inc"
+      }
+    }
+  }
+
+  // Vocabulary drift, and the only drop reason with a metric of its own.
+  //
+  // Everything else in `not used` is grouped by the dashboard, because grouping there fails
+  // visibly. This one gets an exception because it is the one failure CLAUDE.md calls silent AND
+  // permanent: two businesses filing the same fence under two spellings makes both invisible to
+  // customer search, with no error raised anywhere. It also should be IMPOSSIBLE - strict
+  // json_schema is supposed to stop the model inventing a value - so any number here at all is
+  // worth waking up for, and an alert needs a metric rather than a log query.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "\"msg\":\"not used\"" |= "Could not file"`
+
+    stage.json {
+      expressions = { driftTrade = "trade" }
+    }
+
+    stage.labels {
+      values = { trade = "driftTrade" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name        = "vocabulary_drift_total"
+        max_idle_duration = "24h"
+        description = "A value the model produced that is in no closed list, so a rate could not be filed."
+        source      = "driftTrade"
+        action      = "inc"
+      }
+    }
+  }
+
+  // One per customer chat turn. The counterpart to `submission` on the business side, and added
+  // for the same reason: the chat logged only its exceptions, so how many conversations ran and
+  // how many reached a price were both unanswerable.
+  stage.match {
+    selector = `{service="quotemy-api"} |= "\"msg\":\"chat turn\""`
+
+    stage.json {
+      expressions = {
+        chatTrade = "trade",
+        chatType  = "type",
+        tapped    = "tapped",
+        results   = "results",
+        chatMs    = "ms",
+        chatCost  = "costUsd",
+      }
+    }
+
+    // `type` is one of four, `tapped` is a boolean, `trade` is one of three: 24 combinations at the
+    // absolute most. sessionId and the customer's own words stay in the line, never here.
+    stage.labels {
+      values = { trade = "chatTrade", type = "chatType", tapped = "tapped" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name              = "chat_turns_total"
+        description       = "Customer chat turns, by trade, reply type, and whether a model was needed."
+        max_idle_duration = "24h"
+        // `results` is on every one of these lines, zero included, so this counts turns.
+        source            = "results"
+        action            = "inc"
+      }
+      metric.counter {
+        name              = "chat_quotes_shown_total"
+        description       = "Priced quotes actually put in front of a customer."
+        max_idle_duration = "24h"
+        source            = "results"
+        action            = "add"
+      }
+      metric.counter {
+        name              = "chat_cost_usd_total"
+        description       = "What the customer side spent on the model. A tapped turn spends nothing."
+        max_idle_duration = "24h"
+        source            = "chatCost"
+        action            = "add"
+      }
+      metric.histogram {
+        name              = "chat_turn_duration_ms"
+        description       = "How long a customer waited for a reply."
+        max_idle_duration = "24h"
+        source            = "chatMs"
+        buckets           = [100, 500, 1000, 2500, 5000, 10000, 20000]
+      }
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+// ── write ─────────────────────────────────────────────────────────────────────────────────────
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// Metrics derived from these same lines arrive in Phase 1. Prometheus remote-write target for
+// that step:  http://prometheus:9090/api/v1/write

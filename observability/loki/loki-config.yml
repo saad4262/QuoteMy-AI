@@ -1,0 +1,56 @@
+# Loki, single binary, local disk. This is the "what happened in THAT request" store.
+#
+# Nothing here is tuned for scale on purpose: at 78 function invocations in six hours the whole
+# question is whether a line can be found again, not how many million of them fit. When that
+# changes, the thing to change is the destination (Grafana Cloud, or a VPS), not this file.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  # Loki is chatty at info and this stack runs on a laptop. Its own noise is not the signal.
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-04-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # 31 days. Long enough to answer "did that prompt change make things worse?" - which is the
+  # question this whole stack exists for - and short enough that a laptop disk never notices.
+  retention_period: 744h
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  allow_structured_metadata: true
+  volume_enabled: true
+  # A Vercel instance can push a burst on a cold start. The default here is lower than one
+  # cold-start burst and silently drops the rest.
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+analytics:
+  reporting_enabled: false

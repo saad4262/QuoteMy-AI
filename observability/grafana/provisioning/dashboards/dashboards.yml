@@ -1,0 +1,17 @@
+# Dashboards are files in this repo, not things clicked in a UI. That is the point: a dashboard
+# nobody can review is a dashboard nobody can fix, and `git log` on a panel is worth more than the
+# panel. Edits made in the browser are allowed (allowUiUpdates) but must be exported back here to
+# survive - Grafana rewrites from disk on every reload.
+apiVersion: 1
+
+providers:
+  - name: quotemy
+    orgId: 1
+    folder: QuoteMy
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

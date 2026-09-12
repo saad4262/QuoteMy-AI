@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import pino from 'pino';
+import { createTelemetry, setTelemetry } from './telemetry.js';
 
 // Node reads .env itself since v20 - no dotenv package needed.
 try {
@@ -12,6 +13,12 @@ const schema = z.object({
   PORT: z.coerce.number().default(8787),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   LOG_LEVEL: z.string().default('info'),
+  /**
+   * Human-readable logs instead of JSON. Unset keeps exactly the old behaviour - pretty anywhere
+   * that is not production and not Vercel - and is only worth setting to force one or the other:
+   * JSON on a laptop while watching Grafana, or pretty on a host that would otherwise emit JSON.
+   */
+  LOG_PRETTY: z.stringbool().optional(),
   CORS_ORIGINS: z.string().default('*'),
   ENABLE_DEV_ROUTES: z.stringbool().default(false),
 
@@ -109,11 +116,34 @@ if (env.WORKER_ENABLED && env.STORE !== 'firestore') {
   process.exit(1);
 }
 
-export const logger = pino({
-  level: env.LOG_LEVEL,
-  // pino-pretty is a devDependency, so it does not exist on a production host. VERCEL is checked
-  // separately because an uploaded .env can carry NODE_ENV=development there, and a missing
-  // transport takes the whole process down at boot.
-  ...(isProd || process.env.VERCEL ? {} : { transport: { target: 'pino-pretty' } }),
-  redact: ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64', 'RETELL_API_KEY', 'SERPER_API_KEY'],
-});
+const redact = ['req.headers.authorization', 'apiKey', 'OPENAI_API_KEY', 'FIREBASE_SERVICE_ACCOUNT_B64', 'RETELL_API_KEY', 'SERPER_API_KEY'];
+
+// pino-pretty is a devDependency, so it does not exist on a production host. VERCEL is checked
+// separately because an uploaded .env can carry NODE_ENV=development there, and a missing
+// transport takes the whole process down at boot.
+const pretty = env.LOG_PRETTY ?? !(isProd || process.env.VERCEL);
+
+/**
+ * A second destination for the same lines, when TELEMETRY_URL and TELEMETRY_SECRET are set. Null
+ * otherwise, which is every test run and any checkout that has not been told where to push - and
+ * then the logger below is byte for byte the one that was here before telemetry existed.
+ */
+const telemetry = createTelemetry();
+setTelemetry(telemetry);
+
+export const logger = telemetry
+  ? /* pino refuses a transport and a destination stream together, so shipping the lines costs the
+       pretty printer. That is the right way round: when you are watching Grafana you are not
+       reading the terminal, and stdout keeps every line as JSON either way. */
+    pino(
+      { level: env.LOG_LEVEL, redact },
+      pino.multistream([
+        { level: env.LOG_LEVEL, stream: process.stdout },
+        { level: env.LOG_LEVEL, stream: telemetry.stream },
+      ]),
+    )
+  : pino({
+      level: env.LOG_LEVEL,
+      ...(pretty ? { transport: { target: 'pino-pretty' } } : {}),
+      redact,
+    });

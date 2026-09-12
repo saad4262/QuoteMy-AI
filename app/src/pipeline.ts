@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getAiClient, type AiClient, type StageUsage } from './ai.js';
-import { env } from './config.js';
+import { env, logger } from './config.js';
 import { AppError, unprocessable } from './http.js';
 import { assertSomethingArrived, readSource, stripProvenance, type UploadedFile } from './ingest.js';
 import { extractionPrompt, reviewPrompt, wrapDescription } from './prompts.js';
@@ -124,6 +124,7 @@ export async function runOnboarding(
     );
 
   const submissionId = deps.submissionId ?? randomUUID();
+  const startedAt = Date.now();
   const spend = () => Number(stages.reduce((sum, s) => sum + s.costUsd, 0).toFixed(6));
 
   /**
@@ -169,6 +170,37 @@ export async function runOnboarding(
     }
   };
 
+  /**
+   * How this submission ended. Until now the busiest function in the business side logged nothing
+   * at all, so "what happened to submissions this week" had no answer anywhere - and a prompt
+   * change that started rejecting good price lists would have been found by a tradesperson, not by
+   * us. One line, at each of the three ways out of this function.
+   *
+   * It observes; it decides nothing. Every field here is read from a value the pipeline had
+   * already computed for its own answer.
+   */
+  const logSubmission = (fields: Record<string, unknown>) =>
+    logger.info(
+      { submissionId, uid, trade: input.trade, ms: Date.now() - startedAt, costUsd: spend(), ...fields },
+      'submission',
+    );
+
+  /**
+   * One line per figure that could not be kept, carrying the sentence the BUSINESS is shown.
+   *
+   * Deliberately not classified here. The reason a rate was dropped - the sentence did not match,
+   * the number was out of range, the value was not in the vocabulary - is readable in that text,
+   * and a dashboard query is the right place to group it: when the wording changes, a panel goes
+   * flat where anyone can see it, instead of app code quietly counting the wrong thing.
+   *
+   * Capped, because a pathological submission should not be able to write two hundred lines.
+   */
+  const logNotUsed = (items: string[]) => {
+    for (const reason of items.slice(0, 25)) {
+      logger.info({ submissionId, trade: input.trade, reason }, 'not used');
+    }
+  };
+
   // Caught in code, so this costs nothing and the model is never asked to judge a keyboard mash.
   if (looksLikeMashedKeys(stripProvenance(text))) {
     await repo.addSubmission({
@@ -180,6 +212,7 @@ export async function runOnboarding(
       ratesSaved: 0,
       createdAt: new Date().toISOString(),
     });
+    logSubmission({ outcome: 'not_a_price_list', status: 'unverified', caughtBy: 'code', ratesSaved: 0 });
     return notAPriceList();
   }
 
@@ -209,10 +242,26 @@ export async function runOnboarding(
       createdAt: now(),
     });
 
-    if (review.data.outcome === 'not_a_price_list') return notAPriceList();
+    if (review.data.outcome === 'not_a_price_list') {
+      logSubmission({ outcome: 'not_a_price_list', status: 'unverified', caughtBy: 'review', ratesSaved: 0 });
+      return notAPriceList();
+    }
 
     const fixes = review.data.fixes;
     const message = MESSAGES.rejected;
+
+    logSubmission({
+      outcome: 'rejected',
+      status: 'unverified',
+      ratesSaved: 0,
+      missing: fixes.filter((f) => f.kind === 'missing').length,
+      unclear: fixes.filter((f) => f.kind === 'unclear').length,
+      alsoWorthAdding: (review.data.alsoWorthAdding ?? []).length,
+      unreadableDocuments: unread.length,
+      // A resubmit answering a previous review is a different thing from a first attempt, and the
+      // two rates only mean something apart.
+      resubmit: previousFixes(deps.previousReview).length > 0,
+    });
 
     // Nothing is written to the profile on the reject path - an incomplete price list must not
     // overwrite figures the business already had approved.
@@ -314,6 +363,20 @@ export async function runOnboarding(
 
   // --- stage 5: answer ------------------------------------------------------------------------
   const message = verified.status === 'verified' ? MESSAGES.approved : MESSAGES.nothingUsable;
+
+  logSubmission({
+    outcome: 'approved',
+    // `approved` and `verified` are not the same claim. The review let it through; verification
+    // then checked every figure, and a submission can be approved with nothing left standing -
+    // which is exactly the case worth being able to count.
+    status: verified.status,
+    ratesSaved: verified.ratesKept,
+    couldNotUse: verified.couldNotUse.length,
+    otherOfferings: verified.otherOfferings.length,
+    unreadableDocuments: unread.length,
+    resubmit: previousFixes(deps.previousReview).length > 0,
+  });
+  logNotUsed([...unread, ...verified.couldNotUse]);
 
   return {
     data: {

@@ -182,6 +182,7 @@ export interface FencingChatDeps {
  * straight back in as the next turn's `knownChecklist` - exactly what the real client does.
  */
 export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps: FencingChatDeps = {}): Promise<ChatResponse> {
+  const startedAt = Date.now();
   const repo = deps.repo ?? getRepository();
 
   const place = asObject<Place>(input.place);
@@ -336,6 +337,38 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
      files told us nothing. */
   const notice = unreadableNotice(source.documents);
   const spoken = notice ? { ...response, message: `${notice} ${response.message}`.trim() } : response;
+
+  /**
+   * One line per turn - the customer side's answer to the `submission` line on the business side.
+   *
+   * Until this existed the chat logged only its exceptions: a matcher timing, a picture lookup, a
+   * failure. How many conversations ran, how many reached a price, and how many turns needed the
+   * model at all were all unanswerable. `tapped` matters most of those: a tapped option is
+   * resolved in code and costs nothing, and it is by far the commonest turn - so it is the number
+   * that says whether that shortcut is still working.
+   *
+   * It observes and decides nothing; every field is read from what the turn already produced.
+   */
+  logger.info(
+    {
+      requestId: input.sessionId,
+      trade,
+      turn: state.turn,
+      type: response.type,
+      // Resolved in code, no model call: the cost saver, and the thing to watch if spend climbs.
+      tapped,
+      askedFor: state.nextField,
+      confirmed: state.confirmed,
+      results: response.results.length,
+      // Covered this customer but could not price the brief - the "nearest thing we do" path.
+      alternatives: (response.alternatives ?? []).length,
+      answered: !!response.answer,
+      attachments: source.documents.length,
+      costUsd: turnResult.usage?.costUsd ?? 0,
+      ms: Date.now() - startedAt,
+    },
+    'chat turn',
+  );
 
   /* Settled once, and carried in the state the client echoes back. Re-deciding every turn would let
      "the old fence is coming out" three questions into a tiling job re-route the conversation and

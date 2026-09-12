@@ -1,0 +1,99 @@
+# Six alerts, and deliberately only six.
+#
+# An alert that fires often enough to be ignored is worse than no alert, so everything here is
+# either "money is leaking", "the product is silently wrong", or "we have gone blind". Anything
+# merely interesting belongs on a dashboard.
+#
+# ⚠ TWO OF THESE USE THE COUNTER'S VALUE, NOT increase(). That is deliberate, and the reason is
+# worth knowing: increase() over a window measures the CHANGE within it, so a counter that is
+# created by the very event you are alerting on reads as zero. Verified here - a vocabulary-drift
+# line was pushed, the counter read 1, and increase(...[1h]) read 0. The first occurrence of a
+# should-never-happen event is exactly the one that must not be missed, so those two alerts read
+# the value itself. They then LATCH: once fired they stay fired until Alloy restarts. For an event
+# that is supposed to be impossible, that is the right trade.
+#
+# ⚠ THESE DO NOT NOTIFY ANYONE YET. Without a contact point they evaluate and show as firing at
+# http://localhost:9090/alerts and in Grafana - which is useful while you are looking, and useless
+# while you are not. Email or Slack delivery is a Grafana contact point away (Alerting → Contact
+# points) and is the one remaining piece.
+
+groups:
+  - name: quotemy
+    interval: 30s
+    rules:
+      # ── we have gone blind ──────────────────────────────────────────────────────────────────
+      - alert: TelemetryPipeDown
+        expr: up{job="alloy"} == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Alloy is down - nothing from the app is being recorded"
+          description: >-
+            Every other panel will look calm and empty, which is indistinguishable from a quiet day.
+            Check: docker compose logs alloy
+
+      # ── the product is silently wrong ───────────────────────────────────────────────────────
+      - alert: VocabularyDrift
+        # The value, not increase() - see the note at the top of this file. Latches until Alloy
+        # restarts, which for something that should be impossible is a feature.
+        expr: sum(loki_process_custom_vocabulary_drift_total) > 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "A rate could not be filed - the model produced a value in no closed list"
+          description: >-
+            This is supposed to be impossible: strict json_schema should stop the model inventing a
+            value. It is also the one failure that is both silent and permanent (CLAUDE.md §8) -
+            two businesses filed under two spellings are both invisible to customer search. Read
+            the exact text on the Business onboarding dashboard.
+
+      - alert: ApprovedButNothingVerified
+        # The value, not increase() - see the note at the top of this file.
+        expr: sum(loki_process_custom_submissions_total{outcome="approved", status="unverified"}) > 0
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: "A submission was approved and then every figure failed verification"
+          description: >-
+            The review let it through and verification kept nothing. The business is told, but this
+            is the worst experience the onboarding can give and it should be rare.
+
+      - alert: ModelSchemaViolations
+        # increase() is right here: this one is about a RUN of violations, not a single one, and a
+        # threshold of 3 already means the series exists. The very first violation after an Alloy
+        # restart is not counted - which is acceptable for an alert about repetition.
+        expr: sum(increase(loki_process_custom_model_schema_violations_total[15m])) > 3
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "The model keeps returning output that does not fit the schema"
+          description: >-
+            One is a bad reply; a run of them is a prompt that has broken. CLAUDE.md: two failures
+            means the prompt is wrong - flag it, do not loop.
+
+      # ── money ───────────────────────────────────────────────────────────────────────────────
+      - alert: SpendProjectionHigh
+        # Current burn rate, projected over a day, against MAX_CHAT_SPEND_PER_DAY_USD (default 25).
+        # Projected rather than measured so it fires while there is still a day left to act in.
+        expr: sum(rate(loki_process_custom_model_cost_usd_total[1h])) * 86400 > 20
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "At this rate the day's model spend would pass $20"
+          description: >-
+            The app's own ceiling is MAX_CHAT_SPEND_PER_DAY_USD (default $25) and it enforces that
+            itself. This fires earlier, so the reason can be found rather than just the cap hit.
+
+      # ── the service is failing ──────────────────────────────────────────────────────────────
+      - alert: ServerErrors
+        # increase() over a short window, so this clears on its own once the errors stop. The
+        # trade-off is the first 5xx after an Alloy restart: it creates the series and reads as no
+        # change. The Traffic dashboard shows it either way.
+        expr: sum(increase(loki_process_custom_http_requests_total{status=~"5.."}[10m])) > 0
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "The API returned a 5xx"
+          description: >-
+            A rejected price list is a 200 here, so this is never a business being told no - it is
+            the service itself failing. The Traffic dashboard's log panel has the reason.

@@ -4,6 +4,7 @@ import { MulterError } from 'multer';
 import { randomUUID } from 'node:crypto';
 import { z, type ZodType } from 'zod';
 import { isProd, logger } from './config.js';
+import { flushTelemetry } from './telemetry.js';
 
 declare global {
   namespace Express {
@@ -50,6 +51,10 @@ export function requestLog(req: Request, res: Response, next: NextFunction): voi
     const line = { requestId: req.requestId, method: req.method, path: req.path, status: res.statusCode, ms: Date.now() - started };
     if (res.statusCode >= 500) logger.error(line, 'request');
     else logger.info(line, 'request');
+    /* AFTER that line, so the request's own summary goes out with everything it produced. A no-op
+       unless telemetry is configured, never awaited, and cannot throw - the response has already
+       been sent, and nothing about it depends on this. */
+    flushTelemetry();
   });
   next();
 }
