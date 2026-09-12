@@ -576,6 +576,8 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         material: offer.material,
         materialLabel: materialLabel(offer.material),
         heightKey: offer.heightKey,
+        label: describe(offer.material, offer.heightKey),
+        heightKeyLabel: offer.heightKey && offer.heightKey !== 'any' ? otherLabel(offer.heightKey) : '',
         businessId: offer.uid,
         businessName: offer.businessName,
         estimatedTotal: offer.projectTotalMin,

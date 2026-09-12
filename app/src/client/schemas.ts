@@ -447,6 +447,16 @@ export interface AlternativeOffer {
   material: string;
   materialLabel: string;
   heightKey: string;
+  /**
+   * The offer in words, ready to render - "floor only in Ceramic", "Colorbond at 1.8m".
+   *
+   * `heightKey` beside it is a SLUG, and a card composing `materialLabel + ', ' + heightKey` put
+   * "Ceramic, floor_only" in front of a customer. Built by the same `describe` that writes the
+   * sentence above the cards, so the two agree instead of drifting.
+   */
+  label: string;
+  /** The other half on its own, labelled, for a card that lays the two out itself. */
+  heightKeyLabel: string;
   businessId: string;
   businessName: string;
   estimatedTotal: number;

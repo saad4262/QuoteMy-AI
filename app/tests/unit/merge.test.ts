@@ -982,3 +982,62 @@ describe('offering the next page of choices', () => {
     expect(formatFencingResult({ state, matcher: null }).options.map((o) => String(o.value))).not.toContain('__more__');
   });
 });
+
+/**
+ * Tapping "the closest they can do" has to move the brief.
+ *
+ * When nobody can quote what was asked for, the results turn offers the nearest things somebody CAN
+ * do, as `alt:<headline>:<other>`. Reading that back was written against fencing's field names -
+ * `material` and `heightKey` - which a tiling brief does not have. So a tiling customer tapped
+ * "Ceramic, floor only", nothing validated, nothing merged, and the same three offers came back for
+ * ever with no way out. Found on a real screen.
+ */
+describe('picking one of the alternatives on offer', () => {
+  const pick = async (trade: 'fencing' | 'tiling', known: Record<string, unknown>, message: string) => {
+    const schema = await loadTradeSchema(trade, new MemoryRepository());
+    return mergeAndDecide({
+      sessionId: 'alt1',
+      message,
+      place: PLACE,
+      known: { ...known, _ui: ui({ lastAsked: 'alternative', lastValues: [message] }) } as unknown as Partial<Checklist>,
+      turnExtraction: turn(),
+      docFacts: {},
+      docSuburbHint: null,
+      haystackText: message + ' ',
+      schema,
+    }).checklist as Record<string, unknown>;
+  };
+
+  it('moves both halves of a tiling brief', async () => {
+    const after = await pick(
+      'tiling',
+      { suburb: 'Berwick, VIC 3806', jobType: 'bathroom', tileType: 'glass_mosaic', areaSqm: 12, supply: 'labour_only', removal: 'none', waterproofing: 'none', conditions: [] },
+      'alt:ceramic:floor_only',
+    );
+    expect(after.tileType).toBe('ceramic');
+    expect(after.jobType).toBe('floor_only');
+    // Fencing's names must not appear on a tiling brief at all.
+    expect(after.material).toBeUndefined();
+    expect(after.heightKey).toBeUndefined();
+  });
+
+  it('still moves both halves of a fencing brief', async () => {
+    const after = await pick(
+      'fencing',
+      { suburb: 'Berwick, VIC 3806', material: 'timber_pine', heightKey: '2.1m', lengthMeters: 30, removal: 'none', conditions: [], gateType: 'none', gateQty: null },
+      'alt:colorbond:1.8m',
+    );
+    expect(after.material).toBe('colorbond');
+    expect(after.heightKey).toBe('1.8m');
+  });
+
+  it('ignores an alternative that is not one of this trade\u2019s values', async () => {
+    const after = await pick(
+      'tiling',
+      { suburb: 'Berwick, VIC 3806', jobType: 'bathroom', tileType: 'glass_mosaic', areaSqm: 12 },
+      'alt:colorbond:1.8m',
+    );
+    expect(after.tileType).toBe('glass_mosaic');
+    expect(after.jobType).toBe('bathroom');
+  });
+});

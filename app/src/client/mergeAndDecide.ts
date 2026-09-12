@@ -5,6 +5,7 @@ import type { DocFacts } from './attachmentFacts.js';
 import { conditionsFrom, editDistance, heightKeyFrom, measureFrom, NOTHING, numbersIn, oneOf, positiveNumber, slug } from './fuzzyMatch.js';
 import { askedFields, specOf, type FieldSpec } from './fieldSpec.js';
 import { makeLabelFor, optionsFor, sourcesFrom, type LabelFor, type Sources, type TradeSchema } from './schema.js';
+import { TRADE_PRICING } from './pricing/spec.js';
 import type { Checklist, Place, PlaceHint, TurnExtraction, UiState } from './schemas.js';
 import { OFF_LIST, offListValue, type ChecklistField } from './vocab.js';
 
@@ -643,14 +644,23 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   // CAN do - "alt:colorbond:1.8m". Two fields move at once, hence its own prefix.
   let pickedAlternative = false;
   if (ui.lastAsked === 'alternative' && /^alt:/i.test(rawMessage.trim())) {
-    const [, altMaterial, altHeight] = rawMessage.trim().split(':');
-    const material = validate('material', altMaterial, schema, labelFor);
-    const heightKey = validate('heightKey', altHeight, schema, labelFor);
-    if (material) {
-      merged.material = material;
+    /* By the TRADE's own field names, which is what this was missing. `material` and `heightKey`
+       are fencing's; a tiling customer taps "Ceramic, floor only", nothing validates because
+       `material` is not a field on that trade, nothing merges, and the same three alternatives come
+       back for ever. The offer is built from `headlineField` and the other rate key in
+       `priceAndRank`, so it has to be read back by the same two. */
+    const pricing = TRADE_PRICING[schema.trade];
+    const headlineField = pricing.headlineField;
+    const otherField = pricing.rateKeys.find((key) => key !== headlineField) ?? pricing.rateKeys[0]!;
+
+    const [, altHeadline, altOther] = rawMessage.trim().split(':');
+    const headline = validate(headlineField, altHeadline, schema, labelFor);
+    const other = validate(otherField, altOther, schema, labelFor);
+    if (headline) {
+      merged[headlineField] = headline;
       pickedAlternative = true;
     }
-    if (heightKey) merged.heightKey = heightKey;
+    if (other) merged[otherField] = other;
   }
 
   /* "No, the fence type is wrong" - the one thing allowed to empty a field, only while correcting.

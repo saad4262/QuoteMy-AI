@@ -1497,6 +1497,8 @@ customer: "yes"
       "material": "colorbond",
       "materialLabel": "Colorbond",
       "heightKey": "1.8m",
+      "label": "Colorbond at 1.8m",
+      "heightKeyLabel": "1.8m",
       "businessId": "biz-5",
       "businessName": "Only Does Colorbond",
       "estimatedTotal": 2200,
