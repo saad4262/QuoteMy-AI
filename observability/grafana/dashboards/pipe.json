@@ -20,29 +20,25 @@
         "name": "env",
         "label": "Environment",
         "type": "custom",
-        "query": ".* : All, production : production, local.* : local, preview : preview, development : development",
-        "includeAll": false,
+        "query": "production,preview,development,local",
+        "includeAll": true,
+        "allValue": ".*",
         "multi": false,
         "current": {
           "selected": true,
           "text": "All",
-          "value": ".*"
+          "value": "$__all"
         },
         "options": [
           {
             "selected": true,
             "text": "All",
-            "value": ".*"
+            "value": "$__all"
           },
           {
             "selected": false,
             "text": "production",
             "value": "production"
-          },
-          {
-            "selected": false,
-            "text": "local",
-            "value": "local.*"
           },
           {
             "selected": false,
@@ -53,8 +49,15 @@
             "selected": false,
             "text": "development",
             "value": "development"
+          },
+          {
+            "selected": false,
+            "text": "local",
+            "value": "local"
           }
         ],
+        "queryValue": "",
+        "skipUrlSync": false,
         "hide": 0
       }
     ]

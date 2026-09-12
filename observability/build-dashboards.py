@@ -174,18 +174,26 @@ def dashboard(uid, title, description, panels, refresh="30s", frm="now-24h"):
             # the data sat there perfectly intact.
             #
             # The values are regexes, so `local` also covers `local-test`.
+            # PLAIN VALUES, no "key : value" pairs. Grafana parses a custom variable's query as
+            # `display : value`, and an earlier version here had those the wrong way round - so the
+            # first option's VALUE became the literal string "All", every panel asked for
+            # env=~"All", and every page went blank while the data sat in Loki untouched. Plain
+            # values cannot be written backwards.
+            #
+            # `All` comes from includeAll/allValue rather than from an option of our own, which is
+            # also what makes a stale `var-env=$__all` in somebody's bookmarked URL still resolve.
             "name": "env", "label": "Environment", "type": "custom",
-            "query": ".* : All, production : production, local.* : local, preview : preview, development : development",
-            "includeAll": False, "multi": False,
-            "current": {"selected": True, "text": "All", "value": ".*"},
+            "query": "production,preview,development,local",
+            "includeAll": True, "allValue": ".*", "multi": False,
+            "current": {"selected": True, "text": "All", "value": "$__all"},
             "options": [
-                {"selected": True, "text": "All", "value": ".*"},
+                {"selected": True, "text": "All", "value": "$__all"},
                 {"selected": False, "text": "production", "value": "production"},
-                {"selected": False, "text": "local", "value": "local.*"},
                 {"selected": False, "text": "preview", "value": "preview"},
                 {"selected": False, "text": "development", "value": "development"},
+                {"selected": False, "text": "local", "value": "local"},
             ],
-            "hide": 0,
+            "queryValue": "", "skipUrlSync": False, "hide": 0,
         }]},
         "panels": panels,
     }
