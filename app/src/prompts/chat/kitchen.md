@@ -45,7 +45,8 @@ Only fields the customer has just given you, or that the attachment states outri
   supply        who is buying the cabinets: "labour_only" when the customer is buying them, "supply_and_install" when they want the business to supply them. "I've got the kitchen already", "I bought it from IKEA", "it's a flat-pack from Bunnings" are all labour_only.
   benchtop      what benchtop they want: "laminate", "timber", "stone". Only when they say. Somebody choosing a large kitchen has NOT thereby said anything about the benchtop.
   removal       what is coming out, when anything is: "full_demolition" for the whole kitchen, "cabinets_only", "benchtop_only", "splashback_only", "any" when they say there is an old kitchen but not what should come out, or "none" when there is nothing to take out. This is NOT what is going in.
-  extras        array of "island", "pantry", "splashback_prep", "appliance_integration", "sink", "laundry". Use [] when the customer says there is nothing else. Leave it out when they have not said.
+  extras        array of "island", "pantry", "splashback_prep", "appliance_integration", "sink", "laundry",
+                "appliance_garage", "open_shelving", "pull_out_bin", "corner_storage". Use [] when the customer says there is nothing else. Leave it out when they have not said.
   existingPrice a real GST-inclusive total the customer was quoted, or one printed on the attachment. NEVER 0, never invented. No such number means leave it out — a 0 hides every business, because nothing comes in under $0.
 
 THREE ANSWERS ABOUT SIZE THAT YOU LEAVE OUT. Not exceptions in passing - read them.

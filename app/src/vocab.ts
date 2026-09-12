@@ -257,6 +257,15 @@ export const KITCHEN_EXTRAS = [
   'appliance_integration',
   'sink',
   'laundry',
+  /* Storage, added after the first fitter onboarded. All four are priced lines on their own list -
+     $520, $350, $280, $450 - that a customer had no way to ask for: the business side stored them
+     under a null type and the customer's own choices stopped at six. Appended rather than slotted
+     in beside the others, because this list is also the order the customer's multiple choice is
+     built in, and a vocabulary addition must not quietly reshuffle what is on their screen. */
+  'appliance_garage',
+  'open_shelving',
+  'pull_out_bin',
+  'corner_storage',
 ] as const;
 
 export const KITCHEN_TAGS = [

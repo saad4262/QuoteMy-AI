@@ -56,7 +56,7 @@ customer: "I need a kitchen quote"
     },
     {
       "key": "jobType",
-      "title": "Job"
+      "title": "Job type"
     },
     {
       "key": "kitchenSize",
@@ -64,7 +64,7 @@ customer: "I need a kitchen quote"
     },
     {
       "key": "supply",
-      "title": "Cabinets"
+      "title": "Who supplies"
     },
     {
       "key": "benchtop",
@@ -72,7 +72,7 @@ customer: "I need a kitchen quote"
     },
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -144,7 +144,7 @@ customer: "yes go ahead"
     },
     {
       "key": "jobType",
-      "title": "Job"
+      "title": "Job type"
     },
     {
       "key": "kitchenSize",
@@ -152,7 +152,7 @@ customer: "yes go ahead"
     },
     {
       "key": "supply",
-      "title": "Cabinets"
+      "title": "Who supplies"
     },
     {
       "key": "benchtop",
@@ -160,7 +160,7 @@ customer: "yes go ahead"
     },
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -281,7 +281,7 @@ picked place: Berwick, VIC 3806
   "checklistPending": [
     {
       "key": "jobType",
-      "title": "Job"
+      "title": "Job type"
     },
     {
       "key": "kitchenSize",
@@ -289,7 +289,7 @@ picked place: Berwick, VIC 3806
     },
     {
       "key": "supply",
-      "title": "Cabinets"
+      "title": "Who supplies"
     },
     {
       "key": "benchtop",
@@ -297,7 +297,7 @@ picked place: Berwick, VIC 3806
     },
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -408,7 +408,7 @@ customer: "replacement"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     }
   },
@@ -420,7 +420,7 @@ customer: "replacement"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     }
   ],
@@ -431,7 +431,7 @@ customer: "replacement"
     },
     {
       "key": "supply",
-      "title": "Cabinets"
+      "title": "Who supplies"
     },
     {
       "key": "benchtop",
@@ -439,7 +439,7 @@ customer: "replacement"
     },
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -546,7 +546,7 @@ customer: "small"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -562,7 +562,7 @@ customer: "small"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -574,7 +574,7 @@ customer: "small"
   "checklistPending": [
     {
       "key": "supply",
-      "title": "Cabinets"
+      "title": "Who supplies"
     },
     {
       "key": "benchtop",
@@ -582,7 +582,7 @@ customer: "small"
     },
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -695,7 +695,7 @@ customer: "labour_only"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -703,7 +703,7 @@ customer: "labour_only"
       "value": "Small — a galley or one run"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     }
   },
@@ -715,7 +715,7 @@ customer: "labour_only"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -725,7 +725,7 @@ customer: "labour_only"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     }
   ],
@@ -736,7 +736,7 @@ customer: "labour_only"
     },
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -850,7 +850,7 @@ customer: "laminate"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -858,7 +858,7 @@ customer: "laminate"
       "value": "Small — a galley or one run"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -874,7 +874,7 @@ customer: "laminate"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -884,7 +884,7 @@ customer: "laminate"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -896,7 +896,7 @@ customer: "laminate"
   "checklistPending": [
     {
       "key": "removal",
-      "title": "Old kitchen"
+      "title": "Removal"
     },
     {
       "key": "extras",
@@ -1015,7 +1015,7 @@ customer: "cabinets_only"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -1023,7 +1023,7 @@ customer: "cabinets_only"
       "value": "Small — a galley or one run"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -1031,7 +1031,7 @@ customer: "cabinets_only"
       "value": "Laminate"
     },
     "removal": {
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     }
   },
@@ -1043,7 +1043,7 @@ customer: "cabinets_only"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -1053,7 +1053,7 @@ customer: "cabinets_only"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -1063,7 +1063,7 @@ customer: "cabinets_only"
     },
     {
       "key": "removal",
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     }
   ],
@@ -1175,7 +1175,7 @@ customer: "none"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -1183,7 +1183,7 @@ customer: "none"
       "value": "Small — a galley or one run"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -1191,7 +1191,7 @@ customer: "none"
       "value": "Laminate"
     },
     "removal": {
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     "extras": {
@@ -1207,7 +1207,7 @@ customer: "none"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -1217,7 +1217,7 @@ customer: "none"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -1227,7 +1227,7 @@ customer: "none"
     },
     {
       "key": "removal",
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     {
@@ -1327,7 +1327,7 @@ customer: "no"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -1335,7 +1335,7 @@ customer: "no"
       "value": "Small — a galley or one run"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -1343,7 +1343,7 @@ customer: "no"
       "value": "Laminate"
     },
     "removal": {
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     "extras": {
@@ -1359,7 +1359,7 @@ customer: "no"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -1369,7 +1369,7 @@ customer: "no"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -1379,7 +1379,7 @@ customer: "no"
     },
     {
       "key": "removal",
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     {
@@ -1505,11 +1505,11 @@ customer: "the size is wrong"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -1517,7 +1517,7 @@ customer: "the size is wrong"
       "value": "Laminate"
     },
     "removal": {
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     "extras": {
@@ -1533,12 +1533,12 @@ customer: "the size is wrong"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -1548,7 +1548,7 @@ customer: "the size is wrong"
     },
     {
       "key": "removal",
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     {
@@ -1669,7 +1669,7 @@ customer: "large"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -1677,7 +1677,7 @@ customer: "large"
       "value": "Large — a U-shape or an island"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -1685,7 +1685,7 @@ customer: "large"
       "value": "Laminate"
     },
     "removal": {
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     "extras": {
@@ -1701,7 +1701,7 @@ customer: "large"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -1711,7 +1711,7 @@ customer: "large"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -1721,7 +1721,7 @@ customer: "large"
     },
     {
       "key": "removal",
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     {
@@ -1867,7 +1867,7 @@ customer: "yes"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     "kitchenSize": {
@@ -1875,7 +1875,7 @@ customer: "yes"
       "value": "Large — a U-shape or an island"
     },
     "supply": {
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     "benchtop": {
@@ -1883,7 +1883,7 @@ customer: "yes"
       "value": "Laminate"
     },
     "removal": {
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     "extras": {
@@ -1899,7 +1899,7 @@ customer: "yes"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Job type",
       "value": "Replacing the old one"
     },
     {
@@ -1909,7 +1909,7 @@ customer: "yes"
     },
     {
       "key": "supply",
-      "title": "Cabinets",
+      "title": "Who supplies",
       "value": "I'm supplying the cabinets"
     },
     {
@@ -1919,7 +1919,7 @@ customer: "yes"
     },
     {
       "key": "removal",
-      "title": "Old kitchen",
+      "title": "Removal",
       "value": "Just the cabinets"
     },
     {

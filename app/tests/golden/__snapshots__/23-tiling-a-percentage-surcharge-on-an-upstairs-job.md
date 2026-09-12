@@ -57,11 +57,11 @@ customer: "I need a tiling quote"
     },
     {
       "key": "jobType",
-      "title": "Job"
+      "title": "Room"
     },
     {
       "key": "tileType",
-      "title": "Tile"
+      "title": "Tile type"
     },
     {
       "key": "areaSqm",
@@ -69,11 +69,11 @@ customer: "I need a tiling quote"
     },
     {
       "key": "supply",
-      "title": "Tiles"
+      "title": "Who supplies"
     },
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -81,7 +81,7 @@ customer: "I need a tiling quote"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -150,11 +150,11 @@ customer: "yes go ahead"
     },
     {
       "key": "jobType",
-      "title": "Job"
+      "title": "Room"
     },
     {
       "key": "tileType",
-      "title": "Tile"
+      "title": "Tile type"
     },
     {
       "key": "areaSqm",
@@ -162,11 +162,11 @@ customer: "yes go ahead"
     },
     {
       "key": "supply",
-      "title": "Tiles"
+      "title": "Who supplies"
     },
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -174,7 +174,7 @@ customer: "yes go ahead"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -292,11 +292,11 @@ picked place: Berwick, VIC 3806
   "checklistPending": [
     {
       "key": "jobType",
-      "title": "Job"
+      "title": "Room"
     },
     {
       "key": "tileType",
-      "title": "Tile"
+      "title": "Tile type"
     },
     {
       "key": "areaSqm",
@@ -304,11 +304,11 @@ picked place: Berwick, VIC 3806
     },
     {
       "key": "supply",
-      "title": "Tiles"
+      "title": "Who supplies"
     },
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -316,7 +316,7 @@ picked place: Berwick, VIC 3806
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -424,7 +424,7 @@ customer: "floor_only"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     }
   },
@@ -436,14 +436,14 @@ customer: "floor_only"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     }
   ],
   "checklistPending": [
     {
       "key": "tileType",
-      "title": "Tile"
+      "title": "Tile type"
     },
     {
       "key": "areaSqm",
@@ -451,11 +451,11 @@ customer: "floor_only"
     },
     {
       "key": "supply",
-      "title": "Tiles"
+      "title": "Who supplies"
     },
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -463,7 +463,7 @@ customer: "floor_only"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -557,11 +557,11 @@ customer: "porcelain"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     }
   },
@@ -573,12 +573,12 @@ customer: "porcelain"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     }
   ],
@@ -589,11 +589,11 @@ customer: "porcelain"
     },
     {
       "key": "supply",
-      "title": "Tiles"
+      "title": "Who supplies"
     },
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -601,7 +601,7 @@ customer: "porcelain"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -710,11 +710,11 @@ customer: "20"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     "areaSqm": {
@@ -730,12 +730,12 @@ customer: "20"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     {
@@ -747,11 +747,11 @@ customer: "20"
   "checklistPending": [
     {
       "key": "supply",
-      "title": "Tiles"
+      "title": "Who supplies"
     },
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -759,7 +759,7 @@ customer: "20"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -869,11 +869,11 @@ customer: "labour_only"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     "areaSqm": {
@@ -881,7 +881,7 @@ customer: "labour_only"
       "value": "20m²"
     },
     "supply": {
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     }
   },
@@ -893,12 +893,12 @@ customer: "labour_only"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     {
@@ -908,14 +908,14 @@ customer: "labour_only"
     },
     {
       "key": "supply",
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     }
   ],
   "checklistPending": [
     {
       "key": "removal",
-      "title": "Old tiles"
+      "title": "Removal"
     },
     {
       "key": "waterproofing",
@@ -923,7 +923,7 @@ customer: "labour_only"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -1039,11 +1039,11 @@ customer: "none"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     "areaSqm": {
@@ -1051,11 +1051,11 @@ customer: "none"
       "value": "20m²"
     },
     "supply": {
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     "removal": {
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     }
   },
@@ -1067,12 +1067,12 @@ customer: "none"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     {
@@ -1082,12 +1082,12 @@ customer: "none"
     },
     {
       "key": "supply",
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     {
       "key": "removal",
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     }
   ],
@@ -1098,7 +1098,7 @@ customer: "none"
     },
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -1215,11 +1215,11 @@ customer: "none"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     "areaSqm": {
@@ -1227,11 +1227,11 @@ customer: "none"
       "value": "20m²"
     },
     "supply": {
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     "removal": {
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     },
     "waterproofing": {
@@ -1247,12 +1247,12 @@ customer: "none"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     {
@@ -1262,12 +1262,12 @@ customer: "none"
     },
     {
       "key": "supply",
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     {
       "key": "removal",
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     },
     {
@@ -1279,7 +1279,7 @@ customer: "none"
   "checklistPending": [
     {
       "key": "conditions",
-      "title": "Site conditions"
+      "title": "Access"
     }
   ],
   "results": [],
@@ -1388,11 +1388,11 @@ customer: "second_storey"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     "areaSqm": {
@@ -1400,11 +1400,11 @@ customer: "second_storey"
       "value": "20m²"
     },
     "supply": {
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     "removal": {
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     },
     "waterproofing": {
@@ -1412,7 +1412,7 @@ customer: "second_storey"
       "value": "None"
     },
     "conditions": {
-      "title": "Site conditions",
+      "title": "Access",
       "value": "Upstairs"
     }
   },
@@ -1424,12 +1424,12 @@ customer: "second_storey"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     {
@@ -1439,12 +1439,12 @@ customer: "second_storey"
     },
     {
       "key": "supply",
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     {
       "key": "removal",
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     },
     {
@@ -1454,7 +1454,7 @@ customer: "second_storey"
     },
     {
       "key": "conditions",
-      "title": "Site conditions",
+      "title": "Access",
       "value": "Upstairs"
     }
   ],
@@ -1593,11 +1593,11 @@ customer: "yes"
       "value": "Berwick, VIC 3806"
     },
     "jobType": {
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     "tileType": {
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     "areaSqm": {
@@ -1605,11 +1605,11 @@ customer: "yes"
       "value": "20m²"
     },
     "supply": {
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     "removal": {
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     },
     "waterproofing": {
@@ -1617,7 +1617,7 @@ customer: "yes"
       "value": "None"
     },
     "conditions": {
-      "title": "Site conditions",
+      "title": "Access",
       "value": "Upstairs"
     }
   },
@@ -1629,12 +1629,12 @@ customer: "yes"
     },
     {
       "key": "jobType",
-      "title": "Job",
+      "title": "Room",
       "value": "Floor only"
     },
     {
       "key": "tileType",
-      "title": "Tile",
+      "title": "Tile type",
       "value": "Porcelain"
     },
     {
@@ -1644,12 +1644,12 @@ customer: "yes"
     },
     {
       "key": "supply",
-      "title": "Tiles",
+      "title": "Who supplies",
       "value": "I'm buying the tiles"
     },
     {
       "key": "removal",
-      "title": "Old tiles",
+      "title": "Removal",
       "value": "Nothing to remove"
     },
     {
@@ -1659,7 +1659,7 @@ customer: "yes"
     },
     {
       "key": "conditions",
-      "title": "Site conditions",
+      "title": "Access",
       "value": "Upstairs"
     }
   ],

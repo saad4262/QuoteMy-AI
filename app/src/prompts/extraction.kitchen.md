@@ -25,7 +25,8 @@ them, pluralise them, re-case them, hyphenate them differently, or invent one th
   benchtop:   laminate | timber | stone
   removes:    full_demolition | cabinets_only | benchtop_only | splashback_only | any
   prep type:  wall_prep | floor_prep | floor_levelling | plaster_repair
-  extra:      island | pantry | splashback_prep | appliance_integration | sink | laundry
+  extra:      island | pantry | splashback_prep | appliance_integration | sink | laundry |
+              appliance_garage | open_shelving | pull_out_bin | corner_storage
   unit:       per_metre | per_item | per_job | per_sqm
   tags:       flat-pack-capable | custom-cabinetry | customer-supply-accepted |
               stone-benchtop | appliance-integration | laundry-capable | insured
@@ -55,8 +56,12 @@ How the trade's wording maps onto the lists:
     cabinet preparation or modification                   -> appliance_integration
   sink installation, sink cut-out, sink replacement       -> sink
   laundry cabinetry, laundry cabinets                     -> laundry
+  appliance garage, benchtop appliance cupboard           -> appliance_garage
+  open shelving, open shelves, display shelving           -> open_shelving
+  pull-out bin, bin pull-out, concealed bin               -> pull_out_bin
+  corner storage, corner carousel, lazy susan             -> corner_storage
 Anything else - handle fitting, door adjustment, drawer adjustment, soft-close hinges, cabinet
-modifications, cut-outs, storage accessories, a design fee - is NOT one of the extras above. If it
+modifications, cut-outs, a design fee - is NOT one of the extras above. If it
 is priced work it belongs in extras or otherOfferings; it never becomes one of the closed values.
 
 === RULE 2: THE SOURCE QUOTE. ===

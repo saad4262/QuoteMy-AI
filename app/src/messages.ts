@@ -202,6 +202,10 @@ export const KITCHEN_LABEL_GROUPS = {
     appliance_integration: 'Built-in appliances',
     sink: 'A sink',
     laundry: 'Laundry cabinets too',
+    appliance_garage: 'An appliance garage',
+    open_shelving: 'Open shelving',
+    pull_out_bin: 'A pull-out bin',
+    corner_storage: 'Corner storage',
   },
 } as const;
 
