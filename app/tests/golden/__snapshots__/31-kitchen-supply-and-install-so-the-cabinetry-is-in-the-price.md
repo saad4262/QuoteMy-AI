@@ -628,6 +628,10 @@ customer: "supply_and_install"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -656,6 +660,7 @@ customer: "supply_and_install"
         "laminate",
         "timber",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -782,6 +787,10 @@ customer: "stone"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -811,6 +820,7 @@ customer: "stone"
         "any",
         "full_demolition",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -946,6 +956,10 @@ customer: "full_demolition"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -976,6 +990,7 @@ customer: "full_demolition"
         "island",
         "pantry",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",

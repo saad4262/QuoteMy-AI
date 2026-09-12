@@ -217,6 +217,10 @@ picked place: Berwick, VIC 3806
       "value": "colorbond"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -243,6 +247,7 @@ picked place: Berwick, VIC 3806
         "timber_pine",
         "timber_hardwood",
         "colorbond",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -358,6 +363,10 @@ customer: "colorbond"
       "value": "1.8m"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -385,6 +394,7 @@ customer: "colorbond"
         "1.2m",
         "1.5m",
         "1.8m",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -505,6 +515,10 @@ customer: "1.65m"
       "value": "1.8m"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -532,6 +546,7 @@ customer: "1.65m"
         "1.2m",
         "1.5m",
         "1.8m",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -794,6 +809,10 @@ customer: "20"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -822,6 +841,7 @@ customer: "20"
       "lastValues": [
         "any",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -960,6 +980,10 @@ customer: "none"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -990,6 +1014,7 @@ customer: "none"
         "sloped",
         "rock",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -1133,6 +1158,10 @@ customer: "none"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -1164,6 +1193,7 @@ customer: "none"
         "pedestrian_single",
         "driveway_double",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",

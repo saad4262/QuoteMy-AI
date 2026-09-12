@@ -192,8 +192,16 @@ describe('POST /client/fencing-chat', () => {
     } satisfies Checklist);
 
     expect(res.body.checklist.suburb).toBe('Berwick, VIC 3806'); // untouched - already known, and not this turn's field
-    expect(res.body.options.length).toBeLessThanOrEqual(4); // 3 real choices + Other
+
+    /* Three CHOICES is the rule; the last two chips are controls, not answers. `__other__` opens a
+       text box and `__more__` turns the page - counting them as choices is what made this read
+       `<= 4` when it meant "no more than three things to pick from". */
+    const controls = ['__other__', '__more__'];
+    const choices = res.body.options.filter((o: { value: string }) => !controls.includes(o.value));
+    expect(choices.length).toBeLessThanOrEqual(3);
     expect(res.body.options.some((o: { value: string }) => o.value === '__other__')).toBe(true);
+    // Fencing publishes more materials than fit on one page, so the way to the rest must be offered.
+    expect(res.body.options.some((o: { value: string }) => o.value === '__more__')).toBe(true);
   });
 
   it('offers a real alternative when nobody publishes the exact material requested', async () => {

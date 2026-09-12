@@ -7,7 +7,7 @@ import { budgetText } from './budget.js';
 import { TRADE_WORDS } from '../messages.js';
 import { TRADE_PRICING } from './pricing/spec.js';
 import type { Answer, Budget, ChatOption, ChatResponse, ChecklistAnsweredEntry, ChecklistDisplay, ChecklistDisplayEntry, ChecklistPendingEntry, PlaceHint, TurnNote, UiState } from './schemas.js';
-import type { ChecklistField } from './vocab.js';
+import { MORE_OPTIONS, type ChecklistField } from './vocab.js';
 
 /**
  * The turn the customer actually sees. Every question and every choice on it is built here, from
@@ -56,9 +56,11 @@ export interface FormatResultInput {
    * disagree. Only `ui.history` reads it - a tap is already in the checklist.
    */
   tapped?: boolean;
+  /** They tapped the chip that turns the page, rather than typing "something else". */
+  wantsMore?: boolean;
 }
 
-export function formatFencingResult({ state, matcher, answer = null, budget = null, tapped = false }: FormatResultInput): ChatResponse {
+export function formatFencingResult({ state, matcher, answer = null, budget = null, tapped = false, wantsMore: moreTapped = false }: FormatResultInput): ChatResponse {
   const checklist = { ...state.checklist };
   const sessionId = state.sessionId;
   const place = state.place;
@@ -88,7 +90,7 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
   // "Give me something else" advances one page. Running off the end wraps back to the start and
   // says so, rather than handing back the same three choices with no explanation.
   const askingAgain = !!ui.lastAsked && state.nextField === ui.lastAsked;
-  const wantsMore = askingAgain && (state.wantsMoreOptions === true || WANTS_MORE.test(rawMessage));
+  const wantsMore = askingAgain && (moreTapped || state.wantsMoreOptions === true || WANTS_MORE.test(rawMessage));
 
   const cursors: Record<string, number> = { ...ui.cursor };
   let exhausted = false;
@@ -114,6 +116,9 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
 
     const options: ChatOption[] = list.slice(cursor, cursor + slots).map((value) => ({ label: labelFor(field, value), value }));
     if (pinned) options.push({ ...pinned });
+    /* Only when there IS another page. On a list that fits, the chip would be a button that hands
+       back the same three choices, which is worse than not offering it. */
+    if (list.length > slots) options.push({ label: 'More options', value: MORE_OPTIONS });
     // Always last, always present. The client turns this one into a text box rather than sending
     // it back, so free text is how everything not on screen reaches us.
     options.push({ label: 'Other', value: '__other__' });

@@ -46,6 +46,19 @@ export type ChecklistField = string;
  * it is never written to a business document, and anything reading it can see at a glance that it
  * came from a customer's mouth rather than from the vocabulary.
  */
+/**
+ * The chip that turns the page, and the second of this file's two client sentinels.
+ *
+ * `__other__` opens a text box; this one asks for the next three choices. Paging itself is old -
+ * `WANTS_MORE` has always caught "more" or "something else" typed into that box - but nothing ever
+ * OFFERED it, so a customer had to guess that typing was allowed. Tiling publishes sixteen tile
+ * types and shows three, which is five pages nobody could see a way to.
+ *
+ * Underscored for the same reason `__other__` is: `\b` does not fire inside `__more__`, so it can
+ * never be mistaken for a customer typing the word, and it matches no vocabulary value anywhere.
+ */
+export const MORE_OPTIONS = '__more__';
+
 export const OFF_LIST = /^other:[a-z0-9][a-z0-9-]*$/;
 export const offListValue = (slugged: string): string => 'other:' + slugged;
 export const offListWords = (value: unknown): string | null => {

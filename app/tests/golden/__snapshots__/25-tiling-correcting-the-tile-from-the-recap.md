@@ -217,6 +217,10 @@ picked place: Berwick, VIC 3806
       "value": "kitchen_splashback"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -243,6 +247,7 @@ picked place: Berwick, VIC 3806
         "bathroom",
         "floor_only",
         "kitchen_splashback",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -358,6 +363,10 @@ customer: "floor_only"
       "value": "natural_stone"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -385,6 +394,7 @@ customer: "floor_only"
         "ceramic",
         "porcelain",
         "natural_stone",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -797,6 +807,10 @@ customer: "labour_only"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -826,6 +840,7 @@ customer: "labour_only"
       "lastValues": [
         "any",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -965,6 +980,10 @@ customer: "none"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -996,6 +1015,7 @@ customer: "none"
         "bathroom",
         "ensuite",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -1140,6 +1160,10 @@ customer: "none"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -1172,6 +1196,7 @@ customer: "none"
         "restricted_access",
         "second_storey",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -1659,6 +1684,10 @@ customer: "the tile's wrong"
       "value": "natural_stone"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -1691,6 +1720,7 @@ customer: "the tile's wrong"
         "ceramic",
         "porcelain",
         "natural_stone",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",

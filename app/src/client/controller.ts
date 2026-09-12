@@ -23,7 +23,7 @@ import { resolveSuburb } from './suburb.js';
 import { priceAndRank } from './priceAndRank.js';
 import { saveChatResult } from './saveResult.js';
 import type { Answer, ChatBody, ChatResponse, Checklist, Place, TurnExtraction, UiState } from './schemas.js';
-import type { ChecklistField } from './vocab.js';
+import { MORE_OPTIONS, type ChecklistField } from './vocab.js';
 
 /** A keyed list resolves against a value the customer has already given, and only a string is one. */
 const asText = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -112,7 +112,7 @@ async function answerIfAsked(
   const labelFor = makeLabelFor(schema);
   const choices = (ui?.lastValues ?? [])
     .map(String)
-    .filter((value) => value !== '__other__')
+    .filter((value) => value !== '__other__' && value !== MORE_OPTIONS)
     .map((value) => (ui?.lastAsked ? labelFor(ui.lastAsked, value) : value));
 
   /* And the whole list those three came off, which is a different thing and is why this is here:
@@ -242,7 +242,12 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
      to whatever was on screen - taps are resolved against `ui.lastAsked` in code, and "budget:75-
      120:hipages" would have become somebody's fence type. */
   const budget = readBudgetTap(input.message);
-  const message = budget ? '' : input.message;
+  /* Same treatment, same reason. "Show me the next three" is not an answer to anything we asked,
+     so the rest of the turn must not see it - left in place it would be resolved against
+     `ui.lastAsked` like any other tap and become somebody's tile type. `formatResult` is told
+     separately, which is the only thing that needs to know. */
+  const wantsMoreTap = input.message.trim() === MORE_OPTIONS;
+  const message = budget || wantsMoreTap ? '' : input.message;
 
   /* A tapped option needs no model at all.
      The value came from a list this code generated last turn, so this code already knows exactly
@@ -252,6 +257,8 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
      goes to the model, because that genuinely needs reading. */
   const tapped =
     !!budget ||
+    /* Turning the page needs no model: the list it pages through is this code's own. */
+    wantsMoreTap ||
     (!files.length &&
       !!ui?.lastValues?.length &&
       ui.lastValues.some((value) => String(value) === message.trim()) &&
@@ -321,7 +328,7 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
     );
   }
 
-  const formatted = formatFencingResult({ state, matcher, answer, budget, tapped });
+  const formatted = formatFencingResult({ state, matcher, answer, budget, tapped, wantsMore: wantsMoreTap });
   const response = matcher?.matched ? priceAndRank(formatted, matcher, schema) : formatted;
 
   /* In front of whatever the turn was going to say, the same way an answer to their own question

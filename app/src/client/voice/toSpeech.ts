@@ -1,6 +1,7 @@
 import { TRADE_WORDS } from '../../messages.js';
 import { TRADES, type Trade } from '../../vocab.js';
 import type { ChatOption, ChatResponse } from '../schemas.js';
+import { MORE_OPTIONS } from '../vocab.js';
 
 /**
  * One turn, as words to be spoken.
@@ -18,8 +19,10 @@ const STATES: Record<string, string> = {
   WA: 'Western Australia', TAS: 'Tasmania', NT: 'Northern Territory', ACT: 'A C T',
 };
 
-/** `__other__` is a text box on screen. There is no text box in a phone call. */
-const speakable = (options: ChatOption[]): ChatOption[] => options.filter((o) => String(o.value) !== '__other__');
+/* `__other__` is a text box on screen, and `__more__` a chip; neither is a thing to read out.
+   A caller already turns the page by saying "something else", which `WANTS_MORE` catches. */
+const speakable = (options: ChatOption[]): ChatOption[] =>
+  options.filter((o) => String(o.value) !== '__other__' && String(o.value) !== MORE_OPTIONS);
 
 /**
  * "1.8m" is read as "one point eight metres". Left alone, a speech engine says "one point eight em"

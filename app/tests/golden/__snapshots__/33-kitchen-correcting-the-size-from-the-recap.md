@@ -628,6 +628,10 @@ customer: "labour_only"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -656,6 +660,7 @@ customer: "labour_only"
         "laminate",
         "timber",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -782,6 +787,10 @@ customer: "laminate"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -811,6 +820,7 @@ customer: "laminate"
         "any",
         "full_demolition",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -942,6 +952,10 @@ customer: "cabinets_only"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -972,6 +986,7 @@ customer: "cabinets_only"
         "island",
         "pantry",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",

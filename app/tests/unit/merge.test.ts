@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MockAiClient, setAiClient, type AiClient, type ModelCall, type ModelResult } from '../../src/ai.js';
 import { runChat } from '../../src/client/controller.js';
 import { mergeAndDecide } from '../../src/client/mergeAndDecide.js';
+import { formatFencingResult } from '../../src/client/formatResult.js';
 import { clearSchemaCache, loadTradeSchema, type TradeSchema } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
 import { BERWICK, seedBusiness } from '../golden/conversations.js';
@@ -911,5 +912,73 @@ describe('a customer naming a value by their own word', () => {
 
   it('still reads nothing from a word that means nothing here', async () => {
     expect(await tile('hexagonal gold leaf')).toBeNull();
+  });
+});
+
+/**
+ * The chip that turns the page.
+ *
+ * Paging is old - `WANTS_MORE` has always caught "more" or "something else" typed into the free
+ * text box - but nothing ever OFFERED it, so reaching page two meant guessing that typing was
+ * allowed. Tiling publishes sixteen tile types and shows three; the other thirteen were five pages
+ * behind a step nobody could see. Found by reading a real screen, not a test.
+ */
+describe('offering the next page of choices', () => {
+  const askTile = async (message: string, cursor = 0) => {
+    const schema = await loadTradeSchema('tiling', new MemoryRepository());
+    const state = mergeAndDecide({
+      sessionId: 'p1',
+      message,
+      place: PLACE,
+      known: {
+        suburb: 'Berwick, VIC 3806', jobType: 'bathroom', tileType: null, areaSqm: null,
+        supply: null, removal: null, waterproofing: null, conditions: null, existingPrice: null,
+        _ui: ui({ lastAsked: 'tileType', cursor: { tileType: cursor } }),
+      } as unknown as Partial<Checklist>,
+      turnExtraction: turn(),
+      docFacts: {},
+      docSuburbHint: null,
+      haystackText: message + ' ',
+      schema,
+    });
+    return formatFencingResult({ state, matcher: null, wantsMore: message === '__more__' });
+  };
+
+  it('offers the chip when there is another page, after the choices and before Other', async () => {
+    const options = (await askTile('')).options.map((o) => String(o.value));
+    expect(options.slice(-2)).toEqual(['__more__', '__other__']);
+    expect(options.filter((v) => v !== '__more__' && v !== '__other__')).toHaveLength(3);
+  });
+
+  it('turns the page when it is tapped, and reads nothing as an answer', async () => {
+    const first = await askTile('');
+    const second = await askTile('__more__');
+
+    const values = (r: typeof first) => r.options.map((o) => String(o.value)).filter((v) => !v.startsWith('__'));
+    expect(values(second)).not.toEqual(values(first));
+    // The whole point of blanking the message: this is navigation, not a tile.
+    expect((second.checklist as Record<string, unknown>).tileType).toBeNull();
+    expect(second.type).toBe('question');
+  });
+
+  /* A button that hands back the same three choices is worse than no button. */
+  it('does not offer it on a list that fits on one page', async () => {
+    const schema = await loadTradeSchema('kitchen', new MemoryRepository());
+    const state = mergeAndDecide({
+      sessionId: 'p2',
+      message: '',
+      place: PLACE,
+      known: {
+        suburb: 'Berwick, VIC 3806', jobType: 'replacement', kitchenSize: null,
+        _ui: ui({ lastAsked: 'kitchenSize' }),
+      } as unknown as Partial<Checklist>,
+      turnExtraction: turn(),
+      docFacts: {},
+      docSuburbHint: null,
+      haystackText: ' ',
+      schema,
+    });
+    // Small, standard, large - three sizes, one page.
+    expect(formatFencingResult({ state, matcher: null }).options.map((o) => String(o.value))).not.toContain('__more__');
   });
 });

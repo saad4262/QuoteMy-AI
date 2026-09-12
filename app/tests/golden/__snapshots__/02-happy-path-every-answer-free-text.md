@@ -217,6 +217,10 @@ picked place: Berwick, VIC 3806
       "value": "colorbond"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -243,6 +247,7 @@ picked place: Berwick, VIC 3806
         "timber_pine",
         "timber_hardwood",
         "colorbond",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -358,6 +363,10 @@ customer: "aluminium"
       "value": "1.8m"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -385,6 +394,7 @@ customer: "aluminium"
         "1.2m",
         "1.5m",
         "1.8m",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -651,6 +661,10 @@ customer: "30 metres"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -679,6 +693,7 @@ customer: "30 metres"
       "lastValues": [
         "any",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -821,6 +836,10 @@ customer: "old timber fence"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -851,6 +870,7 @@ customer: "old timber fence"
         "sloped",
         "rock",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -998,6 +1018,10 @@ customer: "nothing tricky"
       "value": "none"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -1029,6 +1053,7 @@ customer: "nothing tricky"
         "pedestrian_single",
         "driveway_double",
         "none",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -1181,6 +1206,10 @@ customer: "a single pedestrian gate"
       "value": 3
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -1213,6 +1242,7 @@ customer: "a single pedestrian gate"
         1,
         2,
         3,
+        "__more__",
         "__other__"
       ],
       "lastType": "question",

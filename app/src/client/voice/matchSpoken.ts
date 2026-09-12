@@ -1,5 +1,6 @@
 import { numbersIn, oneOf, slug } from '../fuzzyMatch.js';
 import type { ChatOption } from '../schemas.js';
+import { MORE_OPTIONS } from '../vocab.js';
 
 /**
  * What the customer said, resolved back to one of the choices they were just read - or nothing.
@@ -16,7 +17,7 @@ import type { ChatOption } from '../schemas.js';
  */
 
 /** `__other__` opens a text box on screen. Spoken aloud it means nothing, so it is never offered. */
-const OFFERABLE = (option: ChatOption) => String(option.value) !== '__other__';
+const OFFERABLE = (option: ChatOption) => String(option.value) !== '__other__' && String(option.value) !== MORE_OPTIONS;
 
 /** "Option B", "the second one", "number three" - a position rather than an answer. */
 const LETTER = /^(?:option\s+)?([a-f])$/;

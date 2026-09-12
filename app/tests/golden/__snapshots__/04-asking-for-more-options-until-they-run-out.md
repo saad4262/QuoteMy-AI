@@ -217,6 +217,10 @@ picked place: Berwick, VIC 3806
       "value": "colorbond"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -243,6 +247,7 @@ picked place: Berwick, VIC 3806
         "timber_pine",
         "timber_hardwood",
         "colorbond",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -358,6 +363,10 @@ customer: "something else"
       "value": "pool_glass"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -384,6 +393,7 @@ customer: "something else"
         "aluminium",
         "pool_aluminium",
         "pool_glass",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -499,6 +509,10 @@ customer: "something else"
       "value": "rural_wire"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -524,6 +538,7 @@ customer: "something else"
       "lastValues": [
         "chainmesh",
         "rural_wire",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -647,6 +662,10 @@ customer: "something else"
       "value": "colorbond"
     },
     {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
       "label": "Other",
       "value": "__other__"
     }
@@ -673,6 +692,7 @@ customer: "something else"
         "timber_pine",
         "timber_hardwood",
         "colorbond",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
