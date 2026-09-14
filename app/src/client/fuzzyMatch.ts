@@ -212,7 +212,22 @@ export function numbersIn(text: string): number[] {
  * A RANGE IS STILL NOT AN ANSWER. "20-25" has no correct conversion - the midpoint, the low end and
  * the high end are three different inventions - so it is refused and the question comes round again.
  */
-const DIMENSIONS = /(\d+(?:\.\d+)?)\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?)/i;
+/* Each side may carry its OWN unit, and this is not a nicety - "5m x 4m" is how people write it,
+   far more often than the bare "5 x 4" this pattern used to require. Without the unit here the
+   match failed, the single-number path took over, and the answer came back as 5: a quarter of the
+   floor, quoted as though it had been understood. Exactly the failure this whole function exists
+   to prevent, one layer further down, and found by a frontend typing it into the live chat.
+
+   The unit is only SKIPPED here. Converting it is still the job of `linear.find` below, which
+   tests the whole string - so "10ft x 12ft" converts each side exactly as "10 by 12 feet" does.
+
+   The separators stay `x`, `by` and their kin, and never `-`, `to` or `or`: a range has no correct
+   answer and must keep falling through to `RANGE`. */
+const SIDE_UNIT = String.raw`(?:m|metres?|meters?|cm|centimet(?:re|er)s?|mm|millimet(?:re|er)s?|ft|f(?:ee|oo)t|yds?|yards?|in|inch(?:es)?)`;
+const DIMENSIONS = new RegExp(
+  String.raw`(\d+(?:\.\d+)?)\s*(` + SIDE_UNIT + String.raw`)?\s*(?:x|×|\*|by)\s*(\d+(?:\.\d+)?)`,
+  'i',
+);
 const RANGE = /\d+(?:\.\d+)?\s*(?:-|–|—|to|or)\s*\d+/i;
 
 /** Multiply by these to reach the field's own unit. Areas convert as areas, lengths as lengths. */
@@ -246,8 +261,13 @@ export function measureFrom(value: unknown, unit: 'm2' | 'm'): number | null {
   if (sides) {
     // Two sides of a room. Only an area can be built this way; a length has no second side.
     if (unit !== 'm2') return null;
-    const each = linear.find(([re]) => re.test(text))?.[1] ?? 1;
-    const area = Number(sides[1]) * each * (Number(sides[2]) * each);
+    /* A unit written against the FIRST side wins over one written at the end, and it is read on its
+       own rather than out of the sentence: the conversion patterns are anchored on word boundaries,
+       and "10ft" has none between the digits and the unit - so testing the whole string finds
+       nothing and silently leaves each side unconverted. Padded, `ft` is `ft` again. Where no side
+       carries a unit, the sentence is still the place to look: that is "10 by 12 feet". */
+    const each = linear.find(([re]) => re.test(sides[2] ? ` ${sides[2]} ` : text))?.[1] ?? 1;
+    const area = Number(sides[1]) * each * (Number(sides[3]) * each);
     return Number.isFinite(area) && area > 0 ? tidy(area) : null;
   }
 

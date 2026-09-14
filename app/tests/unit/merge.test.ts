@@ -794,6 +794,20 @@ describe('reading a number the customer typed', () => {
     expect(await readArea('10 by 12 feet')).toBe(11.15);
   });
 
+  /* Each side carrying its OWN unit is how people actually write it, and it used to fall through
+     the two-sides pattern entirely: "5m x 4m" came back as 5, a quarter of the floor, presented as
+     though it had been understood. Found by the frontend typing it into the live chat rather than
+     by any test here. */
+  it('works out an area when each side carries its own unit', async () => {
+    for (const typed of ['5m x 4m', '5m by 4m', '5 m x 4 m', '5m×4m']) {
+      expect(await readArea(typed), typed).toBe(20);
+    }
+    /* And the units still convert. "10ft" has no word boundary between the digits and the unit, so
+       the conversion has to read the unit off the side rather than out of the sentence - otherwise
+       both sides stay unconverted and 11.15m2 is returned as 120. */
+    expect(await readArea('10ft x 12ft')).toBe(11.15);
+  });
+
   it('converts an area given in another unit', async () => {
     expect(await readArea('100 sq ft')).toBe(9.29);
     expect(await readArea('100 sqft')).toBe(9.29);
