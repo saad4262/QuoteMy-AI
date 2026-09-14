@@ -161,6 +161,27 @@ export const TILING_LABEL_GROUPS = {
     laundry: 'Yes, the laundry',
     balcony: 'Yes, the balcony',
   },
+  /* Prep is priced by the tiler and never asked of a customer, so these are named the way a tiler
+     writes them on their own list. Added when a per-trade label sweep found `pricing.prep[].type`
+     was the one thing in a tiling response with no label behind it at all - a business screen that
+     falls back to the raw slug was printing `floor_levelling` to the person who priced it. */
+  prep: {
+    surface_prep: 'Surface preparation',
+    floor_grinding: 'Floor grinding',
+    primer: 'Primer',
+    floor_levelling: 'Floor levelling',
+    screeding: 'Screeding',
+    adhesive_removal: 'Adhesive removal',
+    rubbish_removal: 'Rubbish removal',
+    crack_treatment: 'Crack treatment',
+  },
+  /* Prep is the one thing this trade can price by the hour - `TILE_PREP` rates carry `per_hour` in
+     the extraction schema - and the shared `UNITS` list does not, so without this a tiler's own
+     screen shows `per_hour`. Found by a per-trade label sweep, not by a failure: a missing label is
+     silent all the way to the screen. */
+  units: {
+    per_hour: 'per hour',
+  },
   conditions: {
     restricted_access: 'Hard to get to',
     second_storey: 'Upstairs',
@@ -209,6 +230,11 @@ export const KITCHEN_LABEL_GROUPS = {
     floor_prep: 'Floor preparation',
     floor_levelling: 'Floor levelling',
     plaster_repair: 'Plaster repair',
+  },
+  /* Kitchen prep is priced by the hour on some lists - the extraction schema allows it - and the
+     shared `UNITS` list carries only the four flat ones. Same sweep, same silence as tiling's. */
+  units: {
+    per_hour: 'per hour',
   },
   extras: {
     island: 'An island',
@@ -294,10 +320,13 @@ export const RW_LABEL_GROUPS = {
     delivery: 'Material delivery',
     site_inspection: 'A site inspection',
   },
-  /* The two units no other trade has, and the only slugs a business screen was left unable to
-     render. `LABEL_GROUPS.units` covers the four in the shared `UNITS` list; excavation by the hour
-     and an excavator by the day exist only in this trade's groundworks and site conditions, so
-     their words belong here rather than in the shared map every trade reads. */
+  /* `LABEL_GROUPS.units` covers the four in the shared `UNITS` list; excavation by the hour and an
+     excavator by the day are this trade's groundworks and site conditions, so their words belong
+     here rather than in the shared map every trade reads.
+     NOT the only trade billing by the hour, which an earlier version of this comment claimed and
+     tiling and kitchen both disprove - their prep rates carry `per_hour` too, and the claim is why
+     neither had a label for it until a per-trade sweep went looking. Only `per_day` is this
+     trade's and decking's alone. */
   units: {
     per_hour: 'per hour',
     per_day: 'per day',
@@ -406,10 +435,11 @@ export const DECK_LABEL_GROUPS = {
    * heights read as bands rather than as the customer's view out of their door, because a builder
    * is checking a price list and not standing in the garden.
    */
-  /* The two units no other trade's shared list carries. Rock and roots are charged by the hour here
-     exactly as they are on a retaining wall, and without these a builder's own screen shows
-     `per_hour`. Kept in this trade's own group rather than the shared one, because three trades sell
-     nothing by the hour and widening the map they all read is how a vocabulary starts drifting. */
+  /* Rock and roots are charged by the hour here exactly as they are on a retaining wall, and
+     without these a builder's own screen shows `per_hour`. Kept in this trade's own group rather
+     than the shared one: only fencing sells nothing by the hour, and widening the map every trade
+     reads is how a vocabulary starts drifting. Tiling and kitchen carry their own `per_hour` for
+     the same reason. */
   units: {
     per_hour: 'per hour',
     per_day: 'per day',
@@ -563,6 +593,8 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     {},
     TILING_LABEL_GROUPS.waterproof,
     TILING_LABEL_GROUPS.removes,
+    TILING_LABEL_GROUPS.prep,
+    TILING_LABEL_GROUPS.units,
     TILING_LABEL_GROUPS.supply,
     TILING_LABEL_GROUPS.conditions,
     TILING_LABEL_GROUPS.tileTypes,
@@ -580,6 +612,7 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     KITCHEN_LABEL_GROUPS.sizes,
     KITCHEN_LABEL_GROUPS.extras,
     KITCHEN_LABEL_GROUPS.prep,
+    KITCHEN_LABEL_GROUPS.units,
     KITCHEN_LABEL_GROUPS.benchtops,
     KITCHEN_LABEL_GROUPS.jobTypes,
     LABEL_GROUPS.units,

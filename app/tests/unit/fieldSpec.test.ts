@@ -182,3 +182,21 @@ describe('every trade`s document hints', () => {
     expect(renamed).toEqual({ 'fencing.heightKey': 'heightMm', 'retaining_wall.heightKey': 'heightMm' });
   });
 });
+
+describe('the brief panel can be built without knowing a single field name', () => {
+  /**
+   * Both frontends are told to render the brief from `checklistDisplay` and `checklistPending`,
+   * which carry a `title` per field, and never from the field names themselves - that is what lets
+   * a new trade appear with no frontend release. The promise only holds if every field a customer
+   * is actually asked has a title behind it: `formatResult`'s `titleOf` falls back to the raw key,
+   * so a spec without one puts `kitchenSize` on a customer's screen and nothing fails anywhere.
+   *
+   * `existingPrice` is deliberately excluded by `askedFields` - it is never asked and never shown.
+   */
+  it.each(TRADES)('%s gives every asked field a title', (trade: Trade) => {
+    for (const spec of askedFields(TRADE_FIELDS[trade])) {
+      expect(spec.title, `${trade}.${spec.key} has no title`).toBeTruthy();
+      expect(spec.title, `${trade}.${spec.key}'s title is still a slug`).not.toContain('_');
+    }
+  });
+});

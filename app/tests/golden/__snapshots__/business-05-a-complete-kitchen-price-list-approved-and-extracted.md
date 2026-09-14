@@ -167,6 +167,7 @@ Fixture: `tests/fixtures/description-COMPLETE-kitchen.txt` (2107 characters)
       "floor_prep": "Floor preparation",
       "floor_levelling": "Floor levelling",
       "plaster_repair": "Plaster repair",
+      "per_hour": "per hour",
       "laminate": "Laminate",
       "timber": "Timber",
       "stone": "Stone",
