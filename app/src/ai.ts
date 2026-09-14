@@ -1001,18 +1001,24 @@ export class MockAiClient implements AiClient {
     if (!stated(/minimum/i)) {
       fixes.push({ kind: 'missing', what: 'Add the smallest job you will take on and what you charge for it.', example: 'Minimum installation charge $650' });
     }
-    // R9, both halves on one line because they are one fix to make.
-    const missingArea = !stated(/\b\d+\s*km\b/i);
-    const missingGst = !stated(/gst/i);
-    if (missingArea || missingGst) {
+    /* R9 as TWO fixes, not one. `review.system.md` puts GST and the service area under its "wrong"
+       heading when they are crushed into a single line - they are two unrelated things to go and
+       do - and the live model splits them exactly as instructed. This mock grouped them, which made
+       the offline net quietly easier than the rule it claims to mirror, the same way kitchen's
+       preparation check once was. Found by running the rejected fixture past the real model and
+       reading both outputs side by side. */
+    if (!stated(/\b\d+\s*km\b/i)) {
       fixes.push({
         kind: 'missing',
-        what: missingArea && missingGst
-          ? 'Say where you work out of, how far you travel, and whether your prices include GST.'
-          : missingArea
-            ? 'Say where you work out of and how far you travel.'
-            : 'Say whether your prices include GST.',
-        example: 'Based in Berwick, we travel 30km. All prices include GST.',
+        what: 'Say where you work out of and how far you travel.',
+        example: 'Based in Berwick, we travel 30km',
+      });
+    }
+    if (!stated(/gst/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Say whether your prices include GST.',
+        example: 'All prices include GST',
       });
     }
 
@@ -1030,7 +1036,13 @@ export class MockAiClient implements AiClient {
 
     return {
       outcome: perMetre.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
-      fixes: perMetre.length ? fixes.slice(0, 5) : [],
+      /* SIX, which is what `review.system.md` actually permits - "aim for 3 to 5 ... never more
+         than 6" - and what the live model returns on this trade's rejected fixture. Capping at five
+         cut the last fix, and the one it cut was "your core rates are ranges and POA", which is the
+         single most diagnostic thing this fixture exists to prove.
+         The other three trades' mocks still cap at five. Raising them would move their snapshots,
+         which is a change to review by itself and not one this trade gets to make. */
+      fixes: perMetre.length ? fixes.slice(0, 6) : [],
       alsoWorthAdding: [],
     };
   }

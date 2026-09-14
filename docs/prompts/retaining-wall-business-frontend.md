@@ -44,6 +44,43 @@ Get the list from `GET /api/v1/client/trades` — do not hardcode it:
 File uploads are unchanged and already per-trade:
 `businesses/{uid}/services/{trade}/{submissionId}/{filename}`.
 
+## Change 1b — ⚠ `services_provided`, or the business goes live and nobody can see it
+
+**This one is not part of the submit flow, it is easy to miss, and it has already happened once.**
+
+`businesses/{uid}` carries a `services_provided` array. Your app writes it — the backend only ever
+reads it, never creates or edits it — and it is the ONLY thing the customer search uses to decide
+which businesses to even look at:
+
+```js
+where('services_provided', 'array-contains', 'retaining_wall')
+```
+
+So a builder can submit a price list, have it approved, press **Confirm — go live**, see "these
+prices are already live" on their own screen, and still be invisible to every customer — because
+their business document never said they do this trade. The business page and the customer chat then
+both tell the truth and contradict each other, which is very hard to debug from either end.
+
+**When a business picks retaining wall, add `retaining_wall` to `services_provided`.**
+
+```jsonc
+{ "uid": "...", "businessName": "...",
+  "services_provided": ["fencing", "retaining_wall"] }
+```
+
+**Write the UNDERSCORE.** Live data currently contains `retaining-wall` with a hyphen — the spelling
+the old n8n system used — and that is what caused the failure above. The backend now accepts either
+spelling in this one field so nothing is broken today, but write `retaining_wall` for anything new:
+it is the value every other part of the system uses, including the Firestore document ids
+`schema/{trade}` and `businesses/{uid}/services/{trade}`.
+
+Two more things about this field, from what is actually in the data:
+
+- It is free-form and is **not** validated. It currently holds `decking` and `landscaping`, which
+  are not trades this backend serves at all. Extra values are harmless; a missing one is not.
+- Removing a trade from it hides that business from customers **without** touching their prices,
+  which is the correct way to let a business pause a trade. Deleting their price list is not.
+
 ## Change 2 — the confirm screen must render this trade's shape
 
 **No price goes live without the business confirming it on this screen**, so if the screen cannot
@@ -204,6 +241,9 @@ phone after work — render them as a plain list and do not add headings, counts
 ## Done when
 
 - The picker has a fourth entry and `trade: "retaining_wall"` goes out on submit, profile and confirm.
+- Picking the trade adds `retaining_wall` to `services_provided` on the business document — check
+  this by running a customer chat afterwards, not by looking at the business screen, which will
+  look correct either way.
 - The confirm screen shows the two rate tables as two clearly separate things.
 - A builder with only `labour_only` rates sees a complete screen, not a broken one.
 - `per_hour` and `per_item` render as words.

@@ -30,8 +30,13 @@ Fixture: `tests/fixtures/description-THIN-retaining-wall.txt` (2196 characters)
       },
       {
         "kind": "missing",
-        "what": "Say where you work out of, how far you travel, and whether your prices include GST.",
-        "example": "Based in Berwick, we travel 30km. All prices include GST."
+        "what": "Say where you work out of and how far you travel.",
+        "example": "Based in Berwick, we travel 30km"
+      },
+      {
+        "kind": "missing",
+        "what": "Say whether your prices include GST.",
+        "example": "All prices include GST"
       },
       {
         "kind": "unclear",
@@ -64,7 +69,7 @@ Fixture: `tests/fixtures/description-THIN-retaining-wall.txt` (2196 characters)
   "submissionId": "golden-submission",
   "decision": "needs_updates",
   "fixCounts": {
-    "missing": 4,
+    "missing": 5,
     "unclear": 1
   },
   "textChars": 2195
