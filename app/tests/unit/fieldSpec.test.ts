@@ -170,13 +170,15 @@ describe('every trade`s document hints', () => {
   }
 
   it('files a hinted field under its own key unless it says otherwise', () => {
-    /* `docKey` exists for one field and should stay that way: it is the seam where a reader's name
-       for a value differs from the checklist's, and every one of those is a thing to remember. */
+    /* `docKey` exists only for a height, in the two trades that have one, and should stay that way:
+       it is the seam where a reader's name for a value differs from the checklist's, and every one
+       of those is a thing to remember. Both are stored as a normalised band ("1.8m", "0.9m") and
+       read off a document as raw millimetres, which is the whole reason the seam exists. */
     const renamed = Object.fromEntries(
       TRADES.flatMap((trade) =>
         TRADE_FIELDS[trade].filter((f) => f.docKey).map((f) => [`${trade}.${f.key}`, f.docKey]),
       ),
     );
-    expect(renamed).toEqual({ 'fencing.heightKey': 'heightMm' });
+    expect(renamed).toEqual({ 'fencing.heightKey': 'heightMm', 'retaining_wall.heightKey': 'heightMm' });
   });
 });

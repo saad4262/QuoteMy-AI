@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
-import { CONVERSATIONS, KITCHEN_CONVERSATIONS, runScript, TILING_CONVERSATIONS } from './conversations.js';
+import {
+  CONVERSATIONS,
+  KITCHEN_CONVERSATIONS,
+  RETAINING_WALL_CONVERSATIONS,
+  runScript,
+  TILING_CONVERSATIONS,
+} from './conversations.js';
 
 /**
  * The safety net for the dynamic-schema migration (`docs/DYNAMIC-SCHEMA-PLAN.md`).
@@ -26,7 +32,12 @@ describe('golden conversations', () => {
     clearSchemaCache(); // process-cached, so one conversation must never inherit another's
   });
 
-  for (const conversation of [...CONVERSATIONS, ...TILING_CONVERSATIONS, ...KITCHEN_CONVERSATIONS]) {
+  for (const conversation of [
+    ...CONVERSATIONS,
+    ...TILING_CONVERSATIONS,
+    ...KITCHEN_CONVERSATIONS,
+    ...RETAINING_WALL_CONVERSATIONS,
+  ]) {
     it(conversation.name, async () => {
       const transcript = await runScript(conversation, repo);
       await expect(transcript).toMatchFileSnapshot(`./__snapshots__/${slugOf(conversation.name)}.md`);

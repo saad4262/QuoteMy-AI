@@ -72,6 +72,17 @@ const FILLER = new Set([
      Tiling could afford `tile` and `square` because neither ever distinguishes one of its options;
      kitchen cannot afford the equivalents, so it gets one word instead of eight. */
   'kitchen', 'kitchens',
+  /* Retaining wall gets ONE word, and it is the adjective rather than the noun.
+     `retaining` names nothing a caller can choose, so it is safe; `wall` and `walls` are not, and
+     not for this trade's sake - tiling answers "Wall only" with exactly that word, and this set is
+     shared. Everything else this trade says is an answer somewhere in its own options: `timber`,
+     `concrete`, `steel`, `sleeper` and `tiered` are all wall systems, `timber` and `concrete` are
+     also removals, and `drainage` is an answer to the drainage question. Any of them filed here
+     would swallow a second answer whole - "concrete sleepers, and take the old one out" would lose
+     the removal - which is the one failure this set exists to prevent.
+     `tall`, `high`, `long` and the units are already above, from fencing, and serve this trade
+     unchanged: "about 900 mil high" resolves here without a model round trip. */
+  'retaining',
   /* Verbs and hedges. Safe to ignore wholesale: a second answer is a thing or a number, never a
      verb, so nothing here can be the piece of the sentence worth sending to the model. */
   'need', 'want', 'wanted', 'looking', 'prefer', 'reckon', 'think', 'get', 'have', 'take', 'do',

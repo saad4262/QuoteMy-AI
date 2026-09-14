@@ -12,6 +12,14 @@ import {
   KITCHEN_TAGS,
   MATERIALS,
   REMOVES,
+  RW_CONDITIONS,
+  RW_DRAINAGE,
+  RW_EXTRAS,
+  RW_GROUNDWORKS,
+  RW_REMOVES,
+  RW_SUPPLY,
+  RW_TAGS,
+  RW_WALL_TYPES,
   TAGS,
   TILE_CONDITIONS,
   TILE_JOB_TYPES,
@@ -498,8 +506,160 @@ export const kitchenExtractionSchema = z.object({
 });
 export type KitchenExtraction = z.infer<typeof kitchenExtractionSchema>;
 
+export const retainingWallExtractionSchema = z.object({
+  businessName: z.string().nullable(),
+  gstIncluded: z.boolean().nullable(),
+  gstSourceQuote: z.string().nullable(),
+
+  serviceArea: z.object({
+    baseLocation: z.string().nullable(),
+    radiusKm: z.number().nullable(),
+    radiusSourceQuote: z.string().nullable(),
+    excludedAreas: z.string().array(),
+  }),
+
+  minimumCharge: z.number().nullable(),
+  minimumChargeSourceQuote: z.string().nullable(),
+  /** Builders charge to come and measure, as kitchen fitters do and fencers do not. */
+  siteInspectionFee: z.number().nullable(),
+  siteInspectionFeeSourceQuote: z.string().nullable(),
+  travelFee: z.number().nullable(),
+  travelFeeSourceQuote: z.string().nullable(),
+
+  /**
+   * The core rates, and the shape that makes this trade its own.
+   *
+   * Both keys are REQUIRED, unlike tiling's nullable tile and kitchen's nullable size, and that is
+   * the whole point of the trade: "$185 per linear metre" means nothing until you know whether the
+   * sleepers are in it. A builder's list publishes two complete columns - installation only, and
+   * supply and install - and a rate that has lost which column it came from is off by $200 a metre.
+   * A list that genuinely never says goes to `couldNotUse`, never to a guessed supply model.
+   *
+   * `heightM` is the one nullable key here, and it is nullable because most lists do not band by
+   * height at all: one rate covers every height the builder builds at. A named height beats a null
+   * one at quoting time, exactly as a named tile beats a general tiling rate - and a NUMBER rather
+   * than a band string, so code builds the "0.9m" key and the band cannot drift.
+   */
+  rates: z
+    .object({
+      wallType: z.enum(RW_WALL_TYPES),
+      supply: z.enum(RW_SUPPLY),
+      heightM: z.number().nullable(),
+      pricePerMetre: z.number(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Which of the two models they work under at all. Empty means they never said. */
+  supplyModels: z.enum(RW_SUPPLY).array(),
+
+  /**
+   * Drainage, which is structural here rather than an upsell - water behind a wall is pressure on
+   * it. `per_metre` for the components and `per_job` for the complete package a builder sells at
+   * one price; the unit on the row decides which, as it does on a tiling rate.
+   */
+  drainage: z
+    .object({
+      type: z.enum(RW_DRAINAGE),
+      price: z.number(),
+      unit: z.enum(['per_metre', 'per_item', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Taking out what is there, priced by what is coming OUT - not by what is going in. */
+  removals: z
+    .object({
+      removes: z.enum(RW_REMOVES),
+      price: z.number(),
+      /** A wall comes out by the metre and a post comes out one at a time. Both are real lines. */
+      unit: z.enum(['per_metre', 'per_item', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Groundworks, and none of these can reach a quote.
+   *
+   * Excavation is charged by the hour and post holes and footings by the post. A customer cannot
+   * say how many hours or count posts that have not been dug, and the model may never work it out
+   * (`CLAUDE.md` non-negotiable #4) - so `per_hour` and `per_day` are legal units HERE and nowhere
+   * else in this schema, because what is captured here is shown to the customer as what is not
+   * included rather than multiplied by anything.
+   */
+  groundworks: z
+    .object({
+      type: z.enum(RW_GROUNDWORKS),
+      price: z.number(),
+      unit: z.enum(['per_metre', 'per_item', 'per_job', 'per_hour', 'per_day']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Site conditions, each with a figure or a percentage, or stated as not charged. */
+  siteConditions: z
+    .object({
+      condition: z.enum(RW_CONDITIONS),
+      price: z.number().nullable(),
+      percent: z.number().nullable(),
+      unit: z.enum(['per_metre', 'per_item', 'per_job', 'per_hour', 'per_day']).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Where they stand on engineering and council approval, which this trade has and no other does.
+   *
+   * `required` is deliberately not a boolean the model may infer. The SOP is emphatic that nobody
+   * may tell a customer approval is definitely unnecessary without checking the particular project,
+   * so this records only what the BUSINESS said about who arranges it and what it costs.
+   */
+  engineering: z.object({
+    text: z.string().nullable(),
+    price: z.number().nullable(),
+    isFromPrice: z.boolean(),
+    sourceQuote: z.string().nullable(),
+  }),
+
+  /**
+   * Every other priced line. `type` carries one of the closed extra values where one applies and
+   * null otherwise - a $180 fence post interface is a real priced line with no home in the
+   * vocabulary, and null is the right answer rather than the nearest guess. `label` is always the
+   * business's own wording, so nothing is lost.
+   */
+  extras: z
+    .object({
+      type: z.enum(RW_EXTRAS).nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      isFromPrice: z.boolean(),
+      sourceQuote: z.string().nullable(),
+    })
+    .array(),
+
+  warranty: z.object({ text: z.string().nullable(), sourceQuote: z.string().nullable() }),
+
+  inclusions: z.string().array(),
+  exclusions: z.string().array(),
+  tags: z.enum(RW_TAGS).array(),
+
+  otherOfferings: z
+    .object({
+      slug: z.string().nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  couldNotUse: z.string().array(),
+});
+export type RetainingWallExtraction = z.infer<typeof retainingWallExtractionSchema>;
+
 /** Whatever the extraction stage returns, for the code between the model and the verifier. */
-export type AnyExtraction = Extraction | TilingExtraction | KitchenExtraction;
+export type AnyExtraction = Extraction | TilingExtraction | KitchenExtraction | RetainingWallExtraction;
 
 /**
  * One trade per extraction call (`CLAUDE.md` non-negotiable #5), so the schema is chosen by trade
@@ -512,6 +672,7 @@ export const TRADE_EXTRACTION: Record<Trade, z.ZodType<AnyExtraction>> = {
   fencing: extractionSchema,
   tiling: tilingExtractionSchema,
   kitchen: kitchenExtractionSchema,
+  retaining_wall: retainingWallExtractionSchema,
 };
 
 /**

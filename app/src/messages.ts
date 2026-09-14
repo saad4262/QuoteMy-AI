@@ -9,6 +9,12 @@ import {
   KITCHEN_SUPPLY,
   MATERIALS,
   REMOVES,
+  RW_CONDITIONS,
+  RW_DRAINAGE,
+  RW_EXTRAS,
+  RW_REMOVES,
+  RW_SUPPLY,
+  RW_WALL_TYPES,
   TILE_CONDITIONS,
   TILE_JOB_TYPES,
   TILE_REMOVES,
@@ -209,6 +215,78 @@ export const KITCHEN_LABEL_GROUPS = {
   },
 } as const;
 
+export const RW_LABEL_GROUPS = {
+  /* Named by what a customer can SEE, with the trade word second. Almost nobody says "concrete
+     sleeper system" standing in their own back yard - they say "those grey concrete ones". The
+     builder's own word is kept in the label so the two halves of the marketplace still share a
+     vocabulary, but it is not what has to be recognised first. */
+  wallTypes: {
+    timber_sleeper: 'Timber sleepers',
+    premium_timber: 'Premium timber sleepers',
+    concrete_sleeper: 'Concrete sleepers',
+    steel_post: 'Steel posts with sleepers',
+    timber_post: 'Timber posts with sleepers',
+    tiered: 'Tiered — more than one level',
+  },
+  /* The clearest wording either trade has managed for this question, because here it is worth more
+     than anywhere else: the gap between the two answers is $145 and $285 a metre. "Materials" and
+     not "sleepers", because the answer also covers the posts, the concrete, the gravel and the
+     ag-pipe - a customer who reads this as being about sleepers alone has agreed to buy a third of
+     what they are about to be quoted for. */
+  supply: {
+    labour_only: "I'm buying the materials",
+    supply_and_install: 'They supply the materials',
+  },
+  /* `any` first and the kinds behind it, the shape all three other trades use. Somebody looking at
+     a failing wall knows it is timber or it is concrete; almost nobody knows whether the posts
+     behind the sleepers are steel, and that is our pricing problem rather than their question. */
+  removes: {
+    any: 'Yes, take it out',
+    timber_wall: 'An old timber wall',
+    concrete_sleeper_wall: 'An old concrete sleeper wall',
+    steel_post: 'Steel posts',
+    timber_post: 'Timber posts',
+  },
+  /* `full_package` leads, because it is the answer to the question actually being asked. A customer
+     saying "yes, do the drainage" is buying the builder's standard package, not choosing between
+     ag-pipe and gravel - the components are here for a customer who has been told by somebody else
+     exactly what they need. */
+  drainage: {
+    full_package: 'Yes — the standard drainage',
+    ag_pipe: 'Ag-pipe',
+    drainage_gravel: 'Drainage gravel',
+    geotextile_fabric: 'Geotextile fabric',
+    drainage_outlet: 'A drainage outlet',
+  },
+  groundworks: {
+    excavation: 'Excavation',
+    post_holes: 'Post holes',
+    footings: 'Concrete footings',
+    backfill: 'Backfill',
+    compacted_backfill: 'Compacted backfill',
+    soil_removal: 'Soil removal',
+    site_cleanup: 'Site clean-up',
+  },
+  conditions: {
+    restricted_access: 'Hard to get to',
+    rock: 'Rocky ground',
+    hard_clay: 'Hard clay',
+    sloped: 'Sloping site',
+    existing_structures: 'Structures nearby',
+    machine_access: 'No machine access',
+  },
+  extras: {
+    caps: 'Capping on top',
+    steps: 'Steps',
+    corners: 'Corners',
+    returns: 'Returns',
+    fence_post_interface: 'A fence on top',
+    repairs: 'Repairs to an existing wall',
+    delivery: 'Material delivery',
+    site_inspection: 'A site inspection',
+  },
+} as const;
+
 /**
  * What the chat may OFFER, per trade, in the order it offers them.
  *
@@ -271,6 +349,27 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
        it, and `WHAT_TO_SEND` asks them to. */
     extras: [...KITCHEN_EXTRAS],
   },
+  retaining_wall: {
+    /* Timber and concrete sleepers lead because they are most of this trade - the two cheapest and
+       two commonest systems - and `tiered` goes last despite being a real rate, because it is the
+       one answer a customer picks by looking at their SITE rather than at a catalogue. */
+    wallTypes: [
+      'timber_sleeper',
+      'concrete_sleeper',
+      'steel_post',
+      ...RW_WALL_TYPES.filter((w) => w !== 'timber_sleeper' && w !== 'concrete_sleeper' && w !== 'steel_post'),
+    ],
+    supply: [...RW_SUPPLY],
+    removes: ['any', ...RW_REMOVES.filter((r) => r !== 'any')],
+    drainage: ['full_package', ...RW_DRAINAGE.filter((d) => d !== 'full_package')],
+    conditions: [...RW_CONDITIONS],
+    extras: [...RW_EXTRAS],
+    /* `groundworks` is deliberately absent, for the reason kitchen leaves out `prep`: whether a
+       site needs an excavator or a shovel, and how deep the footings go, is not something a
+       customer standing in their garden can decide. Asking produces a wrong answer rather than a
+       missing one - it comes off the builder's own site inspection. It stays in the vocabulary
+       because BUSINESSES price it, and `WHAT_TO_SEND` asks them to. */
+  },
 };
 
 /** The same, for the words. Keyed by trade so a second trade brings its own and touches nothing. */
@@ -278,6 +377,7 @@ export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string
   fencing: CUSTOMER_LABEL_GROUPS,
   tiling: TILING_LABEL_GROUPS,
   kitchen: KITCHEN_LABEL_GROUPS,
+  retaining_wall: RW_LABEL_GROUPS,
 };
 
 /** Flattened, for the business-side response. Derived - never edited by hand. */
@@ -321,6 +421,22 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     KITCHEN_LABEL_GROUPS.jobTypes,
     LABEL_GROUPS.units,
   ) as Record<string, string>,
+  /* The same trap once more: `steel_post` and `timber_post` are each a wall system a builder prices
+     per metre AND a thing being pulled out at a price per post. `wallTypes` is assigned LAST
+     because the rate table is most of a builder's screen - a row keyed `steel_post` there has to
+     read "Steel posts with sleepers", not "Steel posts", which is what the same slug means in the
+     removals list one section below it. */
+  retaining_wall: Object.assign(
+    {},
+    RW_LABEL_GROUPS.removes,
+    RW_LABEL_GROUPS.supply,
+    RW_LABEL_GROUPS.drainage,
+    RW_LABEL_GROUPS.groundworks,
+    RW_LABEL_GROUPS.conditions,
+    RW_LABEL_GROUPS.extras,
+    RW_LABEL_GROUPS.wallTypes,
+    LABEL_GROUPS.units,
+  ) as Record<string, string>,
 };
 
 /**
@@ -362,10 +478,28 @@ export const KITCHEN_QUESTIONS: Record<string, string> = {
   extras: 'Anything else in the job?',
 };
 
+export const RW_QUESTIONS: Record<string, string> = {
+  wallType: 'What sort of retaining wall are you after?',
+  /* The question this trade turns on, and the one customers do not know is a question - the two
+     answers are $145 and $285 a metre for the same wall. "Materials" rather than "sleepers"
+     because the answer also covers the posts, the concrete and the drainage gravel. */
+  supply: "Who's buying the materials?",
+  lengthMeters: 'How long is the wall?',
+  /* Height is asked of every caller because the SOP requires it - it decides whether engineering
+     and council approval come into it - even where the builder publishes one rate for every
+     height. "Roughly" and "hold back", because a customer measures the drop they can see rather
+     than the wall that has not been built yet. */
+  heightKey: 'Roughly how high does it need to hold back?',
+  removal: 'Is there an old wall to take out?',
+  drainage: 'Do you want drainage behind it?',
+  conditions: 'Anything tricky about the site?',
+};
+
 export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
   fencing: QUESTIONS,
   tiling: TILING_QUESTIONS,
   kitchen: KITCHEN_QUESTIONS,
+  retaining_wall: RW_QUESTIONS,
 };
 
 /**
@@ -417,6 +551,23 @@ export const TRADE_WORDS: Record<
     article: 'a kitchen',
     tradesperson: 'kitchen fitter',
   },
+  /* `trade` is SINGULAR where every other trade's is a gerund, because this one has no gerund
+     anybody says - "retaining walling" is not a word and "retaining" alone names nothing. Singular
+     rather than plural because every caller puts a noun after it: `askWhichTrade` builds "Are you
+     looking for Fencing, Tiling, Kitchen fitting or Retaining wall services?", and "Retaining walls
+     services" is the version a test caught.
+
+     `tradesperson` is "retaining wall builder" and not "landscaper" deliberately. The SOP is
+     emphatic that a wall is a structural system, not a landscaping product, and the word a customer
+     is given shapes what they think they are buying. `mentions` stays off the bare word `wall` for
+     the same reason `TRADE_KEYWORDS` does - it belongs to tiling as much as to this trade. */
+  retaining_wall: {
+    trade: 'retaining wall',
+    noun: 'retaining wall',
+    mentions: /retaining|sleeper wall/i,
+    article: 'a retaining wall',
+    tradesperson: 'retaining wall builder',
+  },
 };
 
 export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
@@ -447,6 +598,23 @@ export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
     height: 'Nobody near you publishes a price for a kitchen that size. Want to try a different one?',
     material: 'The fitters near you do not install that benchtop yet. Want to try a different one?',
     pricing: 'I found kitchen fitters near you, but none of them have finished setting up their pricing yet.',
+  },
+  /* Same fixed keys, naming the SHAPE of the failure rather than a fence part - and this trade
+     repurposes one of them further than the others do. `material` is the wall system, as it is for
+     kitchen's benchtop. `height` is THE SUPPLY MODEL here, not a height: a wall this trade cannot
+     price at a given height does not exist, because the rate lookup falls back to the dearest band
+     the builder published rather than refusing, so that slot was free. What genuinely blocks a
+     quote instead is a builder who builds the wall but not the way the customer asked - they
+     install customer-supplied materials and do not supply them, or the reverse - and telling that
+     customer "nobody builds that kind of wall" is false as well as unhelpful: the builder does
+     build it, and the answer is one question away. */
+  retaining_wall: {
+    area: 'No retaining wall builder covers that suburb yet. Try a nearby suburb?',
+    removal: 'None of the builders near you take out that kind of old wall. Want to arrange the removal separately?',
+    gate: 'Nobody near you prices that part of the job. Want to try without it?',
+    height: 'The builders near you do that wall, but not with the materials supplied the way you asked. Want to change who buys them?',
+    material: 'The builders near you do not build that kind of wall yet. Want to try a different one?',
+    pricing: 'I found retaining wall builders near you, but none of them have finished setting up their pricing yet.',
   },
 };
 
@@ -624,6 +792,74 @@ export const WHAT_TO_SEND: Record<Trade, { need: string[]; helpful: string[]; ex
       'All prices include GST. Based in Pakenham, we travel 30km.',
       'Minimum installation $450. Site measure $120. Travel outside our area $85.',
       'Variations $95 per hour. Workmanship warranty as per contract.',
+    ].join('\n'),
+  },
+  /* Taken from the blocking rules R1-R9 in prompts/sop/retaining_wall/rules.md, in the same order,
+     for the same reason as the other three: a business reading this and a reviewer judging what
+     they send have to be working from one list, or they get rejected for sending exactly what they
+     were asked for.
+
+     The first two lines carry most of the weight. A builder who publishes one column of per-metre
+     rates and never says which supply model they belong to has given us a number we cannot use -
+     $185 a metre is a bargain with the sleepers included and ordinary without, and there is no way
+     to tell from the figure. The example shows both columns side by side for that reason. */
+  retaining_wall: {
+    need: [
+      'Your rate per linear metre for every wall system you build — timber sleeper, concrete sleeper, steel post, timber post',
+      'Whether you supply the materials, install the customer’s own, or both — and a separate per-metre rate for each model you offer',
+      'Either a rate for each height band you build at, or a line saying one rate covers every height you build',
+      'What you charge for drainage — ag-pipe, gravel, fabric, outlets, or a complete drainage package at one price',
+      'What you charge to remove and dispose of an existing wall, per metre or per post, and the disposal charge',
+      'Excavation, post holes and footings — a figure, an hourly or per-post rate, or a line saying it is quoted after inspection',
+      'Where you stand on engineering and council approval — who arranges it, who pays, and what it costs if you do',
+      'Your minimum charge, any site inspection fee, and any travel charge outside your area',
+      'The suburb or postcode you work out from, how far you travel, and whether your prices include GST',
+    ],
+    helpful: [
+      'What a standard installation includes — set-out, excavation, posts, concreting, sleepers, backfill, clean-up',
+      'What it does not — engineering certificates, soil disposal beyond an allowance, landscaping, fencing on top',
+      'Your prices for caps, steps, corners and returns, and for repairs to an existing wall',
+      'How you handle a job where the customer’s own materials turn up short or wrong, and any return attendance charge',
+      'Your hourly rate for variations, and your workmanship warranty in your own words',
+    ],
+    example: [
+      'INSTALLATION ONLY — you supply the materials, we build it',
+      'Timber sleeper $145 per metre. Timber post $155 per metre.',
+      'Concrete sleeper $185 per metre. Steel post $195 per metre.',
+      '',
+      'SUPPLY AND INSTALL — we supply everything',
+      'Timber sleeper $285 per metre. Premium timber $325 per metre.',
+      'Concrete sleeper $395 per metre. Steel post with concrete sleepers $425 per metre.',
+      'Tiered walls $450 per metre.',
+      'These rates cover every height we build, from 300mm up to 1.5m.',
+      '',
+      'DRAINAGE',
+      'Complete standard drainage package $650.',
+      'Or priced separately: ag-pipe $55 per metre, drainage gravel $85 per metre,',
+      'geotextile fabric $35 per metre, drainage outlet $180 each.',
+      '',
+      'REMOVAL AND DISPOSAL',
+      'Timber wall removal $85 per metre. Concrete sleeper wall removal $125 per metre.',
+      'Steel post removal $95 per post. Timber post removal $75 per post.',
+      'Timber disposal $480. Concrete disposal $650. Soil disposal $720.',
+      '',
+      'GROUNDWORKS',
+      'Manual excavation $95 per hour. Mini excavator $850 per day plus $350 mobilisation.',
+      'Standard post hole $75 per post, difficult ground $125 per post.',
+      'Standard footing $95 per post, heavy duty $145 per post.',
+      'Backfill $75 per metre, compacted $95 per metre. Site clean-up $250.',
+      '',
+      'ENGINEERING AND APPROVALS',
+      'Walls over 1m generally need engineering and a building permit. We arrange the engineering',
+      'from $850; council fees are the customer’s. Excluded unless the quote says otherwise.',
+      '',
+      'EXTRAS',
+      'Timber cap $65 per metre. Concrete cap $95 per metre. Decorative cap $125 per metre.',
+      'Steps $450 each. Standard corner $180. Return $220. Fence post interface $180 per section.',
+      '',
+      'All prices include GST. Based in Berwick, we travel 30km.',
+      'Minimum installation $650. Site inspection $150. Travel outside our area $95.',
+      'Variations $110 per hour. Ten year workmanship warranty.',
     ].join('\n'),
   },
 };

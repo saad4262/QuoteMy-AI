@@ -1,8 +1,15 @@
-import type { AnyExtraction, Extraction, KitchenExtraction, TilingExtraction } from '../schemas.js';
+import type {
+  AnyExtraction,
+  Extraction,
+  KitchenExtraction,
+  RetainingWallExtraction,
+  TilingExtraction,
+} from '../schemas.js';
 import type { Trade } from '../vocab.js';
 import { verifyFencing, type VerifiedResult as FencingResult } from './fencing.js';
 import { verifyTiling, type TilingVerifiedResult } from './tiling.js';
 import { verifyKitchen, type KitchenVerifiedResult } from './kitchen.js';
+import { verifyRetainingWall, type RetainingWallVerifiedResult } from './retainingWall.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './fencing.js';
 import type {
   TilingVerifiedCapabilities,
@@ -14,6 +21,11 @@ import type {
   KitchenVerifiedOffering,
   KitchenVerifiedPricing,
 } from './kitchen.js';
+import type {
+  RetainingWallVerifiedCapabilities,
+  RetainingWallVerifiedOffering,
+  RetainingWallVerifiedPricing,
+} from './retainingWall.js';
 
 /**
  * Verification, by trade.
@@ -46,6 +58,8 @@ export function verifyExtraction(
       return verifyTiling(x as TilingExtraction, sourceText, trade, knownSlugs);
     case 'kitchen':
       return verifyKitchen(x as KitchenExtraction, sourceText, trade, knownSlugs);
+    case 'retaining_wall':
+      return verifyRetainingWall(x as RetainingWallExtraction, sourceText, trade, knownSlugs);
   }
 }
 
@@ -57,18 +71,39 @@ export function verifyExtraction(
  * narrows on `trade` first - `isFencingPricing` and `isTilingPricing` below are the honest way to
  * do that at a boundary where the value came out of Firestore.
  */
-export type AnyVerifiedPricing = VerifiedPricing | TilingVerifiedPricing | KitchenVerifiedPricing;
-export type AnyVerifiedCapabilities = VerifiedCapabilities | TilingVerifiedCapabilities | KitchenVerifiedCapabilities;
-export type AnyVerifiedOffering = VerifiedOffering | TilingVerifiedOffering | KitchenVerifiedOffering;
-export type VerifiedResult = FencingResult | TilingVerifiedResult | KitchenVerifiedResult;
+export type AnyVerifiedPricing =
+  | VerifiedPricing
+  | TilingVerifiedPricing
+  | KitchenVerifiedPricing
+  | RetainingWallVerifiedPricing;
+export type AnyVerifiedCapabilities =
+  | VerifiedCapabilities
+  | TilingVerifiedCapabilities
+  | KitchenVerifiedCapabilities
+  | RetainingWallVerifiedCapabilities;
+export type AnyVerifiedOffering =
+  | VerifiedOffering
+  | TilingVerifiedOffering
+  | KitchenVerifiedOffering
+  | RetainingWallVerifiedOffering;
+export type VerifiedResult =
+  | FencingResult
+  | TilingVerifiedResult
+  | KitchenVerifiedResult
+  | RetainingWallVerifiedResult;
 
 /**
  * Which shape this is, decided by a field only one of them has.
  *
- * Keyed on `enabledMaterials` / `enabledJobTypes` / `enabledKitchenSizes` rather than on a stored
- * `trade` field, because
+ * Keyed on `enabledMaterials` / `enabledJobTypes` / `enabledKitchenSizes` / `enabledWallTypes`
+ * rather than on a stored `trade` field, because
  * these are read back out of Firestore where a document can be older than the code. A missing
  * discriminant would silently pick a branch; a missing list cannot.
+ *
+ * The names have to stay DISTINCT, and retaining wall is where that nearly went wrong: a wall is
+ * built of timber or concrete and `enabledMaterials` was the obvious name for its list, which would
+ * have made every retaining wall document answer true to `isFencingPricing` and be priced as a
+ * fence. `tests/unit/verifyRetainingWall.test.ts` asserts the negative for exactly that reason.
  */
 export const isFencingPricing = (p: AnyVerifiedPricing): p is VerifiedPricing =>
   Array.isArray((p as VerifiedPricing).enabledMaterials);
@@ -78,6 +113,9 @@ export const isTilingPricing = (p: AnyVerifiedPricing): p is TilingVerifiedPrici
 
 export const isKitchenPricing = (p: AnyVerifiedPricing): p is KitchenVerifiedPricing =>
   Array.isArray((p as KitchenVerifiedPricing).enabledKitchenSizes);
+
+export const isRetainingWallPricing = (p: AnyVerifiedPricing): p is RetainingWallVerifiedPricing =>
+  Array.isArray((p as RetainingWallVerifiedPricing).enabledWallTypes);
 
 export type {
   VerifiedCapabilities,
@@ -101,3 +139,11 @@ export type {
   KitchenVerifiedPricing,
   KitchenVerifiedResult,
 } from './kitchen.js';
+
+export type {
+  RwRate,
+  RetainingWallVerifiedCapabilities,
+  RetainingWallVerifiedOffering,
+  RetainingWallVerifiedPricing,
+  RetainingWallVerifiedResult,
+} from './retainingWall.js';

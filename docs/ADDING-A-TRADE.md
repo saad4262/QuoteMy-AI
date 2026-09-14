@@ -32,13 +32,22 @@ grep -n  "Record<$" app/src/messages.ts   # TRADE_WORDS wraps, so the grep above
 Three questions settle most of the work. Answer them from the trade's real price lists, not from
 what would be tidy.
 
-| | Fencing | Tiling | Kitchen |
-|---|---|---|---|
-| What is the job measured in? | linear metres | square metres | **nothing — one price for the job** |
-| Which two answers find a rate? | material × height | job type × tile type | job type × kitchen size |
-| Do the businesses sell materials too? | **no** — one combined rate | **yes** — fitting and tile supply are separate | **yes** — cabinetry packages |
+| | Fencing | Tiling | Kitchen | Retaining wall |
+|---|---|---|---|---|
+| What is the job measured in? | linear metres | square metres | **nothing — one price for the job** | linear metres |
+| Which two answers find a rate? | material × height | job type × tile type | job type × kitchen size | **supply model × wall system** |
+| Do the businesses sell materials too? | **no** — one combined rate | **yes** — fitting and tile supply are separate | **yes** — cabinetry packages | **yes — as a second complete rate** |
 
-If the answer to the third is **yes**, you are copying tiling. See §7.
+If the answer to the third is **yes**, you are probably copying tiling. See §7 — **and read the
+retaining wall column before you do**, because "yes" has two shapes and only one of them is
+tiling's.
+
+A tiler publishes one labour rate and a tile price per m² to add on top. A retaining wall builder
+publishes the **same wall twice**: timber sleepers are $145 a metre with the customer's own
+materials and $285 a metre with theirs. So `supply` there is a rate KEY, not an add-on branch, and
+copying tiling would have added the sleepers to a rate that already contained them. The question to
+ask of a real price list is not *"do they sell materials?"* but *"is the material price published
+separately, or is it already inside a second rate?"*
 
 Fill this row in before writing a line of code. All three answers propagate into `vocab.ts`,
 `fieldSpec.ts` and `pricing/spec.ts`, and changing one afterwards means changing the vocabulary,
@@ -495,8 +504,12 @@ Nothing else in `retell/` changes. See [`retell/README.md`](../retell/README.md)
 □  3  prompts/            sop/{trade}/rules.md, extraction.{trade}.md, chat/{trade}.md → prompts.ts
 □  4  schemas.ts          TRADE_EXTRACTION — every number carrying its source sentence
 □  5  verify/{trade}.ts   three gates + the switch in verify/index.ts
+⚠  5a verify/index.ts     a discriminant name NO other trade has — see below
 □  6  fieldSpec.ts        TRADE_FIELDS — the order is the order the questions are asked
 □  7  pricing/spec.ts     TRADE_PRICING  (+ pricing/{trade}.ts only if the sum genuinely differs)
+⚠  7a priceAndRank.ts     the arm beside `if (schema.trade === 'tiling')` — a string comparison,
+                          not a switch, so a missing arm falls through and prices it as a fence.
+                          Check the SECOND one at the "nearest options" fallback too
 ⚠  8  routeTrade.ts       TRADE_KEYWORDS — check the overlap by hand
 ⚠  9  fieldSpec docHints  how a PDF is read. When in doubt, leave it out
 ⚠ 10  askAbout.ts         TRADE_GUIDANCE
@@ -505,6 +518,24 @@ Nothing else in `retell/` changes. See [`retell/README.md`](../retell/README.md)
 ⚠ 12a ai.ts MockAiClient  review{Trade} + extraction{Trade} + the arm that picks them
 ⚠ 12b business.test.ts    a fixture, a SUBMISSIONS row, a FIXTURES_PER_TRADE count — then READ it
 ⚠ 13  retell/agent.json   boosted_keywords, appended as their own block
+⚠ 13a voice/matchSpoken   the `FILLER` set — a plain Set, so the compiler never asks. Add the
+                          trade's bare NOUN and nothing else: a word that is also an answer
+                          silently swallows a second answer
 ```
 
 `□` the compiler will ask for. `⚠` it will not.
+
+### 5a — the discriminant, which retaining wall nearly got wrong
+
+`verify/index.ts` narrows on a field only one shape has: `enabledMaterials`, `enabledJobTypes`,
+`enabledKitchenSizes`, `enabledWallTypes`. **Those names have to stay distinct.** A retaining wall
+is built of timber or concrete, so `enabledMaterials` was the obvious name for its list — and every
+retaining wall document carrying it would have answered true to `isFencingPricing` and been priced
+per metre of fence, on the way back out of Firestore where nothing would have said so.
+
+Assert the negative in your verifier's test:
+
+```ts
+expect(isRetainingWallPricing(pricing)).toBe(true);
+expect(isFencingPricing(pricing)).toBe(false);
+```

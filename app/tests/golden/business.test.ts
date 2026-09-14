@@ -78,6 +78,18 @@ const SUBMISSIONS: Submission[] = [
     trade: 'kitchen',
     why: 'the trade with no unit to measure - per-job prices keyed by size and per-item cabinet prices surviving in one table, the four cabinet types kept apart by their labels rather than collapsed into one rate priced four times, and no fencing or tiling field anywhere in the response',
   },
+  {
+    name: '06 a complete retaining wall price list, approved and extracted',
+    file: 'description-COMPLETE-retaining-wall.txt',
+    trade: 'retaining_wall',
+    why: 'the trade that publishes the SAME WALL TWICE - nine rates split across two supply columns, each one keeping the column it was written under, so a $145 installation rate and a $285 supply-and-install rate for the same timber sleeper wall survive as two rates and not as one priced twice. Also the per-hour and per-post groundworks staying OUT of the quotable rates, and enabledWallTypes rather than enabledMaterials, which is what stops the whole document being read back as a fence',
+  },
+  {
+    name: '07 impressive, detailed, and almost none of it quotable',
+    file: 'description-THIN-retaining-wall.txt',
+    trade: 'retaining_wall',
+    why: 'ranges, POA and "from" on core rates are all caught, while "from $850" on an engineering certificate and "from $150" on a site inspection are NOT - that is rule 4a, the carve-out fencing\'s gate motor already produced one false rejection over. Also the supply rule: this business says it can do either model and prices neither of them separately, which is the failure that reads as thorough and quotes nobody',
+  },
 ];
 
 /**
@@ -91,6 +103,10 @@ const FIXTURES_PER_TRADE: Record<Trade, number> = {
   fencing: 3,
   tiling: 1,
   kitchen: 1,
+  /* Two, and the rejected one is the point. This trade's characteristic failure is a price list
+     that reads as thorough and cannot quote anybody - per-metre rates with no supply model against
+     them - and only a fixture that gets REJECTED proves the reviewer catches it. */
+  retaining_wall: 2,
 };
 
 /**

@@ -46,6 +46,7 @@ const tradeRules: Record<Trade, string> = {
   fencing: read('sop', 'fencing', 'rules.md'),
   tiling: read('sop', 'tiling', 'rules.md'),
   kitchen: read('sop', 'kitchen', 'rules.md'),
+  retaining_wall: read('sop', 'retaining_wall', 'rules.md'),
 };
 
 /**
@@ -57,6 +58,7 @@ const tradeChat: Record<Trade, string> = {
   fencing: read('chat', 'fencing.md'),
   tiling: read('chat', 'tiling.md'),
   kitchen: read('chat', 'kitchen.md'),
+  retaining_wall: read('chat', 'retaining_wall.md'),
 };
 
 export function chatPrompt(trade: Trade): string {
@@ -67,6 +69,7 @@ const tradeExtraction: Record<Trade, string> = {
   fencing: read('extraction.fencing.md'),
   tiling: read('extraction.tiling.md'),
   kitchen: read('extraction.kitchen.md'),
+  retaining_wall: read('extraction.retaining_wall.md'),
 };
 
 /** Rough, deliberately pessimistic: ~3.6 chars per token for English prose. */

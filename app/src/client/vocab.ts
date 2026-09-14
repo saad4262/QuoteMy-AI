@@ -22,6 +22,17 @@ export const QUANTITIES = [1, 2, 3, 4, 5, 6] as const;
 export const HEIGHT_FALLBACK = ['1.2m', '1.5m', '1.8m', '2.1m', '0.9m', '1.35m', '2.4m'] as const;
 
 /**
+ * The same, for retaining walls, and a different list rather than a shared one because the two
+ * trades barely overlap: a fence starts at 0.9m and a retaining wall's commonest job is a 0.6m
+ * garden bed. Taken from the heights the trade's own SOP lists as common projects.
+ *
+ * Ordered by how often a domestic job lands on them, not by size - three are shown at a time, and
+ * 600, 900 and 1200 are most of the work. 1.5m goes last because a wall that high is almost always
+ * an engineered job the builder will want to look at before quoting anything.
+ */
+export const RW_HEIGHT_FALLBACK = ['0.6m', '0.9m', '1.2m', '0.3m', '0.45m', '0.75m', '1m', '1.5m'] as const;
+
+/**
  * The field a customer's answer fills.
  *
  * A plain string as of step 9: which keys exist is the trade's business, published in its schema

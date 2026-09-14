@@ -709,3 +709,112 @@ describe('kitchen: the benchtop gate', () => {
     expect(kitchen('Benchtop not included - by others').benchtop).toBe('none');
   });
 });
+
+/**
+ * Retaining wall's hints, and the readings that cost the most when they go wrong.
+ *
+ * Two of this trade's fields are deliberately NOT read off a document at all - `drainage`, because
+ * a price list naming ag-pipe is saying what the BUILDER sells rather than what this wall needs,
+ * and `heightKey`, which is read but refuses more shapes than it accepts. When in doubt, leave it
+ * out: a field left empty gets asked, a field filled wrongly gets quoted.
+ */
+const wall = (text: string) => readFor('retaining_wall', text).docFacts;
+
+describe('retaining wall: who is buying the materials', () => {
+  /* The most expensive read in this trade, as the cabinets are in kitchen's. The gap between the
+     two answers on a 20 metre concrete sleeper wall is $4,200, so `labour_only` is ordered first
+     for exactly the sentence below. */
+  it("reads a supply-and-install sentence about the CUSTOMER'S materials as labour only", () => {
+    expect(wall("Supply and install using the client's own sleepers").supply).toBe('labour_only');
+    expect(wall('Installation only - customer-supplied materials').supply).toBe('labour_only');
+    expect(wall('Materials by others').supply).toBe('labour_only');
+    expect(wall('Excludes materials').supply).toBe('labour_only');
+  });
+
+  it('reads a genuine supply-and-install sentence as one', () => {
+    expect(wall('Concrete sleeper supply and install $395 per linear metre').supply).toBe('supply_and_install');
+    expect(wall('We supply the sleepers, posts and drainage').supply).toBe('supply_and_install');
+    expect(wall('All-inclusive retaining wall construction').supply).toBe('supply_and_install');
+  });
+
+  it('says nothing when the page does not, so the customer is asked', () => {
+    expect(wall('Concrete sleeper installation $185 per linear metre').supply).toBeUndefined();
+  });
+});
+
+describe('retaining wall: which system, when a line names two', () => {
+  it('reads the plain ones', () => {
+    expect(wall('Timber sleeper installation $145 per linear metre').wallType).toBe('timber_sleeper');
+    expect(wall('Concrete sleeper supply and install').wallType).toBe('concrete_sleeper');
+    expect(wall('Merbau sleeper retaining wall').wallType).toBe('premium_timber');
+  });
+
+  /* A line naming two systems goes to the one the price is actually for. Getting it wrong does not
+     merely mislabel a rate: these lists price plain concrete sleepers as well, so the mis-filed
+     rate collides with one already read and a figure is lost with nothing said. */
+  it('files a line naming two systems under the post system, or under tiered', () => {
+    expect(wall('Steel post with concrete sleepers supply and install $425/m').wallType).toBe('steel_post');
+    expect(wall('Tiered concrete sleeper wall $450 per linear metre').wallType).toBe('tiered');
+  });
+});
+
+describe('retaining wall: what is coming out, which is not what is going in', () => {
+  /* The clause boundary, not a character distance. Tiling's comment records a 25-character window
+     failing because `existing` sat 23 characters from `porcelain`; here the two halves of the
+     sentence are a whole new wall apart. */
+  it('reads the OLD wall from a sentence that also names the new one', () => {
+    expect(wall('Remove the existing timber wall, then build concrete sleepers').removal).toBe('timber_wall');
+    expect(wall('Concrete sleeper wall removal $125 per linear metre').removal).toBe('concrete_sleeper_wall');
+  });
+
+  it('falls back to the wildcard when the page does not say what it is made of', () => {
+    expect(wall('Removal and disposal of the existing retaining wall').removal).toBe('any');
+  });
+
+  it('does not price a demolition nobody asked for', () => {
+    expect(wall('No removal of the existing wall').removal).toBeUndefined();
+    /* Silence stays silence: a quote that never mentions an old wall has not said there is none,
+       so the customer is still asked. */
+    expect(wall('Concrete sleeper supply and install $395 per linear metre').removal).toBeUndefined();
+  });
+});
+
+describe('retaining wall: the height, which refuses more than it accepts', () => {
+  it('reads millimetres, which is how this trade writes a height', () => {
+    /* Millimetres are tried FIRST here and not in fencing, because every published band in this
+       trade - 300, 450, 600, 750, 900, 1200, 1500 - is also a plausible metre figure. */
+    expect(wall('Wall height 900mm').heightMm).toBe(900);
+    expect(wall('1200mm high concrete sleeper wall').heightMm).toBe(1200);
+  });
+
+  it('refuses a range, because the midpoint and both ends are three inventions', () => {
+    expect(wall('Wall height 600 to 900mm').heightMm).toBeUndefined();
+    expect(wall('Between 900 and 1200mm high').heightMm).toBeUndefined();
+  });
+
+  /* A drop measured across a block is not the height of the wall that will be built on it - it
+     might be one 2m wall, or two 1m walls tiered. Real information, and not this answer. */
+  it('refuses a slope described across the block', () => {
+    expect(wall('The block falls about 2 metres across the yard').heightMm).toBeUndefined();
+    expect(wall('Site slopes 1.5m from front to back').heightMm).toBeUndefined();
+  });
+});
+
+describe('retaining wall: the two fields a document may never fill', () => {
+  /* `drainage` has no hints at all, deliberately. A price list naming ag-pipe and gravel is saying
+     what the BUILDER sells, not what this customer's wall needs, and reading it would put a $650
+     package into a quote nobody asked for. */
+  it('never reads drainage off a page, however plainly it is priced', () => {
+    expect(wall('Complete standard drainage package $650').drainage).toBeUndefined();
+    expect(wall('Ag-pipe installation $55 per linear metre').drainage).toBeUndefined();
+  });
+
+  it('does not read a length out of the other per-metre figures on the page', () => {
+    /* This trade's documents are full of metre figures that are not the wall: $55 a metre of
+       ag-pipe, $85 of gravel, $125 of removal. The length hint is tied to the trade's own nouns
+       for that reason. */
+    expect(wall('Ag-pipe installation $55 per linear metre').lengthMeters).toBeUndefined();
+    expect(wall('Drainage gravel $85 per linear metre').lengthMeters).toBeUndefined();
+    expect(wall('20 metre concrete sleeper retaining wall').lengthMeters).toBe(20);
+  });
+});

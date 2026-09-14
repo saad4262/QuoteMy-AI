@@ -479,8 +479,17 @@ export class MockAiClient implements AiClient {
   async callStructured<T>(call: ModelCall<T>): Promise<ModelResult<T>> {
     const text = call.user;
     /* `wrapDescription` puts "Trade: x" at the top of every business-side call, so the mock can
-       tell which shape it is being asked for without the model API growing a field for it. */
-    const trade: Trade = /^Trade:\s*tiling\b/im.test(text) ? 'tiling' : /^Trade:\s*kitchen\b/im.test(text) ? 'kitchen' : 'fencing';
+       tell which shape it is being asked for without the model API growing a field for it.
+       A table rather than a chain of ternaries, because fencing is the FALL-THROUGH: a trade whose
+       pattern is missing here is not an error, it is silently reviewed and extracted in fencing's
+       shape, `call.schema.parse` throws somewhere else, and nothing says why. This is the one place
+       in the repo where adding a trade is not a compile error. */
+    const SNIFF: [RegExp, Trade][] = [
+      [/^Trade:\s*tiling\b/im, 'tiling'],
+      [/^Trade:\s*kitchen\b/im, 'kitchen'],
+      [/^Trade:\s*retaining_wall\b/im, 'retaining_wall'],
+    ];
+    const trade: Trade = SNIFF.find(([re]) => re.test(text))?.[1] ?? 'fencing';
     const rates = readRates(text);
 
     let data: unknown;
@@ -490,12 +499,18 @@ export class MockAiClient implements AiClient {
       data = this.transcribe(call.files ?? [], /NOTHING WRITTEN TO COPY/.test(call.system));
     }
     else if (call.name === 'review') {
-      data = trade === 'tiling' ? this.reviewTiling(text) : trade === 'kitchen' ? this.reviewKitchen(text) : this.review(text, rates);
+      if (trade === 'tiling') data = this.reviewTiling(text);
+      else if (trade === 'kitchen') data = this.reviewKitchen(text);
+      else if (trade === 'retaining_wall') data = this.reviewRetainingWall(text);
+      else data = this.review(text, rates);
     }
     else if (call.name === 'turn') data = this.turn(text);
     else if (call.name === 'answer') data = this.answer();
     else {
-      data = trade === 'tiling' ? this.extractionTiling(text) : trade === 'kitchen' ? this.extractionKitchen(text) : this.extraction(text, rates);
+      if (trade === 'tiling') data = this.extractionTiling(text);
+      else if (trade === 'kitchen') data = this.extractionKitchen(text);
+      else if (trade === 'retaining_wall') data = this.extractionRetainingWall(text);
+      else data = this.extraction(text, rates);
     }
 
     const usage = {
@@ -909,6 +924,352 @@ export class MockAiClient implements AiClient {
       otherOfferings: [],
       couldNotUse: [
         'Read by the offline mock reader - preparation, extras and other offerings are not extracted in mock mode.',
+      ],
+    };
+  }
+
+  /**
+   * Retaining wall, as far as a regex can see it, in the same crude spirit as the three above.
+   *
+   * The blocking list is R1-R9 from `sop/retaining_wall/rules.md`, in the same order, so an offline
+   * run and a real one are at least asking the same questions.
+   *
+   * R2 is the one this mock has to get right, because it is the one the real reviewer has to get
+   * right: a page of per-metre rates with no supply model attached to any of them reads as thorough
+   * and cannot quote a single customer. A test for the WORDS is not enough - "installation" appears
+   * in every one of these documents - so what is checked is whether a rate line can be found under
+   * each model that is claimed.
+   */
+  private reviewRetainingWall(text: string) {
+    const stated = (re: RegExp) => re.test(text);
+    const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
+
+    // R1. The one figure without which there is nothing to assess: a wall priced per linear metre.
+    const perMetre = [...text.matchAll(/\$\s?[0-9,]+\s*(?:per\s*(?:linear\s*|lineal\s*)?met(?:re|er)|\/\s*(?:l?m)\b)/gi)];
+    if (!perMetre.length) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Add what you charge per linear metre for each wall system you build.',
+        example: 'Concrete sleeper installation $185 per linear metre',
+      });
+    }
+
+    /* R2. Both halves, and each only demanded of a business that claims it. A builder who says they
+       install customer-supplied materials and prices that is complete; one who says they supply as
+       well and never priced it has published half a price list. */
+    const claimsInstall = stated(/installation only|labour only|customer.{0,25}(?:supplie|suppl|own|buys)|you supply/i);
+    const claimsSupply = stated(/supply\s*(?:and|&|\+)\s*install|we supply|materials? included/i);
+    if (!claimsInstall && !claimsSupply) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Say whether you supply the materials, install what the customer buys, or both - and give a rate per metre for each one you do.',
+        example: 'Timber sleeper installation $145/m. Timber supply and install $285/m.',
+      });
+    } else if (claimsSupply && !stated(/supply\s*(?:and|&|\+)\s*install\w*[^\n$]{0,60}\$|\$\s?[0-9,]+[^\n]{0,60}suppl/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'You supply materials as well, but there is no supply-and-install rate per metre - add one and we can quote that half of your work.',
+        example: 'Concrete sleeper supply and install $395 per linear metre',
+      });
+    }
+
+    // R3. A band table OR one line saying a single rate covers every height. Both are complete.
+    if (!stated(/\b\d{3,4}\s*mm\b|\b[01]\.\d\s*m\b|any height|every height|all heights|up to [\d.]+\s*m/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Say what heights your rates cover - either a price per height band, or one line saying a single rate covers every height you build.',
+        example: 'These rates cover every height we build, up to 1.2m',
+      });
+    }
+    // R4.
+    if (!stated(/drainage|ag.?pipe|aggi|geotextile|gravel/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge for drainage behind the wall, or say you do not do it.', example: 'Complete standard drainage package $650' });
+    }
+    // R5.
+    if (!stated(/removal|remove|demolition|dispos/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge to take out and dispose of an existing wall, or say you do not do it.', example: 'Concrete sleeper wall removal $125 per linear metre' });
+    }
+    // R6. An hourly or per-post figure is a complete answer here, and so is "quoted on inspection".
+    if (!stated(/excavat|post hole|footing|quoted (?:after|on)\b/i)) {
+      fixes.push({ kind: 'missing', what: 'Say what you charge for excavation, post holes and footings, or that they are quoted after inspection.', example: 'Manual excavation $95 per hour. Standard post hole $75 per post.' });
+    }
+    // R7. The rule this trade has and no other does.
+    if (!stated(/engineer|permit|council|approval|certif/i)) {
+      fixes.push({ kind: 'missing', what: 'Say where you stand on engineering and council approval - who arranges it, who pays, and what you charge if you do.', example: 'Walls over 1m need engineering; we arrange it from $850, council fees are the customer’s' });
+    }
+    // R8.
+    if (!stated(/minimum/i)) {
+      fixes.push({ kind: 'missing', what: 'Add the smallest job you will take on and what you charge for it.', example: 'Minimum installation charge $650' });
+    }
+    // R9, both halves on one line because they are one fix to make.
+    const missingArea = !stated(/\b\d+\s*km\b/i);
+    const missingGst = !stated(/gst/i);
+    if (missingArea || missingGst) {
+      fixes.push({
+        kind: 'missing',
+        what: missingArea && missingGst
+          ? 'Say where you work out of, how far you travel, and whether your prices include GST.'
+          : missingArea
+            ? 'Say where you work out of and how far you travel.'
+            : 'Say whether your prices include GST.',
+        example: 'Based in Berwick, we travel 30km. All prices include GST.',
+      });
+    }
+
+    /* Ranges and POA, and the carve-out that goes with them. A "from" price sitting on engineering,
+       a site inspection or any other add-on is fine and must not be reported - that is rule 4a, and
+       the false rejection it exists to prevent has already happened once on a gate motor. So the
+       test looks for a vague figure that is NOT on one of those lines. */
+    const vague = [...text.matchAll(/[^\n.]*(?:\bpoa\b|call (?:us|for pricing)|from \$\d|\$\d[\d,]*\s*(?:to|-|–)\s*\$?\d)[^\n.]*/gi)];
+    const vagueCore = vague.filter(
+      (m) => !/engineer|permit|council|certif|inspection|callout|call.?out|deliver|procurement|variation|repair|excavat/i.test(m[0]),
+    );
+    if (vagueCore.length) {
+      fixes.push({ kind: 'unclear', what: 'Give one firm price per metre for each wall system - some of what you sent is a range or a "call us".', example: null });
+    }
+
+    return {
+      outcome: perMetre.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      fixes: perMetre.length ? fixes.slice(0, 5) : [],
+      alsoWorthAdding: [],
+    };
+  }
+
+  /**
+   * Retaining wall rates, read off the page. What this one has to get right that none of the others
+   * do is WHICH COLUMN a rate came from: the same wall is listed twice, at $145 and $285, and a
+   * reader that loses the heading hands the verifier two prices for one thing and keeps the wrong
+   * one. So the supply model is tracked as a heading that carries DOWN the page, and a rate found
+   * before any heading - or under a line that names neither model - is dropped rather than guessed.
+   */
+  private extractionRetainingWall(text: string) {
+    const gstLine = sentenceWith(text, /gst/i);
+    const radiusLine = sentenceWith(text, /\b\d+\s*km\b/i);
+
+    const money = (line: string) => Number(/\$\s?([0-9,]+)/.exec(line)?.[1]?.replace(/,/g, '') ?? 0) || null;
+
+    /**
+     * The price that FOLLOWS a name, not the line's first dollar sign.
+     *
+     * Kitchen needed this for fees on one line and this trade needs it for everything, because a
+     * drainage list is routinely written as one wrapped sentence: "ag-pipe $55 per metre, drainage
+     * gravel $85 per metre, geotextile fabric $35 per metre". Split on the wrap, the line-first
+     * reading gave geotextile the gravel's $85 and lost the gravel entirely - the same shape of bug
+     * the kitchen fixture produced, caught the same way, by reading the snapshot.
+     */
+    const moneyAfter = (line: string, re: RegExp): number | null => {
+      const at = re.exec(line);
+      return money(at ? line.slice(at.index) : line);
+    };
+
+    const fee = (re: RegExp): [number | null, string | null] => {
+      const line = sentenceWith(text, re);
+      if (!line) return [null, null];
+      return [moneyAfter(line, re), line];
+    };
+
+    const [minimumCharge, minLine] = fee(/minimum/i);
+    const [siteInspectionFee, inspectionLine] = fee(/site inspection/i);
+    /* Not a bare /travel/: "Based in Berwick, we travel 30km" says the word first and carries no
+       dollar sign, so the fee came back null on a document that plainly states one. */
+    const [travelFee, travelLine] = fee(/travel (?:fee|outside|charge)/i);
+
+    /* Order matters, and all three of these were found by reading a snapshot rather than by
+       reasoning. `tiered` first, because "tiered concrete sleeper wall" is a tiered wall and reading
+       it as concrete loses the only rate naming the shape of the job. `steel_post` BEFORE
+       `concrete_sleeper`, because "Steel post with concrete sleepers supply and install $425" names
+       both systems - read as concrete it collided with the $395 concrete rate already seen and the
+       $425 was dropped as a duplicate, silently. Premium before plain timber, so merbau does not
+       land on the pine everyone defaults to. */
+    const WALLS: [RegExp, string][] = [
+      [/tiered|terraced/i, 'tiered'],
+      [/premium timber|hardwood|merbau|jarrah/i, 'premium_timber'],
+      [/steel post|steel \+|steel and/i, 'steel_post'],
+      [/concrete sleeper|besser/i, 'concrete_sleeper'],
+      [/timber post/i, 'timber_post'],
+      [/timber|pine sleeper/i, 'timber_sleeper'],
+    ];
+    const DRAINAGE: [RegExp, string][] = [
+      [/drainage package|complete (?:standard )?drainage/i, 'full_package'],
+      [/ag.?pipe|aggi/i, 'ag_pipe'],
+      [/drainage gravel/i, 'drainage_gravel'],
+      [/geotextile|filter fabric/i, 'geotextile_fabric'],
+      [/drainage outlet/i, 'drainage_outlet'],
+    ];
+    const REMOVES: [RegExp, string][] = [
+      [/concrete (?:sleeper )?wall removal/i, 'concrete_sleeper_wall'],
+      [/steel post removal/i, 'steel_post'],
+      [/timber post removal/i, 'timber_post'],
+      [/timber (?:retaining )?wall removal/i, 'timber_wall'],
+    ];
+    const GROUNDWORKS: [RegExp, string][] = [
+      [/post hole/i, 'post_holes'],
+      [/footing/i, 'footings'],
+      [/compacted backfill/i, 'compacted_backfill'],
+      [/backfill/i, 'backfill'],
+      [/soil disposal|soil removal/i, 'soil_removal'],
+      [/clean.?up/i, 'site_cleanup'],
+      [/excavat|excavator/i, 'excavation'],
+    ];
+
+    const rates: unknown[] = [];
+    const drainage: unknown[] = [];
+    const removals: unknown[] = [];
+    const groundworks: unknown[] = [];
+    const seen = new Set<string>();
+
+    /* The heading that carries down the page. Null until the document says which column it is in,
+       and a rate found while it is null is dropped - see the class comment. */
+    let supply: string | null = null;
+
+    for (const raw of text.split(/\n|(?<=\.)\s+(?=[A-Z])/)) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      /* A heading is a line that names a model and carries no price of its own. A line with BOTH -
+         "Concrete sleeper supply + installation: $395 per linear metre" - is a rate, and the model
+         is read off that same line below rather than latched here. */
+      const hasPrice = /\$\s?([0-9,]+)/.test(line);
+      const namesSupply = /supply\s*(?:and|&|\+)\s*install|supply\s*\+|we supply|materials? included/i.test(line)
+        ? 'supply_and_install'
+        : /installation only|install only|labour only|customer.{0,25}(?:supplie|suppl|own)|you supply/i.test(line)
+          ? 'labour_only'
+          : null;
+      if (namesSupply && !hasPrice) {
+        supply = namesSupply;
+        continue;
+      }
+      if (!hasPrice) continue;
+      const price = money(line);
+      if (!price) continue;
+
+      const removeHit = REMOVES.find(([re]) => re.test(line));
+      if (removeHit) {
+        const removes = removeHit[1];
+        if (seen.has('rm' + removes)) continue;
+        seen.add('rm' + removes);
+        removals.push({
+          removes,
+          price: moneyAfter(line, removeHit[0]) ?? price,
+          unit: /per post|\/post|each/i.test(line) ? 'per_item' : /per\s*(?:linear\s*)?met|\/\s*l?m\b/i.test(line) ? 'per_metre' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      const drainHit = DRAINAGE.find(([re]) => re.test(line));
+      if (drainHit) {
+        const drain = drainHit[1];
+        if (seen.has('dr' + drain)) continue;
+        seen.add('dr' + drain);
+        drainage.push({
+          type: drain,
+          price: moneyAfter(line, drainHit[0]) ?? price,
+          unit: /per\s*(?:linear\s*)?met|\/\s*l?m\b/i.test(line) ? 'per_metre' : /each/i.test(line) ? 'per_item' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      const groundHit = GROUNDWORKS.find(([re]) => re.test(line));
+      if (groundHit) {
+        const ground = groundHit[1];
+        if (seen.has('gw' + ground)) continue;
+        seen.add('gw' + ground);
+        groundworks.push({
+          type: ground,
+          price: moneyAfter(line, groundHit[0]) ?? price,
+          unit: /per hour|\/hr|hourly/i.test(line)
+            ? 'per_hour'
+            : /per day|\/day/i.test(line)
+              ? 'per_day'
+              : /per post|each/i.test(line)
+                ? 'per_item'
+                : /per\s*(?:linear\s*)?met|\/\s*l?m\b/i.test(line)
+                  ? 'per_metre'
+                  : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      // A core rate: a wall system at a price per linear metre.
+      if (!/per\s*(?:linear\s*|lineal\s*)?met(?:re|er)|\/\s*l?m\b/i.test(line)) continue;
+      const wallType = WALLS.find(([re]) => re.test(line))?.[1];
+      if (!wallType) continue;
+
+      const onLine = /supply\s*(?:and|&|\+)\s*install|supply\s*\+|materials? included/i.test(line)
+        ? 'supply_and_install'
+        : /installation only|install only|labour only/i.test(line)
+          ? 'labour_only'
+          : null;
+      const model = onLine ?? supply;
+      /* The drop this mock exists to reproduce. A rate whose column was never stated is not a rate
+         we can use, and guessing is worth $140 a metre in whichever direction it goes wrong. */
+      if (!model) continue;
+
+      const mm = /(\d{3,4})\s*mm\b/.exec(line);
+      const heightM = mm ? Number(mm[1]) / 1000 : null;
+      const key = 'rt' + model + wallType + (heightM ?? '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rates.push({ wallType, supply: model, heightM, pricePerMetre: price, sourceQuote: line });
+    }
+
+    const supplyModels: string[] = [];
+    if (/supply\s*(?:and|&|\+)\s*install|we supply|materials? included/i.test(text)) supplyModels.push('supply_and_install');
+    if (/installation only|install only|labour only|customer.{0,25}(?:supplie|suppl|own|buys)/i.test(text)) supplyModels.push('labour_only');
+
+    const warrantyLine = sentenceWith(text, /warrant/i);
+    /* A SECTION HEADING IS NOT A STATEMENT. "ENGINEERING AND APPROVALS" is the first line matching
+       /engineer/ in a well-formatted price list, and stored as their engineering position it shows
+       a business its own heading back as though it were what they told us. Headings carry no
+       lower-case letters and no full stop, which is enough to tell them apart. */
+    const engineeringLines = text
+      .split(/\n|(?<=\.)\s+(?=[A-Z])/)
+      .map((l) => l.trim())
+      .filter((l) => /engineer/i.test(l) && /[a-z]/.test(l) && l.length > 30);
+    /* The line carrying the FIGURE, when there is one, in preference to the first descriptive
+       sentence. A price list states the position in one sentence and the fee in another, and taking
+       the first match left the fee null on a document that plainly names one. */
+    const engineeringLine = engineeringLines.find((l) => /\$/.test(l)) ?? engineeringLines[0] ?? null;
+
+    return {
+      businessName: text.split('<<<DESCRIPTION>>>')[1]?.split('\n').find((l) => l.trim())?.split('—')[0]?.trim() ?? null,
+      gstIncluded: gstLine ? /include/i.test(gstLine) : null,
+      gstSourceQuote: gstLine,
+      serviceArea: {
+        baseLocation: /based in ([A-Z][a-zA-Z ]+)/i.exec(text)?.[1]?.trim() ?? null,
+        radiusKm: radiusLine ? Number(/(\d+)\s*km/i.exec(radiusLine)?.[1] ?? 0) || null : null,
+        radiusSourceQuote: radiusLine,
+        excludedAreas: [],
+      },
+      minimumCharge,
+      minimumChargeSourceQuote: minLine,
+      siteInspectionFee,
+      siteInspectionFeeSourceQuote: inspectionLine,
+      travelFee,
+      travelFeeSourceQuote: travelLine,
+      rates,
+      supplyModels,
+      drainage,
+      removals,
+      groundworks,
+      siteConditions: [],
+      engineering: {
+        text: engineeringLine,
+        price: engineeringLine ? money(engineeringLine) : null,
+        isFromPrice: engineeringLine ? /from \$/i.test(engineeringLine) : false,
+        sourceQuote: engineeringLine,
+      },
+      extras: [],
+      warranty: { text: warrantyLine, sourceQuote: warrantyLine },
+      inclusions: [],
+      exclusions: [],
+      tags: [],
+      otherOfferings: [],
+      couldNotUse: [
+        'Read by the offline mock reader - site conditions, extras and other offerings are not extracted in mock mode.',
       ],
     };
   }

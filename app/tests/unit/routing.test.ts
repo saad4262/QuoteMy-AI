@@ -62,6 +62,17 @@ describe('reading the trade out of what they said', () => {
     ]) {
       expect(detectTrade(message, both), message).toEqual(['kitchen']);
     }
+
+    for (const message of [
+      'I need a retaining wall quote',
+      'how much for a sleeper wall',
+      'concrete sleepers along the back',
+      'price for a besser block wall',
+      'a tiered wall for the slope',
+      'we need soil retention at the back',
+    ]) {
+      expect(detectTrade(message, both), message).toEqual(['retaining_wall']);
+    }
   });
 
   /**
@@ -83,9 +94,51 @@ describe('reading the trade out of what they said', () => {
      into an ambiguous one. These are the words that tempted their way onto the list and were left
      off - each of them appears in both trades and names neither. */
   it('does not treat words both trades use as a signal', () => {
-    for (const message of ['I need a quote for the pool area', 'something for the back wall', 'an outdoor job']) {
+    for (const message of [
+      'I need a quote for the pool area',
+      'something for the back wall',
+      'an outdoor job',
+      /* `wall` is the one retaining wall most wanted and may never have: tiling answers "Wall only"
+         with that exact word. The compound is what carries this trade, never the bare noun. */
+      'the wall needs doing',
+      'a job on the garden bed',
+      // Left off retaining wall's list on purpose - both are half of what a landscaper writes.
+      'we need some excavation done',
+      'the drainage is a mess',
+    ]) {
       expect(detectTrade(message, both), message).toEqual([]);
     }
+  });
+
+  /**
+   * The overlap this trade brought with it, and the edit it forced on fencing.
+   *
+   * "Boundary retaining walls" is a line on a wall builder's own service list, so a bare `boundary`
+   * in fencing's pattern made that phrase match two trades and sent a customer who had said exactly
+   * what they wanted to the "which one?" question. The fix is a negative lookahead, the same
+   * technique that stops "kitchen splashback" stealing a tiling job.
+   */
+  it('leaves a boundary RETAINING wall to this trade, and a boundary fence to fencing', () => {
+    expect(detectTrade('I need a boundary retaining wall', both)).toEqual(['retaining_wall']);
+    expect(detectTrade('boundary retaining walls, about 20 metres', both)).toEqual(['retaining_wall']);
+
+    // Fencing keeps the word everywhere else, which is the half that must not regress.
+    expect(detectTrade('boundary fence, 30 metres', both)).toEqual(['fencing']);
+    expect(detectTrade('a boundary dispute with next door', both)).toEqual(['fencing']);
+
+    // And two jobs named at once is still two jobs, and still goes to the question.
+    expect(detectTrade('a boundary fence and a retaining wall', both)).toEqual(['fencing', 'retaining_wall']);
+  });
+
+  /**
+   * Fencers are asked about retaining walls constantly, and a fencing price list that names one is
+   * still a fencing price list. What decides the trade is what the customer is ASKING FOR.
+   */
+  it('does not let a sleeper wall steal a fencing job, or the reverse', () => {
+    expect(detectTrade('a paling fence on top of a retaining wall', both)).toEqual(['fencing', 'retaining_wall']);
+    expect(detectTrade('timber sleepers for the garden wall', both)).toEqual(['retaining_wall']);
+    // `sleeper` is qualified rather than bare - a railway sleeper in a garden bed is not a wall.
+    expect(detectTrade('I have some old sleepers lying around', both)).toEqual([]);
   });
 
   it('treats a message naming both as ambiguous, not as a guess', () => {
@@ -138,8 +191,10 @@ describe('the conversation', () => {
 
     expect(asked.type).toBe('question');
     expect(asked.trade).toBeNull();
-    expect(asked.message).toBe('Are you looking for Fencing, Tiling or Kitchen fitting services?');
-    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen']);
+    expect(asked.message).toBe(
+      'Are you looking for Fencing, Tiling, Kitchen fitting or Retaining wall services?',
+    );
+    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen', 'retaining_wall']);
     /* The only turn with no trade behind it, so there is nothing for a rate to be per. The golden
        conversations all name their trade and never reach here, and a result card reading `unit` has
        to survive the one turn that cannot answer it. */
@@ -160,6 +215,9 @@ describe('the conversation', () => {
     expect((await turn('I need a fence quote', null)).unit).toBe('m');
     expect((await turn('I want my bathroom tiled', null)).unit).toBe('m2');
     expect((await turn('I need a new kitchen', null)).unit).toBe('item');
+    /* Per LINEAR metre, and the one worth pinning: the trade's name says "wall", which reads as an
+       area, and a card printing $395/m² for a rate published per metre of wall is out by its height. */
+    expect((await turn('I need a retaining wall', null)).unit).toBe('m');
   });
 
   it('says so differently when they named two jobs at once', async () => {

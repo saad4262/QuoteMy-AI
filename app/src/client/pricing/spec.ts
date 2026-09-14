@@ -101,4 +101,31 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
        choice sits inside it. */
     rateSentence: { order: 'other-first', joiner: 'for', lowerOther: true },
   },
+  retaining_wall: {
+    /* Per LINEAR metre, like fencing and unlike what the trade's name suggests. A builder sells
+       "concrete sleeper supply and install $395/m"; the height is a property of the wall, not a
+       second dimension multiplied into a square-metre figure. Quoting one of these back as $395 a
+       square metre would be out by the height of the wall. */
+    quantityField: 'lengthMeters',
+    unit: 'm',
+    /* pricing.rates is { supply: [ { wallType, heightBand, pricePerMetre } ] }, and `supply` is the
+       OUTER key because it is the coarser question - a builder who only installs customer-supplied
+       materials has one bucket and that is a complete price list.
+       `heightBand` is a nullable THIRD discriminator on the row, which is why this trade has its
+       own pricing module: the lookup prefers a row banded at the customer's height and falls back
+       to the general one, and two keys in `rateKeys` cannot express three. */
+    rateKeys: ['supply', 'wallType'],
+    minimumCharge: true,
+    headlineField: 'wallType',
+    /* "Concrete sleepers, they supply the materials" is what a person says. The other order -
+       "supply and install in concrete sleepers" - reads backwards, because here the wall IS the
+       choice and the supply model is the qualifier on it. Same shape as fencing's "Colorbond at
+       1.8m", with a comma doing the work "at" does there - and the comma is why the builder now
+       omits the space before a punctuation joiner.
+       No `lowerOther`, unlike tiling and kitchen: this field's labels are written to the customer
+       in the first person - "I'm buying the materials" - and lower-casing the lot turns the one
+       English word that is always capitalised into "i'm", which reads as a typo in the middle of a
+       sentence offering them a price. */
+    rateSentence: { order: 'headline-first', joiner: ',' },
+  },
 };

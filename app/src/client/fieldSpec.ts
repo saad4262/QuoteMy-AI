@@ -1,6 +1,6 @@
-import { KITCHEN_QUESTIONS, QUESTIONS, TILING_QUESTIONS } from '../messages.js';
+import { KITCHEN_QUESTIONS, QUESTIONS, RW_QUESTIONS, TILING_QUESTIONS } from '../messages.js';
 import type { Trade } from '../vocab.js';
-import { HEIGHT_FALLBACK, QUANTITIES } from './vocab.js';
+import { HEIGHT_FALLBACK, QUANTITIES, RW_HEIGHT_FALLBACK } from './vocab.js';
 
 /**
  * What a trade's checklist is made of: which fields exist, what order they are asked in, where each
@@ -1053,6 +1053,256 @@ export const KITCHEN_FIELDS: FieldSpec[] = [
 ];
 
 /**
+ * Retaining wall's eight, and the one thing that makes this trade's order different from the other
+ * three: `supply` is asked SECOND, straight after the wall type, and before either measurement.
+ *
+ * In tiling and kitchen the supply model changes what is added to a quote. Here it changes which
+ * rate table is read at all - the same wall is about $145 a metre one way and $285 the other - so
+ * an answer that arrives late has been sitting behind two questions whose answers cannot be priced
+ * without it. It is also the question customers are least expecting, which is a second reason to
+ * ask it while they are still thinking about the wall rather than about their tape measure.
+ */
+export const RETAINING_WALL_FIELDS: FieldSpec[] = [
+  {
+    key: 'suburb',
+    namedBy: /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i,
+    aliases: ['suburb', 'location', 'postcode'],
+    type: 'place',
+    title: 'Suburb',
+    question: 'Which suburb is the wall going in? A postcode works too.',
+  },
+  {
+    key: 'wallType',
+    namedBy: /\b(wall types?|type of wall|kind of wall|systems?|sleepers?|materials?)\b/i,
+    aliases: ['wall', 'sleepers', 'material'],
+    type: 'enum',
+    labelGroup: 'wallTypes',
+    title: 'Wall type',
+    question: RW_QUESTIONS.wallType,
+    source: 'core.wallTypes',
+    acceptsExtras: true,
+    /* Specific before generic, and `tiered` FIRST of all - it is the one value that describes the
+       shape of the job rather than what it is built of, so "tiered concrete sleeper wall" has to
+       reach it before `concrete_sleeper` takes the line. Premium timber before plain timber for the
+       same reason "merbau" must not land on the pine everyone defaults to.
+       A document that only says "gabion baskets" matches nothing here on purpose: it is not a
+       system anybody on this platform publishes a rate against, so the customer is asked. */
+    docHints: {
+      values: [
+        ['tiered', /\btier(?:ed|s)?\b|\bterrac(?:ed|e)\b|\bmulti[-\s]?level\b|\bstepped\s+wall\b/i],
+        ['premium_timber', /\bmerbau\b|\bjarrah\b|\bironbark\b|\bspotted\s+gum\b|\bhardwood\s+sleeper|\bpremium\s+timber\b/i],
+        /* `steel_post` BEFORE `concrete_sleeper`, and found by a test: "Steel post with concrete
+           sleepers supply and install $425/m" names both systems, and read as concrete it collides
+           with the plain concrete rate the same list publishes - one of the two figures is lost
+           with nothing said about it. The rate belongs to the POST system. */
+        ['steel_post', /\bsteel\s+post|\bgalvanis(?:ed|ing)\s+post|\bh[-\s]?beam\b/i],
+        ['concrete_sleeper', /\bconcrete\s+sleeper|\bbesser\s?block|\bmasonry\s+block/i],
+        ['timber_post', /\btimber\s+post|\btreated\s+post\b/i],
+        ['timber_sleeper', /\btimber\s+sleeper|\btreated\s+pine\s+sleeper|\bpine\s+sleeper|\bsleeper\s+wall/i],
+      ],
+    },
+  },
+  {
+    key: 'supply',
+    namedBy: /\b(supply|supplied|supplying|who.{0,12}buying|who.{0,12}supplies|materials?)\b/i,
+    aliases: ['supply', 'materials'],
+    type: 'enum',
+    labelGroup: 'supply',
+    title: 'Who supplies',
+    question: RW_QUESTIONS.supply,
+    source: 'core.supply',
+    /* Two real answers and no "none" - somebody is buying the materials either way. */
+    pageSize: 2,
+    /* `labour_only` first, exactly as in tiling and kitchen and for the same reason: "supply and
+       install using the customer's own sleepers" contains the standard phrase for the other answer,
+       and reading it the wrong way round adds the whole cost of the materials to a quote that was
+       only ever for labour. This trade makes that mistake the largest of the three - the gap on a
+       20 metre concrete sleeper wall is $4,200. */
+    docHints: {
+      values: [
+        [
+          'labour_only',
+          /\binstall(?:ation)?\s+only\b|\blabour\s+only\b|\b(?:client|customer|owner|you)(?:'s)?\s+(?:to\s+|own\s+)?(?:supply|supplies|supplying|provide|provides|sleepers?|materials?)\b|\bmaterials?\s+(?:supplied|provided)\s+by\s+(?:client|customer|owner|others)\b|\bmaterials?\s+by\s+others\b|\bexcludes?\s+(?:the\s+)?materials?\b|\bcustomer[-\s]?supplied\b/i,
+        ],
+        [
+          'supply_and_install',
+          /\bsupply\s*(?:and|&|\+)\s*(?:install|build|construct)\b|\bwe\s+supply\b|\bmaterials?\s+(?:are\s+)?included\b|\bincludes?\s+(?:the\s+)?materials?\b|\ball[-\s]?inclusive\b/i,
+        ],
+      ],
+    },
+  },
+  {
+    key: 'lengthMeters',
+    namedBy: /\b(lengths?|long|met(?:re|er)s?)\b/i,
+    aliases: ['length', 'metres', 'meters'],
+    type: 'number',
+    labelUnit: { suffix: 'm' },
+    title: 'Length',
+    question: RW_QUESTIONS.lengthMeters,
+    /* No list, for fencing's reason: a wall is whatever length the bank is, and offering 10, 15, 20
+       is three guesses at a number the customer already has. They type it.
+       A range is refused outright - the rate is charged per metre, so a span prices a job nobody
+       described, and reading nothing lets the customer be asked which it is. */
+    docHints: {
+      refuse: [
+        /\b\d{1,4}(?:\.\d+)?\s*(?:m\b|metres?|meters?)?\s*(?:-|–|—|to)\s*\d{1,4}(?:\.\d+)?\s*(?:m\b|lm\b|lineal|metres?|meters?)/i,
+        /\bbetween\s+\d{1,4}[^\n]{0,14}?\d{1,4}\s*(?:m\b|lm\b|lineal|metres?|meters?)/i,
+      ],
+      quantity: [
+        [/(\d+(?:\.\d+)?)\s*(?:lineal|linear)\s*(?:m\b|metres?|meters?)/i, (value) => value],
+        [/(\d+(?:\.\d+)?)\s*(?:lm|l\.m\.)\b/i, (value) => value],
+        [/(\d+(?:\.\d+)?)\s*(?:mm|cm|m)?\s*(?:long|in length)\b/i, (value) => value],
+        /* Tied to the trade's own nouns rather than left loose, because this document is full of
+           other metre figures - $55 a metre of ag-pipe, $85 of gravel, $125 of removal - and a bare
+           "20m" anywhere on the page is as likely to be one of those as the wall. */
+        // `m\b` alone never fires inside "metre", so "20 metre retaining wall" read as nothing.
+        [/(\d+(?:\.\d+)?)\s*(?:m|metres?|meters?)\b(?=[^\n]{0,40}?(?:wall|retaining|run\b))/i, asRun],
+        [/(?:wall|retaining)[^\n]{0,30}?(\d+(?:\.\d+)?)\s*(?:m\b|metres?|meters?)/i, asRun],
+      ],
+      then: asMetres,
+    },
+  },
+  {
+    key: 'heightKey',
+    namedBy: /\b(heights?|tall|high|deep|drops?)\b/i,
+    aliases: ['height'],
+    type: 'measure',
+    title: 'Height',
+    question: RW_QUESTIONS.heightKey,
+    /* Not published by `syncTradeSchema`, so this literal list is what is normally offered. The
+       bands are the ones the trade's own SOP lists as common project heights, ordered by how often
+       a domestic job lands on them rather than by size - and NOT keyed by wall type, unlike
+       fencing's, because a builder here publishes one rate covering every height they build far
+       more often than they band it. */
+    options: [...RW_HEIGHT_FALLBACK],
+    /* Deliberately NOT `fillWhenSingle`. Height is asked of every customer even where it cannot
+       change the price, because it is what decides whether engineering and council approval come
+       into the job at all - and a builder needs to know before they quote. The SOP makes asking it
+       rule 6 of its own AI rules. */
+    docKey: 'heightMm',
+    docHints: {
+      quantity: [
+        /* Millimetres first and on their own line of defence: this trade writes heights in
+           millimetres far more than fencing does - 300, 450, 600, 750, 900, 1200, 1500 are the
+           published bands - and every one of them would read as a plausible metre figure. */
+        [/(\d{3,4})\s*mm\b/i, (value) => Math.round(value)],
+        [new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${UNIT}?\\s*(?:high|height|tall|deep)\\b`, 'i'), toMm],
+        [/(?:height|high|retain\w*|holding back)\b\D{0,12}?(\d+(?:\.\d+)?)\s*(?:mm|cm|m)?\b/i, toMm],
+      ],
+      /* A drop measured across a block is not the height of the wall that will be built on it - it
+         might be one 2m wall or two 1m walls tiered - and a range is the usual refusal. */
+      refuse: [
+        /\b\d{1,4}(?:\.\d+)?\s*(?:mm|m\b|metres?|meters?)?\s*(?:-|–|—|to)\s*\d{1,4}(?:\.\d+)?\s*(?:mm|m\b|metres?|meters?)/i,
+        // "Between 900 and 1200mm high" is the same refusal written with a word instead of a dash.
+        /\bbetween\s+\d{1,4}[^\n]{0,14}?\d{1,4}\s*(?:mm|m\b|metres?|meters?)/i,
+        /\b(?:falls?|drops?|slopes?)\b[^\n]{0,20}\d/i,
+      ],
+    },
+  },
+  {
+    key: 'removal',
+    recap: { prefix: 'taking out ', lower: true, words: { any: 'the old wall' } },
+    namedBy: /\b(removals?|remove|removing|old wall|existing wall|demolition)\b/i,
+    aliases: ['removal', 'removing'],
+    type: 'enum',
+    labelGroup: 'removes',
+    title: 'Old wall',
+    question: RW_QUESTIONS.removal,
+    source: 'core.removes',
+    pinned: { label: 'Nothing to take out', value: 'none' },
+    /* Two slots, as fencing has: the question reads yes against no, and the four specific kinds
+       follow on the next page for anyone who knows what theirs is made of. */
+    pageSize: 2,
+    /* Two stages, same as fencing and kitchen. `requires` asks whether a removal is being quoted
+       for at all, because a page that never mentions an old wall has not said there is none, and
+       silence must stay silence so the customer is asked. `values` then reads what is coming OUT,
+       which is a different question from what is going in - a failed timber wall is routinely
+       replaced with concrete sleepers, and the two removals are priced differently.
+       The clause boundary is what keeps them apart: "remove the existing timber wall and build
+       concrete sleepers" must return `timber_wall`, and a character-distance window would reach
+       across into the new wall. */
+    docHints: {
+      requires: [
+        new RegExp(
+          String.raw`\b(?:dispos\w*|remov\w*|demoli\w*|demo|dismantl\w*|tear\s*(?:down|out)|pull\s*(?:down|out)|take\s*away|cart\s*away|strip\s*out|rip\s*out)\b[^.,;\n]{0,60}(?:wall|sleeper|post)`,
+          'gi',
+        ),
+        new RegExp(
+          String.raw`\b(?:old|existing|current|failed|collaps\w*)\b[^.,;\n]{0,30}?(?:wall|sleeper|post)\w*[^.,;\n]{0,40}?\b(?:remov\w*|dispos\w*|demoli\w*|dismantl\w*|pulled|taken|carted|tip)\b`,
+          'gi',
+        ),
+        // The noun before the verb, with nothing in front: "Timber wall removal $85 per metre".
+        new RegExp(String.raw`\b(?:wall|sleeper|post)\w*[^.,;\n]{0,20}\b(?:remov\w*|dispos\w*|demoli\w*)\b`, 'gi'),
+      ],
+      // "no removal of the existing wall" prices a demolition nobody asked for.
+      negatedBy: /\b(?:no|not|excl\w*|without|nil)\b[^.\n]{0,24}$/i,
+      values: [
+        /* Each kind is matched BOTH ways round. A price list writes the noun first - "Concrete
+           sleeper wall removal $125" - and a customer's quote writes the verb first - "Remove the
+           existing timber wall, then build concrete sleepers". Only the second shape carries the
+           trap this clause boundary exists for: the new wall is named in the same sentence, and a
+           character-distance window would reach across the comma and price the wrong removal. */
+        ['concrete_sleeper_wall', /\bconcrete\s+sleeper\s+wall\s+removal\b|\bconcrete\b[^.,;\n]{0,20}\bwall\b[^.,;\n]{0,20}\bremov/i],
+        ['concrete_sleeper_wall', /\bremov\w*[^.,;\n]{0,30}\bconcrete\b[^.,;\n]{0,20}\b(?:wall|sleepers?)\b/i],
+        ['steel_post', /\bsteel\s+post\s+removal\b|\bremov\w*[^.,;\n]{0,30}\bsteel\s+posts?\b/i],
+        ['timber_post', /\btimber\s+post\s+removal\b|\bremov\w*[^.,;\n]{0,30}\btimber\s+posts?\b/i],
+        ['timber_wall', /\btimber\s+(?:retaining\s+)?wall\s+removal\b|\btimber\b[^.,;\n]{0,20}\bwall\b[^.,;\n]{0,20}\bremov/i],
+        ['timber_wall', /\bremov\w*[^.,;\n]{0,30}\btimber\b[^.,;\n]{0,15}\bwall\b/i],
+        ['any', /\b(?:wall|sleeper)\w*\b/i],
+      ],
+    },
+  },
+  {
+    key: 'drainage',
+    recap: { lower: true, words: { full_package: 'drainage behind it' } },
+    namedBy: /\b(drainage|drains?|ag ?pipe|aggi|gravel|water)\b/i,
+    aliases: ['drainage'],
+    type: 'enum',
+    labelGroup: 'drainage',
+    title: 'Drainage',
+    question: RW_QUESTIONS.drainage,
+    source: 'core.drainage',
+    /* "Not needed" rather than "No drainage", because a customer choosing it should not be reading
+       a sentence that sounds like advice. Most walls want drainage and the builder will say so; the
+       pinned answer is for somebody who has already been told theirs does not. */
+    pinned: { label: 'Not needed', value: 'none' },
+    pageSize: 2,
+    /* Never read off a document. A price list naming ag-pipe and gravel is saying what the BUILDER
+       sells, not what this customer's wall needs - and filling the field from it would put a $650
+       package into a quote nobody asked for. `docHints` is deliberately absent; §9 of
+       ADDING-A-TRADE is explicit that when in doubt, leave it out. */
+  },
+  {
+    key: 'conditions',
+    recap: false,
+    namedBy: /\b(conditions?|site|access|rocks?|clay|slopes?|sloping)\b/i,
+    aliases: ['conditions', 'access'],
+    type: 'multiEnum',
+    labelGroup: 'conditions',
+    title: 'Site',
+    question: RW_QUESTIONS.conditions,
+    source: 'core.conditions',
+    pinned: { label: 'Nothing tricky', value: 'none' },
+    docHints: {
+      none: /\b(?:easy|good|clear|open|no\s+access\s+(?:issues?|problems?))\s+access\b/i,
+      values: [
+        ['restricted_access', /\brestricted\s+access\b|\blimited\s+access\b|\bnarrow\s+(?:access|gate|side)\b|\bhard\s+to\s+(?:get|reach)\b/i],
+        ['machine_access', /\bno\s+(?:machine|excavator|vehicle)\s+access\b|\bhand\s+dig\b|\bwheelbarrow\s+(?:only|access)\b/i],
+        ['rock', /\brock\b|\brocky\b|\bbasalt\b|\bbluestone\s+(?:floaters?|rock)\b/i],
+        ['hard_clay', /\bhard\s+clay\b|\breactive\s+clay\b|\bheavy\s+clay\b/i],
+        ['sloped', /\bslop(?:e|ed|ing)\b|\bsteep\b|\bbatter\b/i],
+        ['existing_structures', /\bnear(?:by)?\s+structures?\b|\bexisting\s+footings?\b|\badjacent\s+(?:building|driveway|shed)\b|\bsurcharge\s+load\b/i],
+      ],
+    },
+  },
+  {
+    key: 'existingPrice',
+    type: 'money',
+    asked: false,
+  },
+];
+
+/**
  * Each trade's checklist, by trade. Read by anything that serves a trade generically - the chat's
  * fallback schema and the Firestore seed - so that publishing `schema/tiling` cannot seed it with
  * fencing's questions.
@@ -1061,6 +1311,7 @@ export const TRADE_FIELDS: Record<Trade, FieldSpec[]> = {
   fencing: FENCING_FIELDS,
   tiling: TILING_FIELDS,
   kitchen: KITCHEN_FIELDS,
+  retaining_wall: RETAINING_WALL_FIELDS,
 };
 
 /** Every spec entry, asked or not. */

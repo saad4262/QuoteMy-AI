@@ -149,7 +149,7 @@ export interface Conversation {
   turns: Turn[];
   ai?: AiClient;
   /** Omitted means fencing, so every conversation written before there was a second trade is unchanged. */
-  trade?: 'fencing' | 'tiling' | 'kitchen';
+  trade?: 'fencing' | 'tiling' | 'kitchen' | 'retaining_wall';
 }
 
 /**
@@ -742,6 +742,241 @@ export const KITCHEN_CONVERSATIONS: Conversation[] = [
       { say: 'no' },
       { say: 'the size is wrong' },
       { say: 'large' },
+      { say: 'yes' },
+    ],
+  },
+];
+
+/**
+ * Berwick Retaining Wall, as the business pipeline would have stored it.
+ *
+ * The two rate buckets are the point and are worth reading side by side: the same four wall systems
+ * appear under both supply models at very different prices, which is what makes `supply` a rate KEY
+ * in this trade rather than the add-on branch it is in tiling and kitchen.
+ *
+ * Every `heightBand` is null, which is the common case and NOT a gap in the fixture: builders
+ * publish one rate per system covering every height they build. Conversation 43 overrides one
+ * bucket with banded rows so the prefer-then-fall-back lookup is exercised too.
+ */
+export function seedWallBuilder(
+  repo: MemoryRepository,
+  uid: string,
+  businessName: string,
+  pricingOverrides: Record<string, unknown> = {},
+): void {
+  const now = '2026-01-01T00:00:00.000Z';
+
+  repo.addCandidate({
+    uid,
+    businessName,
+    servicesProvided: ['retaining_wall'],
+    rating: 4.8,
+    reviewCount: 52,
+    isAutoAcceptEnabled: false,
+    isAiAutoAcceptEnabled: true,
+  });
+
+  repo.savePricing(uid, {
+    trade: 'retaining_wall',
+    status: 'confirmed',
+    schemaVersion: 1,
+    updatedAt: now,
+    confirmedAt: now,
+    ratesSaved: 9,
+    gstIncluded: true,
+    supplyModels: ['supply_and_install', 'labour_only'],
+    enabledWallTypes: ['timber_sleeper', 'timber_post', 'concrete_sleeper', 'steel_post', 'premium_timber', 'tiered'],
+    rates: {
+      labour_only: [
+        { wallType: 'timber_sleeper', heightBand: null, pricePerMetre: 145 },
+        { wallType: 'timber_post', heightBand: null, pricePerMetre: 155 },
+        { wallType: 'concrete_sleeper', heightBand: null, pricePerMetre: 185 },
+        { wallType: 'steel_post', heightBand: null, pricePerMetre: 195 },
+      ],
+      supply_and_install: [
+        { wallType: 'timber_sleeper', heightBand: null, pricePerMetre: 285 },
+        { wallType: 'premium_timber', heightBand: null, pricePerMetre: 325 },
+        { wallType: 'concrete_sleeper', heightBand: null, pricePerMetre: 395 },
+        { wallType: 'steel_post', heightBand: null, pricePerMetre: 425 },
+        { wallType: 'tiered', heightBand: null, pricePerMetre: 450 },
+      ],
+    },
+    drainage: [
+      { type: 'full_package', price: 650, unit: 'per_job' },
+      { type: 'ag_pipe', price: 55, unit: 'per_metre' },
+      { type: 'drainage_gravel', price: 85, unit: 'per_metre' },
+      { type: 'geotextile_fabric', price: 35, unit: 'per_metre' },
+      { type: 'drainage_outlet', price: 180, unit: 'per_item' },
+    ],
+    removals: [
+      { removes: 'timber_wall', price: 85, unit: 'per_metre' },
+      { removes: 'concrete_sleeper_wall', price: 125, unit: 'per_metre' },
+      { removes: 'steel_post', price: 95, unit: 'per_item' },
+    ],
+    /* Stored and shown, never quotable: the customer cannot supply hours or a post count, so none
+       of these reaches `quoteTotal`. They are here so the seed is the real shape rather than a
+       tidied one. */
+    groundworks: [
+      { type: 'excavation', price: 95, unit: 'per_hour' },
+      { type: 'post_holes', price: 75, unit: 'per_item' },
+      { type: 'footings', price: 95, unit: 'per_item' },
+      { type: 'site_cleanup', price: 250, unit: 'per_job' },
+    ],
+    siteConditions: [
+      { condition: 'restricted_access', price: 450, percent: null, unit: 'per_job' },
+      { condition: 'rock', price: 180, percent: null, unit: 'per_hour' },
+    ],
+    extras: [
+      { type: 'caps', label: 'Timber cap installation', price: 65, unit: 'per_metre', isFromPrice: false },
+      { type: 'steps', label: 'Standard retaining wall step', price: 450, unit: 'per_item', isFromPrice: false },
+      { type: null, label: 'Fence post interface preparation', price: 180, unit: 'per_item', isFromPrice: false },
+    ],
+    serviceArea: {
+      baseLocation: 'Berwick',
+      resolved: { suburb: 'Berwick', state: 'VIC', postcode: '3806', lat: BERWICK.latitude, lng: BERWICK.longitude, source: 'google' },
+      radiusKm: 30,
+      excludedAreas: [],
+    },
+    minimumCharge: 650,
+    siteInspectionFee: 150,
+    travelFee: 95,
+    ...pricingOverrides,
+  } as unknown as PricingDoc);
+
+  repo.saveCapabilities(uid, {
+    trade: 'retaining_wall',
+    businessName,
+    engineering: {
+      text: 'Walls over 1m generally need engineering and a building permit. We arrange it from $850.',
+      price: 850,
+      isFromPrice: true,
+    },
+    warranty: { text: 'Ten year workmanship warranty' },
+    tags: [],
+    inclusions: [],
+    exclusions: [],
+    otherOfferings: [],
+    couldNotUse: [],
+    schemaVersion: 1,
+    updatedAt: now,
+  } as unknown as CapabilitiesDoc);
+}
+
+const openWall: Turn[] = [{ say: 'I need a retaining wall quote' }, { say: 'yes go ahead' }];
+
+export const RETAINING_WALL_CONVERSATIONS: Conversation[] = [
+  {
+    name: '40 retaining wall, installation only, the customer buys the sleepers',
+    why: 'the fourth trade end to end: its own questions in its own order, supply asked SECOND because it picks the rate table, and a per-linear-metre total off the cheaper of the two columns',
+    trade: 'retaining_wall',
+    seed: (repo) => seedWallBuilder(repo, 'wall-1', 'Berwick Retaining Wall'),
+    turns: [
+      ...openWall,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'concrete_sleeper' },
+      { say: 'labour_only' },
+      { say: '20' },
+      { say: '0.9m' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '41 retaining wall, supply and install, so the sleepers are in the rate',
+    why: 'the same wall under the other supply model - $185 a metre becomes $395 - which is the rate-table swap that makes this trade different from tiling, where the material is added on top instead',
+    trade: 'retaining_wall',
+    seed: (repo) => seedWallBuilder(repo, 'wall-1', 'Berwick Retaining Wall'),
+    turns: [
+      ...openWall,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'concrete_sleeper' },
+      { say: 'supply_and_install' },
+      { say: '20' },
+      { say: '0.9m' },
+      { say: 'concrete_sleeper_wall' },
+      { say: 'full_package' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '42 retaining wall, nobody builds it under the model they asked for',
+    why: 'a builder who installs customer-supplied materials and does not supply them is a different failure from one who does not build that wall at all - and the customer is offered what IS quotable rather than told nobody covers them',
+    trade: 'retaining_wall',
+    seed: (repo) =>
+      seedWallBuilder(repo, 'wall-1', 'Berwick Retaining Wall', {
+        supplyModels: ['labour_only'],
+        rates: {
+          labour_only: [
+            { wallType: 'timber_sleeper', heightBand: null, pricePerMetre: 145 },
+            { wallType: 'concrete_sleeper', heightBand: null, pricePerMetre: 185 },
+          ],
+        },
+      }),
+    turns: [
+      ...openWall,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'concrete_sleeper' },
+      { say: 'supply_and_install' },
+      { say: '20' },
+      { say: '0.9m' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '43 retaining wall, a builder who does band their rates by height',
+    why: 'the nullable third key: a row written for this exact height beats the general one, and a height past every band they published falls back to the DEAREST rather than the nearest - nobody may be shown a total below what they will be charged',
+    trade: 'retaining_wall',
+    seed: (repo) =>
+      seedWallBuilder(repo, 'wall-1', 'Berwick Retaining Wall', {
+        rates: {
+          supply_and_install: [
+            { wallType: 'concrete_sleeper', heightBand: '0.6m', pricePerMetre: 340 },
+            { wallType: 'concrete_sleeper', heightBand: '0.9m', pricePerMetre: 395 },
+            { wallType: 'concrete_sleeper', heightBand: '1.2m', pricePerMetre: 465 },
+          ],
+        },
+      }),
+    turns: [
+      ...openWall,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'concrete_sleeper' },
+      { say: 'supply_and_install' },
+      { say: '20' },
+      { say: '1.2m' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '44 retaining wall, correcting the supply model from the recap',
+    why: 'a correction re-asks one field and keeps the rest, on the field this trade prices from - and the total has to move by the whole cost of the materials, not by a line item',
+    trade: 'retaining_wall',
+    seed: (repo) => seedWallBuilder(repo, 'wall-1', 'Berwick Retaining Wall'),
+    turns: [
+      ...openWall,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'timber_sleeper' },
+      { say: 'supply_and_install' },
+      { say: '15' },
+      { say: '0.6m' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'no' },
+      { say: 'who supplies is wrong' },
+      { say: 'labour_only' },
       { say: 'yes' },
     ],
   },

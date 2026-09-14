@@ -299,7 +299,150 @@ export const KITCHEN_BOUNDS = {
   radiusKm: { min: 0, max: 500 },
 } as const;
 
-export const TRADES = ['fencing', 'tiling', 'kitchen'] as const; // decking and retaining_wall follow
+// --- retaining wall ---------------------------------------------------------------------------
+
+/**
+ * The wall system, which is the first half of what finds a rate.
+ *
+ * These are the systems a builder's price list actually names, and the list stops where the
+ * pricing does: `steel_post` is one entry rather than a cross-product with what sits between the
+ * posts, because the published rate is "steel post wall installation $195/m" and nobody prices
+ * steel-with-timber separately from steel-with-concrete. `premium_timber` is here for the same
+ * reason - it is a line on the list at its own price ($325/m), not a grade we invented.
+ *
+ * `tiered` is a system rather than a site condition, because it is priced as one - $450/m, its own
+ * line - and a tiered job is several walls with their own drainage rather than one wall on a slope.
+ */
+export const RW_WALL_TYPES = [
+  'timber_sleeper',
+  'premium_timber',
+  'concrete_sleeper',
+  'steel_post',
+  'timber_post',
+  'tiered',
+] as const;
+
+/**
+ * Who buys the sleepers - and the reason this trade is NOT shaped like tiling.
+ *
+ * Tiling publishes one labour rate and adds a tile price per square metre on top. A retaining wall
+ * builder publishes TWO COMPLETE RATES per system instead: timber sleeper installation is $145/m
+ * with the customer's own sleepers and $285/m with theirs. So this is a rate KEY, not a branch that
+ * adds a material price - reading it the other way would add the sleepers to a rate that already
+ * contains them and quote the job twice over.
+ */
+export const RW_SUPPLY = ['supply_and_install', 'labour_only'] as const;
+
+/**
+ * What is coming OUT, which is what removal is priced against - not what is going in.
+ *
+ * `any` is the business-side wildcard, as it is in all three other trades: somebody looking at a
+ * failing wall in their own garden knows it is timber or it is concrete, and very often cannot say
+ * whether the posts are steel behind the sleepers. They answer "yes, take it out"; which kind it is
+ * stays our pricing problem, and the dearest published rate is used rather than hiding the builder.
+ */
+export const RW_REMOVES = [
+  'timber_wall',
+  'concrete_sleeper_wall',
+  'steel_post',
+  'timber_post',
+  'any',
+] as const;
+
+/**
+ * Drainage. Structural rather than an upsell - water behind a wall is pressure on it - which is why
+ * it is its own list and its own question rather than sitting in `extras`.
+ *
+ * `full_package` is the common case and the reason this is not a boolean: builders publish a
+ * complete standard drainage package at one price ($650) alongside the per-metre components, and a
+ * customer who says "yes, do the drainage" is buying the package, not choosing between ag-pipe and
+ * gravel.
+ */
+export const RW_DRAINAGE = [
+  'ag_pipe',
+  'drainage_gravel',
+  'geotextile_fabric',
+  'drainage_outlet',
+  'full_package',
+] as const;
+
+/**
+ * Getting the ground ready, and the half most often missing from a cheap-looking wall quote.
+ *
+ * Every one of these is a real priced line, and almost none of them can reach the price formula:
+ * excavation is charged by the hour and post holes and footings by the post, and a customer cannot
+ * supply hours or count posts they have not dug yet. The model may never work them out either
+ * (`CLAUDE.md` non-negotiable #4). So these are captured, shown to the customer as what is not
+ * included, and quoted on inspection - which is what `capabilities/{trade}.extras` is for.
+ */
+export const RW_GROUNDWORKS = [
+  'excavation',
+  'post_holes',
+  'footings',
+  'backfill',
+  'compacted_backfill',
+  'soil_removal',
+  'site_cleanup',
+] as const;
+
+export const RW_CONDITIONS = [
+  'restricted_access',
+  'rock',
+  'hard_clay',
+  'sloped',
+  'existing_structures',
+  'machine_access',
+] as const;
+
+/** Priced lines that are their own item rather than folded into the per-metre rate. */
+export const RW_EXTRAS = [
+  'caps',
+  'steps',
+  'corners',
+  'returns',
+  'fence_post_interface',
+  'repairs',
+  'delivery',
+  'site_inspection',
+] as const;
+
+export const RW_TAGS = [
+  'engineering-capable',
+  'customer-supply-accepted',
+  'concrete-sleeper',
+  'drainage-capable',
+  'excavation-capable',
+  'tiered-capable',
+  'repairs',
+  'insured',
+] as const;
+
+export type RwWallType = (typeof RW_WALL_TYPES)[number];
+export type RwSupply = (typeof RW_SUPPLY)[number];
+export type RwRemoves = (typeof RW_REMOVES)[number];
+export type RwDrainage = (typeof RW_DRAINAGE)[number];
+export type RwGroundworks = (typeof RW_GROUNDWORKS)[number];
+export type RwCondition = (typeof RW_CONDITIONS)[number];
+export type RwExtra = (typeof RW_EXTRAS)[number];
+export type RwTag = (typeof RW_TAGS)[number];
+
+/**
+ * Retaining wall's bounds. Priced per LINEAR metre like fencing, not per square metre - a builder
+ * sells "concrete sleeper supply and install $395/m" and the height is a property of the wall
+ * rather than a second dimension being multiplied.
+ *
+ * `heightM` is much tighter than fencing's: a garden bed wall starts at 300mm and anything past
+ * about 3m has left the range a residential builder publishes a rate for at all. A number outside
+ * it is a misread - usually millimetres that were never converted.
+ */
+export const RETAINING_WALL_BOUNDS = {
+  pricePerMetre: { min: 0, max: 2000 },
+  price: { min: 0, max: 100_000 },
+  heightM: { min: 0.2, max: 3 },
+  radiusKm: { min: 0, max: 500 },
+} as const;
+
+export const TRADES = ['fencing', 'tiling', 'kitchen', 'retaining_wall'] as const; // decking follows
 export type Trade = (typeof TRADES)[number];
 
 /**
@@ -367,8 +510,24 @@ export const KITCHEN_VOCAB: TradeVocab = {
   bounds: KITCHEN_BOUNDS,
 };
 
+export const RETAINING_WALL_VOCAB: TradeVocab = {
+  core: {
+    wallTypes: RW_WALL_TYPES,
+    supply: RW_SUPPLY,
+    removes: RW_REMOVES,
+    drainage: RW_DRAINAGE,
+    groundworks: RW_GROUNDWORKS,
+    conditions: RW_CONDITIONS,
+    extras: RW_EXTRAS,
+    units: UNITS,
+    tags: RW_TAGS,
+  },
+  bounds: RETAINING_WALL_BOUNDS,
+};
+
 export const TRADE_VOCAB: Record<Trade, TradeVocab> = {
   fencing: FENCING_VOCAB,
   tiling: TILING_VOCAB,
   kitchen: KITCHEN_VOCAB,
+  retaining_wall: RETAINING_WALL_VOCAB,
 };

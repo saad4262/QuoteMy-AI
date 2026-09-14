@@ -27,8 +27,13 @@ import type { ChatOption, ChatResponse, Checklist } from './schemas.js';
  * Matched on word boundaries so "tiles" finds "tile" but "gates" never finds "gat".
  */
 export const TRADE_KEYWORDS: Record<Trade, RegExp> = {
+  /* `boundary` carries a negative lookahead for the same reason kitchen's own noun does, and it was
+     added when retaining wall arrived: "boundary retaining walls" is a line on a wall builder's own
+     service list, so a bare `boundary` made that phrase match two trades and sent a customer who
+     had said exactly what they wanted to the "which one?" question. "Boundary fence" still reaches
+     fencing, and "a boundary fence and a retaining wall" still correctly matches both. */
   fencing:
-    /\b(fenc(?:e|es|ing|er|ers)|paling|palings|boundary|colou?rbond|gate|gates|picket|pickets|chainmesh|chain\s?wire|post\s?and\s?rail)\b/i,
+    /\b(fenc(?:e|es|ing|er|ers)|paling|palings|boundary(?!\s+retaining)|colou?rbond|gate|gates|picket|pickets|chainmesh|chain\s?wire|post\s?and\s?rail)\b/i,
   tiling:
     /\b(tile|tiles|tiling|tiler|tilers|retile|retiling|bathroom|bathrooms|ensuite|laundry|splashback|splashbacks|grout|regrout|regrouting|mosaic|porcelain|ceramic|terrazzo|waterproof|waterproofing|screed|screeding|floor|floors|flooring|shower)\b/i,
   /**
@@ -46,6 +51,25 @@ export const TRADE_KEYWORDS: Record<Trade, RegExp> = {
    */
   kitchen:
     /\b(?:kitchens?\b(?!\s+(?:splash\s?backs?|floors?|walls?|tiles?|tiling|retile))|cabinetry|cabinets?|cabinetmakers?|bench\s?tops?|kickboards?|flat\s?packs?|cupboards?|pantry|joinery)\b/i,
+  /**
+   * The trade that cannot have its own noun, because half of it belongs to somebody else.
+   *
+   * `wall` is absent and must stay absent - it is tiling's as much as this trade's, and the comment
+   * at the top of this table already records that a keyword firing for two trades is worse than no
+   * keyword at all. What carries this trade is the COMPOUND: "retaining wall" names nothing else in
+   * the product, and neither does "sleeper wall" or "besser block".
+   *
+   * `sleepers` is qualified rather than bare. A bare `sleeper` is a railway sleeper in a garden bed,
+   * a decking substructure and a bed - "timber sleepers" and "concrete sleepers" are unambiguous and
+   * are what people actually type.
+   *
+   * Left out deliberately: `batter` (a cooking word before it is an earthworks one), `excavation`
+   * and `drainage` (both are half of what a landscaper, a plumber or a builder writes), `garden bed`
+   * (it is landscaping far more often than it is a wall), and `boundary` (fencing's, narrowed above
+   * rather than claimed here).
+   */
+  retaining_wall:
+    /\b(?:retaining\s?walls?|retainer\s?walls?|sleeper\s?walls?|besser\s?blocks?|ag(?:gi|gie)?[-\s]?pipes?|soil\s?retention|tiered\s?(?:wall|garden)s?|(?:timber|concrete|hardwood)\s+sleepers?)\b/i,
 };
 
 export interface TradeRouting {

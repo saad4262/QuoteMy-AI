@@ -1,0 +1,214 @@
+================================================================================
+QuoteMy AI — RETAINING WALL ONBOARDING DESCRIPTIONS
+Two business descriptions to paste into the Pricing page. One passes, one does not.
+================================================================================
+
+DO NOT COPY OUT OF THIS FILE. USE THE TWO PASTE FILES INSTEAD.
+  docs/demo/paste-retaining-wall-GOOD.txt       -> Case 1, nothing else in it
+  docs/demo/paste-retaining-wall-REJECTED.txt   -> Case 2, nothing else in it
+
+  Each holds ONLY the business's own words, so there is nothing to mis-select.
+  Select all, copy, paste.
+
+  This file is for READING - the commentary around each case explains what it
+  proves. Copying from here is how the "WHAT CASE 2 IS TOLD TO FIX" list ends up
+  inside the submission, where the reviewer reads its own answer key back as if
+  the business had written it.
+
+HOW TO RUN ONE
+  Paste the whole of one paste file into the business Pricing page and press
+  Save. Or send it to the API directly:
+
+    POST http://localhost:8787/api/v1/business
+    { "action": "submit", "businessUid": "demo-rw-1", "trade": "retaining_wall",
+      "text": "<paste here>" }
+
+  The slug is retaining_wall, with an UNDERSCORE. Sending "retaining-wall" or
+  omitting `trade` writes to the wrong document - it defaults to fencing.
+
+  Use a DIFFERENT businessUid per case so they do not overwrite each other.
+
+  Approval is not the end. Nothing is quotable to a customer until the business
+  presses Confirm on its own screen:
+
+    { "action": "confirm", "businessUid": "demo-rw-1", "trade": "retaining_wall" }
+
+WHAT MAKES THIS TRADE DIFFERENT, AND WHAT TO POINT OUT WHILE DEMOING
+  1. THE SAME WALL IS PRICED TWICE. A builder either supplies the sleepers or
+     installs the customer's own, and publishes a complete per-metre rate for
+     each. Timber sleepers are $145 a metre one way and $285 the other. Case 1
+     below stores nine rates across two tables, not nine rates in one.
+  2. A RATE WITH NO SUPPLY MODEL IS UNUSABLE. "$185 per metre" is a bargain
+     with the materials included and ordinary without, and nothing in the
+     number says which. It is reported rather than guessed at - guessing is
+     worth $140 a metre in whichever direction it goes wrong.
+  3. HOURLY AND PER-POST WORK NEVER ENTERS A QUOTE. Excavation at $95/hr and
+     post holes at $75/post are stored and shown to the customer as what is not
+     included. A customer cannot say how many hours or count posts, and the AI
+     is never allowed to work it out.
+  4. WALLS ARE STRUCTURAL. The system asks where a business stands on
+     engineering and council approval, and never states that a given wall does
+     or does not need it.
+
+STATUS OF THESE TWO
+  Both are verified against the offline reviewer that runs in CI. They have NOT
+  yet been run through the live model. Run them once against the real system
+  before demoing to a client.
+
+
+================================================================================
+CASE 1 — A COMPLETE PRICE LIST
+What it proves: both supply columns survive as separate rates; per-hour and
+per-post groundworks are kept but stay out of the quotable rates; the drainage,
+engineering and warranty sections are captured.
+Expected: APPROVED. 9 rates saved. status "verified".
+--------------------------------------------------------------------------------
+Berwick Retaining Wall — retaining wall construction and installation, Berwick VIC 3806. 20 years.
+
+INSTALLATION ONLY — you supply the materials
+Timber sleeper installation $145 per linear metre.
+Timber post wall installation $155 per linear metre.
+Concrete sleeper installation $185 per linear metre.
+Steel post wall installation $195 per linear metre.
+
+SUPPLY AND INSTALL — we supply everything
+Timber sleeper supply and install $285 per linear metre.
+Premium timber supply and install $325 per linear metre.
+Concrete sleeper supply and install $395 per linear metre.
+Steel post with concrete sleepers supply and install $425 per linear metre.
+Tiered wall supply and install $450 per linear metre.
+
+HEIGHTS
+These rates cover every height we build, from 300mm up to 1.5m. We do not band our rates by
+height — the wall system and who supplies the materials are what set the price per metre.
+
+DRAINAGE
+Complete standard drainage package $650.
+Priced separately if you prefer:
+Ag-pipe installation $55 per linear metre.
+Drainage gravel installation $85 per linear metre.
+Geotextile fabric installation $35 per linear metre.
+Drainage outlet $180 each.
+
+REMOVAL AND DISPOSAL
+Timber retaining wall removal $85 per linear metre.
+Concrete sleeper wall removal $125 per linear metre.
+Steel post removal $95 per post. Timber post removal $75 per post.
+Timber disposal $480. Concrete sleeper disposal $650. Mixed construction waste $550.
+Soil disposal $720.
+
+GROUNDWORKS
+Manual excavation $95 per hour. Mini excavator $850 per day. Excavator mobilisation $350.
+Standard post hole $75 per post. Difficult ground post hole $125 per post.
+Standard post footing $95 per post. Heavy duty footing $145 per post.
+Standard backfill $75 per linear metre. Compacted backfill $95 per linear metre.
+Standard site clean-up $250.
+
+SITE CONDITIONS
+Restricted access surcharge $450. Difficult ground labour $125 per hour.
+Rock excavation $180 per hour.
+
+ENGINEERING AND APPROVALS
+Walls over 1m generally need engineering and a building permit, and a wall near a boundary or under a driveway can need approval below that. We arrange the engineering from $850 and council fees are the customer's.
+Engineering and approvals are excluded unless the written quotation includes them. We never tell a customer approval is unnecessary without checking their particular site.
+
+THE REST OF WHAT WE DO
+Timber cap installation $65 per linear metre. Concrete cap installation $95 per linear metre.
+Decorative cap installation $125 per linear metre.
+Standard retaining wall step $450 each. Timber step $380 each. Concrete sleeper step $520 each.
+Standard corner $180 each. Retaining wall return $220 each. Complex corner $350 each.
+Fence post interface preparation $180 per section.
+Single sleeper replacement $180. Timber post replacement $350. Steel post replacement $420.
+Drainage repair $450. Minor retaining wall repair $650.
+Material procurement fee $180. Standard material delivery $250. Large material delivery $420.
+Return attendance $275. Variation labour $110 per hour.
+
+THE REST
+All prices include GST. Based in Berwick, we travel 30km.
+Minimum installation charge $650. Site inspection and measure $150.
+Travel outside our standard service area $95.
+Ten year workmanship warranty on everything we build.
+Not included: engineering, council permits, rock removal beyond normal digging, service
+relocation, landscaping, turf, irrigation, and any fencing built on top of the wall.
+--------------------------------------------------------------------------------
+
+
+================================================================================
+CASE 2 — LONGER, FRIENDLIER, AND ALMOST NONE OF IT QUOTABLE
+What it proves: this is the important one. It reads as more thorough than Case 1
+- 18 years, family run, a real process, genuine detail - and it cannot quote a
+single customer. Ranges, POA and "from" on the core rates are all caught.
+
+THE CARVE-OUT WORTH POINTING AT: "Engineering certificate from $850", "Site
+inspection from $150" and "Callout fee from $95" are NOT reported. A "from"
+price on an optional add-on is perfectly acceptable - only a CORE rate has to be
+one firm number. Getting that wrong turned away a fully compliant fencing
+business once.
+Expected: SENT BACK. 5 things to fix. status "unverified". Nothing is written
+to the profile - a rejected submission never overwrites figures already approved.
+--------------------------------------------------------------------------------
+Southeast Retaining Walls — 18 years building retaining walls across Melbourne's south-east.
+
+We've been putting walls in around here since 2008 and there's not much we haven't seen. Family
+run, fully insured, and every job is done by our own blokes — we don't sub anything out. We take
+real pride in a straight wall and a tidy site, and most of our work comes from word of mouth.
+
+WHAT WE BUILD
+Timber sleeper walls, concrete sleeper walls, steel post systems, timber post systems, tiered
+walls for sloping blocks, garden bed walls, boundary walls and replacement walls. We do repairs
+too — a leaning wall can often be saved rather than rebuilt, and we'll tell you straight which
+one you're looking at.
+
+PRICING
+Timber sleeper walls from $150 per metre.
+Concrete sleepers $180 to $260 per linear metre depending on the job.
+Steel post systems — POA.
+Tiered walls — every one is different, call us for pricing.
+Premium hardwood sleepers, call for pricing.
+
+We can supply the materials or you can, whatever suits. Either way you get the same standard of
+work. Most customers just let us handle the lot, it's easier.
+
+DRAINAGE
+Every wall we build gets proper drainage — ag-pipe, gravel and filter fabric, done properly the
+first time. We've seen too many walls fail because somebody skipped it. Priced with the job.
+
+EXCAVATION AND GROUNDWORKS
+Excavation, post holes and footings are quoted separately once we've seen the site. Rock and hard
+clay cost a bit more, obviously — we'll let you know on the day.
+
+REMOVAL
+We take out old walls and cart everything away. Priced on inspection.
+
+ENGINEERING
+Engineering certificate from $850 if your wall needs one.
+
+EXTRAS
+Site inspection and measure from $150. Caps, steps and corners all available, just ask.
+Callout fee from $95.
+
+HOW WE WORK
+Standard process is a site visit, a measure-up, a written quote, then we set out, excavate, dig
+and concrete the posts, install the sleepers, put the drainage in, backfill and compact, and
+clean up after ourselves. Most residential walls take two to three days. We're licensed, insured
+and we stand behind our work.
+
+We service all over Melbourne's south-east and surrounds. Give us a call and we'll come out.
+--------------------------------------------------------------------------------
+
+WHAT CASE 2 IS TOLD TO FIX
+  - Say whether you supply the materials, install what the customer buys, or
+    both - and give a rate per metre for each one you do.
+  - Say what heights your rates cover - either a price per height band, or one
+    line saying a single rate covers every height you build.
+  - Add the smallest job you will take on and what you charge for it.
+  - Say where you work out of, how far you travel, and whether your prices
+    include GST.
+  - Give one firm price per metre for each wall system - some of what you sent
+    is a range or a "call us".
+
+  Note what is NOT in that list: drainage, removal, excavation and engineering
+  are all SATISFIED. "Priced with the job", "priced on inspection" and "quoted
+  separately once we've seen the site" are complete answers. The rule is that
+  every item must be STATED, not that every item must carry a price - otherwise
+  a specialist who genuinely does not offer something could never publish.

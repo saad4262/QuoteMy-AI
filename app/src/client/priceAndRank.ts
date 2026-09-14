@@ -2,6 +2,7 @@ import type { ServiceExtract } from '../store.js';
 import {
   isFencingPricing,
   isKitchenPricing,
+  isRetainingWallPricing,
   isTilingPricing,
   type VerifiedCapabilities,
   type VerifiedOffering,
@@ -10,6 +11,7 @@ import {
 import { NO_MATCH_MESSAGES } from '../messages.js';
 import { budgetText } from './budget.js';
 import { quoteKitchen, type KitchenBrief } from './pricing/kitchen.js';
+import { quoteRetainingWall, type RetainingWallBrief } from './pricing/retainingWall.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { quoteTotal } from './pricing/total.js';
@@ -293,6 +295,29 @@ function tilingBrief(checklist: Checklist, spec: PricingSpec): TilingBrief {
   };
 }
 
+/** The retaining wall checklist, read the same defensive way the other three are. */
+function retainingWallBrief(checklist: Checklist, spec: PricingSpec): RetainingWallBrief {
+  const removal = asText(checklist.removal);
+  const drainage = asText(checklist.drainage);
+  const heightKey = asText(checklist.heightKey);
+  return {
+    wallType: slug(asText(checklist.wallType)),
+    /* NOT slugged, for exactly the reason tiling's and kitchen's are not: this is compared against
+       a closed vocabulary value, and slugging turns `supply_and_install` into
+       `supply-and-install`, which matches nothing. Here that would not quietly drop a line off the
+       quote the way it does in the other two - it would find no rate table at all and report that
+       nobody nearby builds that wall. */
+    supply: asText(checklist.supply) ?? '',
+    /* Left exactly as stored. It is a band key a business wrote ("0.9m"), and the lookup slugs both
+       sides itself - normalising here would only give it a second chance to disagree with itself. */
+    heightKey: heightKey || null,
+    lengthMeters: quantityOf(checklist, spec),
+    removal: removal && removal !== 'none' ? slug(removal) : null,
+    drainage: drainage && drainage !== 'none' ? slug(drainage) : null,
+    conditions: asTextList(checklist.conditions),
+  };
+}
+
 /** The kitchen checklist. No quantity to read - the whole job is what is priced. */
 function kitchenBrief(checklist: Checklist): KitchenBrief {
   const removal = asText(checklist.removal);
@@ -416,6 +441,41 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
       continue;
     }
 
+    if (schema.trade === 'retaining_wall') {
+      const pricing = stored.pricing;
+      if (!pricing || !isRetainingWallPricing(pricing)) continue;
+
+      const quote = quoteRetainingWall(business, pricing, retainingWallBrief(checklist, spec));
+      if ('blocked' in quote) {
+        /* These keys choose the sentence a customer reads, and the two ways this trade blocks are
+           genuinely different answers. A wall system nobody builds is fencing's `material` problem.
+           A builder who BUILDS that wall but only under the other supply model is not that at all -
+           telling them "nobody builds that kind of wall" is false, and the fix is one question away
+           - so it takes the `height` slot, which this trade has spare because its rate lookup falls
+           back to the dearest band rather than ever refusing on height. See NO_MATCH_MESSAGES. */
+        blocked[quote.blocked === 'removal' ? 'removal' : quote.blocked === 'supply' ? 'height' : 'material'] += 1;
+        continue;
+      }
+
+      quotes.push({
+        uid: business.uid,
+        businessName: business.businessName,
+        suburb: business.suburb,
+        distanceKm: business.distanceKm,
+        material: slug(quote.wallTypeKey),
+        heightKey: quote.rateKey,
+        ratePerMeter: quote.ratePerUnit,
+        autoAcceptsAi: business.autoAcceptsAi,
+        currency: 'AUD',
+        projectTotalMin: quote.total,
+        projectTotalMax: quote.total,
+        estimatedTotal: quote.total,
+        warranty: (stored.capabilities as { warranty?: { text?: string | null } } | null)?.warranty?.text ?? null,
+        badges: quote.badges,
+      });
+      continue;
+    }
+
     const extract = asFencing(stored);
     if (!extract) continue;
     const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief, spec);
@@ -503,6 +563,46 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         continue;
       }
 
+      if (schema.trade === 'retaining_wall') {
+        const pricing = matcher.pricing[i]!.pricing;
+        if (!pricing || !isRetainingWallPricing(pricing)) continue;
+        const wanted = retainingWallBrief(checklist, spec);
+        for (const [supply, rows] of Object.entries(pricing.rates)) {
+          for (const row of rows) {
+            const wallType = slug(row.wallType);
+            if (supply === wanted.supply && wallType === wanted.wallType) continue;
+            const quote = quoteRetainingWall(business, pricing, { ...wanted, supply, wallType });
+            if ('blocked' in quote) continue;
+            if (existingPrice !== null && quote.total >= existingPrice) continue;
+            alternatives.push({
+              uid: business.uid,
+              businessName: business.businessName,
+              suburb: business.suburb,
+              distanceKm: business.distanceKm,
+              material: slug(quote.wallTypeKey),
+              heightKey: quote.rateKey,
+              ratePerMeter: quote.ratePerUnit,
+              autoAcceptsAi: business.autoAcceptsAi,
+              currency: 'AUD',
+              projectTotalMin: quote.total,
+              projectTotalMax: quote.total,
+              estimatedTotal: quote.total,
+              warranty: null,
+              badges: quote.badges,
+              /* The WALL weighs more than who buys the sleepers, and this is the opposite weighting
+                 to tiling's for the same kind of reason: a customer can change their mind about
+                 buying the materials themselves - it is a decision, not a fact about their yard -
+                 where the wall they need is set by the site. So the same wall under the other
+                 supply model is much nearer to what they asked for than a different wall under
+                 theirs, and it is the offer that actually unblocks the common case: a builder who
+                 only works one way. */
+              distanceFromBrief: (wallType === wanted.wallType ? 0 : 2) + (supply === wanted.supply ? 0 : 1),
+            });
+          }
+        }
+        continue;
+      }
+
       const extract = asFencing(matcher.pricing[i]!);
       if (!extract) continue;
       const enabled = extract.pricing.enabledMaterials.map(slug);
@@ -554,9 +654,13 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         if (!other || other === 'any') return name;
         const sentence = spec.rateSentence;
         const qualifier = sentence.lowerOther ? otherLabel(other).toLowerCase() : otherLabel(other);
+        /* A punctuation joiner takes no space in front of it. Every trade until retaining wall
+           joined with a word - "at", "in", "for" - and a naive space either side turned its comma
+           into "Concrete sleepers , they supply the materials". */
+        const lead = /^[,;:]/.test(sentence.joiner) ? '' : ' ';
         return sentence.order === 'headline-first'
-          ? name + ' ' + sentence.joiner + ' ' + qualifier
-          : qualifier + ' ' + sentence.joiner + ' ' + name;
+          ? name + lead + sentence.joiner + ' ' + qualifier
+          : qualifier + lead + sentence.joiner + ' ' + name;
       };
 
       /* Both halves read off the checklist by the spec's own names, not by fencing's: `material`
