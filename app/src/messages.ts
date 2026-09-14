@@ -293,6 +293,22 @@ export const RW_LABEL_GROUPS = {
     per_hour: 'per hour',
     per_day: 'per day',
   },
+  /**
+   * The same two answers said to the BUILDER instead of to the customer, and assigned last in
+   * `TRADE_LABELS` so it wins there.
+   *
+   * "I'm buying the materials" is right on a customer's chip and backwards on a builder's screen,
+   * where "I" is the builder and the line is the heading over their own rate table - it says the
+   * opposite of what it means. This matters more here than in any other trade: the supply model is
+   * not a field on a form, it is which of two whole price lists the builder is looking at.
+   *
+   * Said as what the WORK is rather than as who pays, because that is what a builder is checking:
+   * one table is their labour and the other is labour with materials in it.
+   */
+  supplyFactual: {
+    labour_only: 'Installation only — customer supplies the materials',
+    supply_and_install: 'Supply and install — you supply the materials',
+  },
 } as const;
 
 /**
@@ -445,6 +461,9 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     RW_LABEL_GROUPS.wallTypes,
     LABEL_GROUPS.units,
     RW_LABEL_GROUPS.units,
+    /* LAST, so it overwrites the customer-chat phrasing of the same two slugs - the pattern
+       `TRADE_LABELS` already uses for tiling's `bathroom` and kitchen's `full_demolition`. */
+    RW_LABEL_GROUPS.supplyFactual,
   ) as Record<string, string>,
 };
 
