@@ -243,7 +243,9 @@ Fixture: `tests/fixtures/description-COMPLETE-retaining-wall.txt` (3450 characte
       "per_metre": "per metre",
       "per_item": "each",
       "per_job": "per job",
-      "per_sqm": "per m2"
+      "per_sqm": "per m2",
+      "per_hour": "per hour",
+      "per_day": "per day"
     },
     "source": {
       "documents": [

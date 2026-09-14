@@ -189,9 +189,10 @@ part of the job rather than an add-on. Render `type` through `labels` and `unit`
 ]
 ```
 
-**`per_hour` and `per_day` appear ONLY here.** They are not in the shared unit label map, so render
-them yourself as "per hour" and "per day" — a fallback that title-cases the slug gives "Per Hour",
-which is close enough, but check it rather than showing `per_hour`.
+**`per_hour` and `per_day` appear ONLY here** — no other trade has a unit that is not one of the
+four in the shared list. They ARE in this trade's `labels` map ("per hour", "per day"), so render
+them the same way as every other slug. Do not special-case them, and do not fall back to
+title-casing the slug: nothing in this response should ever reach a screen as `per_hour`.
 
 Worth a line of copy on the screen: **none of this enters a customer's quote.** A customer cannot say
 how many hours of excavation or how many posts their wall needs, so these are shown to the customer

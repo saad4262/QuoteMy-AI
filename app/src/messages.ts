@@ -285,6 +285,14 @@ export const RW_LABEL_GROUPS = {
     delivery: 'Material delivery',
     site_inspection: 'A site inspection',
   },
+  /* The two units no other trade has, and the only slugs a business screen was left unable to
+     render. `LABEL_GROUPS.units` covers the four in the shared `UNITS` list; excavation by the hour
+     and an excavator by the day exist only in this trade's groundworks and site conditions, so
+     their words belong here rather than in the shared map every trade reads. */
+  units: {
+    per_hour: 'per hour',
+    per_day: 'per day',
+  },
 } as const;
 
 /**
@@ -436,6 +444,7 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     RW_LABEL_GROUPS.extras,
     RW_LABEL_GROUPS.wallTypes,
     LABEL_GROUPS.units,
+    RW_LABEL_GROUPS.units,
   ) as Record<string, string>,
 };
 
