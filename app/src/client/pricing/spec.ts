@@ -128,4 +128,21 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
        sentence offering them a price. */
     rateSentence: { order: 'headline-first', joiner: ',' },
   },
+  decking: {
+    quantityField: 'areaSqm',
+    unit: 'm2',
+    /* pricing.rates is { deckHeight: [ { material, pricePerSqm } ] }, and the height is the OUTER
+       key because it is the coarser question and the one a customer answers first. Both keys are
+       REQUIRED on a row, unlike tiling's nullable tile or a retaining wall's nullable height band:
+       a deck rate that has lost its height is a rate for a build nobody described, because the
+       posts, bracing and footings under an elevated deck are most of what separates it from one on
+       the ground. */
+    rateKeys: ['deckHeight', 'material'],
+    minimumCharge: true,
+    headlineField: 'material',
+    /* "Merbau at ground level" is what a person says - the board is the choice and the height
+       qualifies it, exactly the shape fencing's "Colorbond at 1.8m" has. `lowerOther` because a
+       height band mid-sentence is not a proper noun. */
+    rateSentence: { order: 'headline-first', joiner: 'at', lowerOther: true },
+  },
 };

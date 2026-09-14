@@ -3,6 +3,7 @@ import { clearSchemaCache } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
 import {
   CONVERSATIONS,
+  DECKING_CONVERSATIONS,
   KITCHEN_CONVERSATIONS,
   RETAINING_WALL_CONVERSATIONS,
   runScript,
@@ -37,6 +38,7 @@ describe('golden conversations', () => {
     ...TILING_CONVERSATIONS,
     ...KITCHEN_CONVERSATIONS,
     ...RETAINING_WALL_CONVERSATIONS,
+    ...DECKING_CONVERSATIONS,
   ]) {
     it(conversation.name, async () => {
       const transcript = await runScript(conversation, repo);

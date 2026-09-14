@@ -488,6 +488,7 @@ export class MockAiClient implements AiClient {
       [/^Trade:\s*tiling\b/im, 'tiling'],
       [/^Trade:\s*kitchen\b/im, 'kitchen'],
       [/^Trade:\s*retaining_wall\b/im, 'retaining_wall'],
+      [/^Trade:\s*decking\b/im, 'decking'],
     ];
     const trade: Trade = SNIFF.find(([re]) => re.test(text))?.[1] ?? 'fencing';
     const rates = readRates(text);
@@ -502,6 +503,7 @@ export class MockAiClient implements AiClient {
       if (trade === 'tiling') data = this.reviewTiling(text);
       else if (trade === 'kitchen') data = this.reviewKitchen(text);
       else if (trade === 'retaining_wall') data = this.reviewRetainingWall(text);
+      else if (trade === 'decking') data = this.reviewDecking(text);
       else data = this.review(text, rates);
     }
     else if (call.name === 'turn') data = this.turn(text);
@@ -510,6 +512,7 @@ export class MockAiClient implements AiClient {
       if (trade === 'tiling') data = this.extractionTiling(text);
       else if (trade === 'kitchen') data = this.extractionKitchen(text);
       else if (trade === 'retaining_wall') data = this.extractionRetainingWall(text);
+      else if (trade === 'decking') data = this.extractionDecking(text);
       else data = this.extraction(text, rates);
     }
 
@@ -1282,6 +1285,351 @@ export class MockAiClient implements AiClient {
       otherOfferings: [],
       couldNotUse: [
         'Read by the offline mock reader - site conditions, extras and other offerings are not extracted in mock mode.',
+      ],
+    };
+  }
+
+  /**
+   * Decking, as far as a regex can see it, in the same crude spirit as the four above.
+   *
+   * The blocking list is D1-D9 from `sop/decking/rules.md`, in the same order, so an offline run and
+   * a real one are at least asking the same questions.
+   *
+   * Two of these are this trade's own and are worth the extra lines. D2 - what HEIGHT each rate is
+   * for - is the rule a page of per-square-metre prices fails most often while looking thorough.
+   * And D4 catches a balustrade priced by the wrong quantity: per square metre of DECK rather than
+   * per linear metre of edge, which on a 40m2 deck charges a railing against three times the length
+   * that exists.
+   */
+  private reviewDecking(text: string) {
+    const stated = (re: RegExp) => re.test(text);
+    const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
+
+    // D1. The one figure without which there is nothing to assess: a deck priced per square metre.
+    const perSqm = [...text.matchAll(/\$\s?[0-9,]+\s*(?:per\s*(?:square\s*)?met(?:re|er)|\/\s*(?:m2|m²|sqm))/gi)];
+    if (!perSqm.length) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Add what you charge per square metre for each decking board you lay.',
+        example: 'Merbau $420 per square metre',
+      });
+    }
+
+    /* D2. Either height bands, or one line saying a single rate covers every height. Both complete.
+       A page of rates with neither has published a price for a build nobody described. */
+    if (!stated(/ground[-\s]?level|low[-\s]?level|elevated|raised|high[-\s]?level|any height|every height|all heights/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Say what deck height each rate is for — ground level, low, elevated, high — or one line saying a single rate covers every height you build.',
+        example: 'GROUND LEVEL — Merbau $420 per square metre',
+      });
+    }
+    // D3.
+    if (!stated(/stairs?|steps?|flights?/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge for stairs, per flight or per step, or say you do not build them.', example: 'Standard timber flight up to 5 steps $950' });
+    }
+    /* D4, and the half that matters more than whether it is there at all. A balustrade runs along
+       the deck's EDGE, so it is metres; priced per square metre it is charged against the floor
+       behind it. Found by writing the rejected fixture, which does exactly that. */
+    const balustradeByArea = /balustrade[^.\n]{0,60}per\s*(?:square\s*met(?:re|er)|m2|m²|sqm)|\bper\s*(?:square\s*met(?:re|er)|m2|sqm)[^.\n]{0,40}balustrade/i.test(text);
+    if (balustradeByArea) {
+      fixes.push({
+        kind: 'unclear',
+        what: 'Your balustrade is priced by the square metre — it runs along the deck edge, so we need it per linear metre.',
+        example: 'Timber balustrade $220 per linear metre',
+      });
+    } else if (!stated(/balustrade|handrail|railing/i)) {
+      fixes.push({ kind: 'missing', what: 'Add your balustrade prices per linear metre by type, or say you do not fit them.', example: 'Timber balustrade $220 per linear metre' });
+    }
+    // D5.
+    if (!stated(/privacy screen|screening|batten screen|screens\b/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge for privacy screens, or say you do not do them.', example: 'Timber batten screen $340 per square metre' });
+    }
+    // D6.
+    if (!stated(/demoli\w*|removal|remove|dispos\w*|strip\w*/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge to take out and dispose of an existing deck, or say you do not do it.', example: 'Timber deck removal $85 per square metre' });
+    }
+    /* D7, and the one claim worth flagging outright. A business saying a permit MAY be needed is
+       correct; one saying most decks do not need one has told its customers something neither it
+       nor we can know for their site. */
+    if (/\b(?:most|no|don'?t|doesn'?t)\b[^.\n]{0,40}\bneed\b[^.\n]{0,20}\bpermit|permit[^.\n]{0,30}\bnot\s+(?:required|needed)\b/i.test(text)) {
+      fixes.push({
+        kind: 'unclear',
+        what: 'Please do not say decks generally do not need a permit — it depends on the height, the boundary and the site. Say who arranges and pays for permits instead.',
+        example: 'Permits depend on the site. We arrange the application from $650; council fees are the customer’s.',
+      });
+    } else if (!stated(/engineer|permit|council|approval|certif/i)) {
+      fixes.push({ kind: 'missing', what: 'Say where you stand on engineering and building permits — who arranges them, who pays, and what you charge if you do.', example: 'We arrange engineering from $890; council fees are the customer’s' });
+    }
+    // D8.
+    if (!stated(/minimum/i)) {
+      fixes.push({ kind: 'missing', what: 'Add the smallest job you will take on and what you charge for it.', example: 'Minimum charge $1,200' });
+    }
+    /* D9 as TWO fixes, not one. `review.system.md` puts the service area and GST under its "wrong"
+       heading when they are crushed together - they are two unrelated things to go and do. */
+    if (!stated(/\b\d+\s*km\b/i)) {
+      fixes.push({ kind: 'missing', what: 'Say where you work out of and how far you travel.', example: 'Based in Berwick, we travel 20km' });
+    }
+    if (!stated(/gst/i)) {
+      fixes.push({ kind: 'missing', what: 'Say whether your prices include GST.', example: 'All prices include GST' });
+    }
+
+    /* Ranges and POA on a CORE rate, with rule 4a's carve-out. A "from" price on design, a site
+       visit, engineering or a callout is fine and must not be reported - that carve-out has already
+       produced one false rejection in this product. */
+    const vague = [...text.matchAll(/[^\n.]*(?:\bpoa\b|call (?:us|for pricing)|from \$\d|\$\d[\d,]*\s*(?:to|-|–)\s*\$?\d)[^\n.]*/gi)];
+    const vagueCore = vague.filter(
+      (m) => !/engineer|permit|council|certif|inspection|consult|design|callout|call.?out|deliver|variation|repair|restor|oil|sand/i.test(m[0]),
+    );
+    if (vagueCore.length) {
+      fixes.push({ kind: 'unclear', what: 'Give one firm price per square metre for each board — some of what you sent is a range or a "call us".', example: null });
+    }
+
+    return {
+      outcome: perSqm.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      // Six, which is what `review.system.md` permits - "aim for 3 to 5 ... never more than 6".
+      fixes: perSqm.length ? fixes.slice(0, 6) : [],
+      alsoWorthAdding: [],
+    };
+  }
+
+  /**
+   * Decking rates, read off the page. What this one has to get right that none of the others do is
+   * WHICH HEIGHT a rate belongs to: the same board is listed four times down the page under four
+   * headings, and a reader that loses the heading hands the verifier four prices for one thing and
+   * keeps whichever came last. So the height is tracked as a heading that carries DOWN, and a rate
+   * found before any heading is dropped rather than guessed.
+   */
+  private extractionDecking(text: string) {
+    const gstLine = sentenceWith(text, /gst/i);
+    const radiusLine = sentenceWith(text, /\b\d+\s*km\b/i);
+
+    const money = (line: string) => Number(/\$\s?([0-9,]+)/.exec(line)?.[1]?.replace(/,/g, '') ?? 0) || null;
+    const moneyAfter = (line: string, re: RegExp): number | null => {
+      const at = re.exec(line);
+      return money(at ? line.slice(at.index) : line);
+    };
+    const fee = (re: RegExp): [number | null, string | null] => {
+      const line = sentenceWith(text, re);
+      if (!line) return [null, null];
+      return [moneyAfter(line, re), line];
+    };
+
+    const [minimumCharge, minLine] = fee(/minimum/i);
+    const [siteInspectionFee, inspectionLine] = fee(/site inspection|site visit/i);
+    /* Not a bare /design/: the business's own strapline is "deck design, supply and installation",
+       which says the word first and carries no figure, so the fee came back null on a document that
+       plainly states one. The same shape of bug the retaining wall travel fee had. */
+    const [designFee, designLine] = fee(/\bdesign\b(?=[^\n]{0,30}\$)/i);
+    const [travelFee, travelLine] = fee(/travel (?:fee|outside|charge)/i);
+
+    /* Order matters: `pvc` before `composite` (a PVC board is not a composite one), and the
+       hardwoods before `treated_pine` so merbau does not land on the pine everyone defaults to. */
+    const MATERIALS: [RegExp, string][] = [
+      [/\bpvc\b|vinyl deck/i, 'pvc'],
+      [/composite|trex|ekodeck|modwood/i, 'composite'],
+      [/spotted gum/i, 'spotted_gum'],
+      [/blackbutt/i, 'blackbutt'],
+      [/jarrah/i, 'jarrah'],
+      [/merbau|kwila/i, 'merbau'],
+      [/treated pine|\bpine\b/i, 'treated_pine'],
+    ];
+    /* `high_level` and `low_level` before `elevated`, because "high level" and "low level" both
+       contain "level" and a loose `elevated` test would take a heading that says neither. */
+    const HEIGHTS: [RegExp, string][] = [
+      [/high[-\s]?level|high[-\s]?set/i, 'high_level'],
+      [/low[-\s]?level|low[-\s]?set/i, 'low_level'],
+      [/ground[-\s]?level|on the ground/i, 'ground_level'],
+      [/elevated|raised/i, 'elevated'],
+    ];
+    const BALUSTRADES: [RegExp, string][] = [
+      [/aluminium balustrade/i, 'aluminium'],
+      [/steel balustrade/i, 'steel'],
+      [/glass balustrade/i, 'glass'],
+      [/wire balustrade/i, 'wire'],
+      [/composite balustrade/i, 'composite'],
+      [/timber balustrade/i, 'timber'],
+    ];
+    const SCREENS: [RegExp, string][] = [
+      [/timber batten screen/i, 'timber_batten'],
+      [/merbau screen/i, 'merbau'],
+      [/aluminium (?:batten )?screen/i, 'aluminium'],
+      [/composite screen/i, 'composite'],
+      [/hardwood screen/i, 'hardwood'],
+    ];
+    const REMOVES: [RegExp, string][] = [
+      [/composite deck removal/i, 'composite_deck'],
+      [/timber deck removal/i, 'timber_deck'],
+    ];
+    const CONDITIONS: [RegExp, string][] = [
+      [/restricted access/i, 'restricted_access'],
+      [/rock excavation|\brock\b/i, 'rock'],
+      [/tree root|\broots?\b/i, 'roots'],
+      [/poor soil|unstable (?:soil|ground)/i, 'poor_soil'],
+      [/slop(?:e|ed|ing)/i, 'sloped'],
+      [/existing concrete/i, 'existing_concrete'],
+    ];
+
+    const rates: unknown[] = [];
+    const balustrades: unknown[] = [];
+    const stairs: unknown[] = [];
+    const screens: unknown[] = [];
+    const removals: unknown[] = [];
+    const siteConditions: unknown[] = [];
+    const seen = new Set<string>();
+
+    /* The heading that carries down the page. Null until the document names a height, and a rate
+       found while it is null is dropped - see the method comment. */
+    let height: string | null = null;
+
+    for (const raw of text.split(/\n|(?<=\.)\s+(?=[A-Z])/)) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      const hasPrice = /\$\s?([0-9,]+)/.test(line);
+      const namesHeight = HEIGHTS.find(([re]) => re.test(line))?.[1] ?? null;
+      // A heading names a height and carries no price of its own.
+      if (namesHeight && !hasPrice) {
+        height = namesHeight;
+        continue;
+      }
+      if (!hasPrice) continue;
+      const price = money(line);
+      if (!price) continue;
+
+      const balHit = BALUSTRADES.find(([re]) => re.test(line));
+      if (balHit) {
+        if (seen.has('ba' + balHit[1])) continue;
+        seen.add('ba' + balHit[1]);
+        balustrades.push({
+          type: balHit[1],
+          price: moneyAfter(line, balHit[0]) ?? price,
+          unit: /per\s*(?:linear\s*|lineal\s*)?met|\/\s*l?m\b/i.test(line) ? 'per_metre' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      const scrHit = SCREENS.find(([re]) => re.test(line));
+      if (scrHit) {
+        if (seen.has('sc' + scrHit[1])) continue;
+        seen.add('sc' + scrHit[1]);
+        screens.push({
+          type: scrHit[1],
+          price: moneyAfter(line, scrHit[0]) ?? price,
+          unit: /per\s*(?:square\s*)?met(?:re|er)|m2|sqm/i.test(line) ? 'per_sqm' : /per\s*(?:linear\s*)?met/i.test(line) ? 'per_metre' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      const remHit = REMOVES.find(([re]) => re.test(line));
+      if (remHit) {
+        if (seen.has('rm' + remHit[1])) continue;
+        seen.add('rm' + remHit[1]);
+        removals.push({
+          removes: remHit[1],
+          price: moneyAfter(line, remHit[0]) ?? price,
+          unit: /per\s*(?:square\s*)?met(?:re|er)|m2|sqm/i.test(line) ? 'per_sqm' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      if (/\b(?:flight|step)s?\b/i.test(line)) {
+        const label = line.replace(/\s*\$[\s0-9,]+\.?$/, '').trim();
+        if (!label || seen.has('st' + label.toLowerCase())) continue;
+        seen.add('st' + label.toLowerCase());
+        /* The grade, read off the builder's own wording. Null on a per-step add-on: "each
+           additional step above five" is not a flight and must never be quoted as one. */
+        const grade = /hardwood|merbau|spotted gum|blackbutt|premium/i.test(line)
+          ? 'hardwood'
+          : /timber|pine|standard/i.test(line)
+            ? 'timber'
+            : null;
+        stairs.push({
+          grade,
+          label,
+          price,
+          unit: /each|per step/i.test(line) ? 'per_item' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      const condHit = CONDITIONS.find(([re]) => re.test(line));
+      if (condHit && /surcharge|excavation|removal|\bper hour\b/i.test(line)) {
+        if (seen.has('cd' + condHit[1])) continue;
+        seen.add('cd' + condHit[1]);
+        siteConditions.push({
+          condition: condHit[1],
+          price,
+          percent: null,
+          unit: /per hour|\/hr/i.test(line) ? 'per_hour' : /per day/i.test(line) ? 'per_day' : 'per_job',
+          sourceQuote: line,
+        });
+        continue;
+      }
+
+      // A core rate: a board at a price per square metre, under whatever height heading is standing.
+      if (!/per\s*(?:square\s*)?met(?:re|er)|\/\s*(?:m2|m²|sqm)/i.test(line)) continue;
+      const matHit = MATERIALS.find(([re]) => re.test(line));
+      if (!matHit) continue;
+      /* The drop this mock exists to reproduce. A rate whose height was never stated is a rate for
+         a build nobody described, and guessing is most of the structure in either direction. */
+      if (!height) continue;
+
+      const key = 'rt' + height + matHit[1];
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rates.push({ deckHeight: height, material: matHit[1], pricePerSqm: price, sourceQuote: line });
+    }
+
+    const warrantyLine = sentenceWith(text, /warrant/i);
+    const engLines = text
+      .split(/\n|(?<=\.)\s+(?=[A-Z])/)
+      .map((l) => l.trim())
+      .filter((l) => /engineer/i.test(l) && /[a-z]/.test(l) && l.length > 30);
+    const engineeringLine = engLines.find((l) => /\$/.test(l)) ?? engLines[0] ?? null;
+
+    return {
+      businessName: text.split('<<<DESCRIPTION>>>')[1]?.split('\n').find((l) => l.trim())?.split('—')[0]?.trim() ?? null,
+      gstIncluded: gstLine ? /include/i.test(gstLine) : null,
+      gstSourceQuote: gstLine,
+      serviceArea: {
+        baseLocation: /based in ([A-Z][a-zA-Z ]+)/i.exec(text)?.[1]?.trim() ?? null,
+        radiusKm: radiusLine ? Number(/(\d+)\s*km/i.exec(radiusLine)?.[1] ?? 0) || null : null,
+        radiusSourceQuote: radiusLine,
+        excludedAreas: [],
+      },
+      minimumCharge,
+      minimumChargeSourceQuote: minLine,
+      siteInspectionFee,
+      siteInspectionFeeSourceQuote: inspectionLine,
+      designFee,
+      designFeeSourceQuote: designLine,
+      travelFee,
+      travelFeeSourceQuote: travelLine,
+      rates,
+      balustrades,
+      stairs,
+      screens,
+      removals,
+      siteConditions,
+      engineering: {
+        text: engineeringLine,
+        price: engineeringLine ? money(engineeringLine) : null,
+        isFromPrice: engineeringLine ? /from \$/i.test(engineeringLine) : false,
+        sourceQuote: engineeringLine,
+      },
+      extras: [],
+      warranty: { text: warrantyLine, sourceQuote: warrantyLine },
+      inclusions: [],
+      exclusions: [],
+      tags: [],
+      otherOfferings: [],
+      couldNotUse: [
+        'Read by the offline mock reader - extras and other offerings are not extracted in mock mode.',
       ],
     };
   }

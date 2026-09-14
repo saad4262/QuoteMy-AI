@@ -442,7 +442,154 @@ export const RETAINING_WALL_BOUNDS = {
   radiusKm: { min: 0, max: 500 },
 } as const;
 
-export const TRADES = ['fencing', 'tiling', 'kitchen', 'retaining_wall'] as const; // decking follows
+// --- decking -----------------------------------------------------------------------------------
+
+/**
+ * What the boards are, which is half of what finds a rate and all of what a customer argues about.
+ *
+ * Treated pine and composite are the two ends of this trade - one is the cheapest deck anybody
+ * builds and the other the most expensive - and every hardwood sits between them. They are kept
+ * apart rather than collapsed into "hardwood" because a builder prices them apart: merbau, spotted
+ * gum, blackbutt and jarrah are four different boards at four different prices, and a customer who
+ * has chosen one has not chosen the others.
+ *
+ * `pvc` is here because the trade sells it and it is not composite - a different product with a
+ * different price - even though it is the rarest line on any list.
+ */
+export const DECK_MATERIALS = [
+  'treated_pine',
+  'merbau',
+  'spotted_gum',
+  'blackbutt',
+  'jarrah',
+  'composite',
+  'pvc',
+] as const;
+
+/**
+ * How far off the ground, which is the other half of the rate and the reason two decks of the same
+ * size in the same timber are not the same price.
+ *
+ * Height is not a finish here the way it is on a fence. It changes what is UNDER the deck: a
+ * ground-level deck sits on bearers close to the soil, and an elevated one needs posts, bracing,
+ * deeper footings, stairs and a balustrade. That is a different build, not a taller one.
+ *
+ * Four bands rather than the legacy n8n generation's two (`ground` / `raised`), because the trade's
+ * own pricing section bands it in four and the gap between a low deck and a high one is where most
+ * of the cost lives.
+ */
+export const DECK_HEIGHTS = ['ground_level', 'low_level', 'elevated', 'high_level'] as const;
+
+/**
+ * Whether the deck is fixed to the house. Asked, recorded, shown to the builder - and deliberately
+ * NOT a rate key, because no price list bands by it.
+ *
+ * It is worth asking anyway: an attached deck is bolted through the wall with a ledger, and doing
+ * that through the wrong cladding is one of the more expensive mistakes in this trade. A builder
+ * wants to know before they quote, and a customer can answer it by looking out of the window.
+ */
+export const DECK_ATTACHMENT = ['attached', 'freestanding'] as const;
+
+/**
+ * Balustrade, priced per LINEAR metre along the deck's edge - not per square metre of its floor.
+ *
+ * That is the whole reason this trade needs its own pricing module: the balustrade is a second
+ * quantity, measured along a different thing from the deck itself.
+ */
+export const DECK_BALUSTRADES = ['timber', 'aluminium', 'steel', 'glass', 'wire', 'composite'] as const;
+
+export const DECK_SCREENS = ['timber_batten', 'hardwood', 'merbau', 'aluminium', 'composite'] as const;
+
+/**
+ * Stairs, and the third quantity's own question.
+ *
+ * Two grades rather than a step count, and both halves of that are deliberate. The trade's own
+ * pricing section bands stairs as a standard flight and a premium one, so this is what builders
+ * publish against - and a STEP count is something this conversation must never ask for: almost
+ * nobody can say how many steps their deck needs before it is designed, and a guess produces a
+ * wrong price rather than a missing one.
+ *
+ * NAMED BY THE TIMBER, not "standard" and "premium", and that is not a style choice. `standard` is
+ * in `NOTHING` - the pattern that reads "none", "nothing tricky", "flat", "easy", "clear" as an
+ * explicit no - so a stair grade called `standard` resolves to the pinned "No stairs" and the
+ * question asks itself for ever. A golden conversation caught it. The builder's own wording is
+ * better anyway: their list says "standard timber flight" and "hardwood flight".
+ */
+export const DECK_STAIRS = ['timber', 'hardwood'] as const;
+
+/**
+ * What is coming OUT, which is what demolition is priced against. `any` is the business-side
+ * wildcard every trade here has: somebody replacing a deck knows one is there and has not thought
+ * about what the frame under it is made of.
+ */
+export const DECK_REMOVES = ['timber_deck', 'composite_deck', 'any'] as const;
+
+/** Every other priced line. Each one is a real heading on a deck builder's own list. */
+export const DECK_EXTRAS = [
+  'stairs',
+  'handrails',
+  'skirting',
+  'seating',
+  'planter_boxes',
+  'access_hatch',
+  'pergola',
+  'lighting',
+  'oiling',
+  'sanding',
+  'restoration',
+  'repairs',
+  'design',
+  'engineering_coordination',
+  'permit_coordination',
+] as const;
+
+export const DECK_CONDITIONS = [
+  'restricted_access',
+  'rock',
+  'roots',
+  'poor_soil',
+  'sloped',
+  'existing_concrete',
+] as const;
+
+export const DECK_TAGS = [
+  'composite-capable',
+  'pool-deck-capable',
+  'multi-level',
+  'bal-rated',
+  'engineering-coordination',
+  'restoration',
+  'insured',
+] as const;
+
+export type DeckMaterial = (typeof DECK_MATERIALS)[number];
+export type DeckHeight = (typeof DECK_HEIGHTS)[number];
+export type DeckAttachment = (typeof DECK_ATTACHMENT)[number];
+export type DeckBalustrade = (typeof DECK_BALUSTRADES)[number];
+export type DeckScreen = (typeof DECK_SCREENS)[number];
+export type DeckStair = (typeof DECK_STAIRS)[number];
+export type DeckRemoves = (typeof DECK_REMOVES)[number];
+export type DeckExtra = (typeof DECK_EXTRAS)[number];
+export type DeckCondition = (typeof DECK_CONDITIONS)[number];
+export type DeckTag = (typeof DECK_TAGS)[number];
+
+/**
+ * Decking's bounds. Sold by the square metre of deck, so `pricePerSqm` does the work - and its
+ * ceiling is deliberately looser than tiling's $1,000, because a deck is a structure and a tiled
+ * floor is a surface: an elevated composite deck genuinely reaches several hundred a metre before
+ * anything has gone wrong.
+ *
+ * The floor stays at zero rather than guessing, but see `verify/decking.ts`: a rate under about
+ * $150/m2 is almost always a BOARD price off a supplier's page rather than an installed rate, and
+ * that is flagged rather than dropped.
+ */
+export const DECKING_BOUNDS = {
+  pricePerSqm: { min: 0, max: 2000 },
+  price: { min: 0, max: 100_000 },
+  radiusKm: { min: 0, max: 500 },
+} as const;
+
+export const TRADES = ['fencing', 'tiling', 'kitchen', 'retaining_wall', 'decking'] as const;
 export type Trade = (typeof TRADES)[number];
 
 /**
@@ -525,9 +672,27 @@ export const RETAINING_WALL_VOCAB: TradeVocab = {
   bounds: RETAINING_WALL_BOUNDS,
 };
 
+export const DECKING_VOCAB: TradeVocab = {
+  core: {
+    heights: DECK_HEIGHTS,
+    materials: DECK_MATERIALS,
+    attachment: DECK_ATTACHMENT,
+    balustrades: DECK_BALUSTRADES,
+    screens: DECK_SCREENS,
+    stairs: DECK_STAIRS,
+    removes: DECK_REMOVES,
+    conditions: DECK_CONDITIONS,
+    extras: DECK_EXTRAS,
+    units: UNITS,
+    tags: DECK_TAGS,
+  },
+  bounds: DECKING_BOUNDS,
+};
+
 export const TRADE_VOCAB: Record<Trade, TradeVocab> = {
   fencing: FENCING_VOCAB,
   tiling: TILING_VOCAB,
   kitchen: KITCHEN_VOCAB,
   retaining_wall: RETAINING_WALL_VOCAB,
+  decking: DECKING_VOCAB,
 };

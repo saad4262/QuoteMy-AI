@@ -1,6 +1,7 @@
 import type {
   AnyExtraction,
   Extraction,
+  DeckingExtraction,
   KitchenExtraction,
   RetainingWallExtraction,
   TilingExtraction,
@@ -10,6 +11,7 @@ import { verifyFencing, type VerifiedResult as FencingResult } from './fencing.j
 import { verifyTiling, type TilingVerifiedResult } from './tiling.js';
 import { verifyKitchen, type KitchenVerifiedResult } from './kitchen.js';
 import { verifyRetainingWall, type RetainingWallVerifiedResult } from './retainingWall.js';
+import { verifyDecking, type DeckingVerifiedResult } from './decking.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './fencing.js';
 import type {
   TilingVerifiedCapabilities,
@@ -26,6 +28,11 @@ import type {
   RetainingWallVerifiedOffering,
   RetainingWallVerifiedPricing,
 } from './retainingWall.js';
+import type {
+  DeckingVerifiedCapabilities,
+  DeckingVerifiedOffering,
+  DeckingVerifiedPricing,
+} from './decking.js';
 
 /**
  * Verification, by trade.
@@ -60,6 +67,8 @@ export function verifyExtraction(
       return verifyKitchen(x as KitchenExtraction, sourceText, trade, knownSlugs);
     case 'retaining_wall':
       return verifyRetainingWall(x as RetainingWallExtraction, sourceText, trade, knownSlugs);
+    case 'decking':
+      return verifyDecking(x as DeckingExtraction, sourceText, trade, knownSlugs);
   }
 }
 
@@ -75,22 +84,26 @@ export type AnyVerifiedPricing =
   | VerifiedPricing
   | TilingVerifiedPricing
   | KitchenVerifiedPricing
-  | RetainingWallVerifiedPricing;
+  | RetainingWallVerifiedPricing
+  | DeckingVerifiedPricing;
 export type AnyVerifiedCapabilities =
   | VerifiedCapabilities
   | TilingVerifiedCapabilities
   | KitchenVerifiedCapabilities
-  | RetainingWallVerifiedCapabilities;
+  | RetainingWallVerifiedCapabilities
+  | DeckingVerifiedCapabilities;
 export type AnyVerifiedOffering =
   | VerifiedOffering
   | TilingVerifiedOffering
   | KitchenVerifiedOffering
-  | RetainingWallVerifiedOffering;
+  | RetainingWallVerifiedOffering
+  | DeckingVerifiedOffering;
 export type VerifiedResult =
   | FencingResult
   | TilingVerifiedResult
   | KitchenVerifiedResult
-  | RetainingWallVerifiedResult;
+  | RetainingWallVerifiedResult
+  | DeckingVerifiedResult;
 
 /**
  * Which shape this is, decided by a field only one of them has.
@@ -117,6 +130,9 @@ export const isKitchenPricing = (p: AnyVerifiedPricing): p is KitchenVerifiedPri
 export const isRetainingWallPricing = (p: AnyVerifiedPricing): p is RetainingWallVerifiedPricing =>
   Array.isArray((p as RetainingWallVerifiedPricing).enabledWallTypes);
 
+export const isDeckingPricing = (p: AnyVerifiedPricing): p is DeckingVerifiedPricing =>
+  Array.isArray((p as DeckingVerifiedPricing).enabledDeckMaterials);
+
 export type {
   VerifiedCapabilities,
   VerifiedOffering,
@@ -139,6 +155,14 @@ export type {
   KitchenVerifiedPricing,
   KitchenVerifiedResult,
 } from './kitchen.js';
+
+export type {
+  DeckRate,
+  DeckingVerifiedCapabilities,
+  DeckingVerifiedOffering,
+  DeckingVerifiedPricing,
+  DeckingVerifiedResult,
+} from './decking.js';
 
 export type {
   RwRate,

@@ -73,6 +73,39 @@ describe('reading the trade out of what they said', () => {
     ]) {
       expect(detectTrade(message, both), message).toEqual(['retaining_wall']);
     }
+
+    for (const message of [
+      'I need a decking quote',
+      'how much for a new deck',
+      'merbau deck, about 30 square metres',
+      'looking for a deck builder',
+      'composite decking price',
+      'we need a balustrade on the deck',
+    ]) {
+      expect(detectTrade(message, both), message).toEqual(['decking']);
+    }
+  });
+
+  /**
+   * The overlap decking brought with it: its MATERIALS belong to everybody.
+   *
+   * Merbau, spotted gum and treated pine are all fencing materials, and merbau is a retaining wall's
+   * `premium_timber` too. The only thing separating "merbau fence" from "merbau deck" is the noun
+   * beside the timber, so every board stays compound and only `deck` itself is claimed bare.
+   */
+  it('does not let a timber name decide the trade on its own', () => {
+    // The board alone settles nothing, and nothing may fire.
+    for (const message of ['I like merbau', 'what about spotted gum', 'treated pine please', 'something in composite']) {
+      expect(detectTrade(message, both), message).toEqual([]);
+    }
+
+    // The noun beside it is what decides, and it decides correctly in both directions.
+    expect(detectTrade('merbau deck', both)).toEqual(['decking']);
+    expect(detectTrade('merbau fence', both)).toEqual(['fencing']);
+    expect(detectTrade('treated pine sleepers for the wall', both)).toEqual(['retaining_wall']);
+
+    // And a message naming two jobs is still two jobs.
+    expect(detectTrade('a merbau deck and a colorbond fence', both)).toEqual(['fencing', 'decking']);
   });
 
   /**
@@ -105,6 +138,11 @@ describe('reading the trade out of what they said', () => {
       // Left off retaining wall's list on purpose - both are half of what a landscaper writes.
       'we need some excavation done',
       'the drainage is a mess',
+      /* Left off DECKING's list for the same reason. A retaining wall has stairs, a house has
+         stairs, and three trades sell a pergola and a privacy screen. */
+      'I need some stairs',
+      'can you do a pergola',
+      'looking for privacy screens',
     ]) {
       expect(detectTrade(message, both), message).toEqual([]);
     }
@@ -192,9 +230,9 @@ describe('the conversation', () => {
     expect(asked.type).toBe('question');
     expect(asked.trade).toBeNull();
     expect(asked.message).toBe(
-      'Are you looking for Fencing, Tiling, Kitchen fitting or Retaining wall services?',
+      'Are you looking for Fencing, Tiling, Kitchen fitting, Retaining wall or Decking services?',
     );
-    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen', 'retaining_wall']);
+    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen', 'retaining_wall', 'decking']);
     /* The only turn with no trade behind it, so there is nothing for a rate to be per. The golden
        conversations all name their trade and never reach here, and a result card reading `unit` has
        to survive the one turn that cannot answer it. */

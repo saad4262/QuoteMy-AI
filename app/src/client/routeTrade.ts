@@ -61,7 +61,10 @@ export const TRADE_KEYWORDS: Record<Trade, RegExp> = {
    *
    * `sleepers` is qualified rather than bare. A bare `sleeper` is a railway sleeper in a garden bed,
    * a decking substructure and a bed - "timber sleepers" and "concrete sleepers" are unambiguous and
-   * are what people actually type.
+   * are what people actually type. `pine sleepers` and `treated pine sleepers` were added when a
+   * routing test found them reaching nothing at all: they are the commonest words for the cheapest
+   * wall this trade builds, and decking cannot take them because its own timbers stay compound with
+   * the word "deck".
    *
    * Left out deliberately: `batter` (a cooking word before it is an earthworks one), `excavation`
    * and `drainage` (both are half of what a landscaper, a plumber or a builder writes), `garden bed`
@@ -69,7 +72,28 @@ export const TRADE_KEYWORDS: Record<Trade, RegExp> = {
    * rather than claimed here).
    */
   retaining_wall:
-    /\b(?:retaining\s?walls?|retainer\s?walls?|sleeper\s?walls?|besser\s?blocks?|ag(?:gi|gie)?[-\s]?pipes?|soil\s?retention|tiered\s?(?:wall|garden)s?|(?:timber|concrete|hardwood)\s+sleepers?)\b/i,
+    /\b(?:retaining\s?walls?|retainer\s?walls?|sleeper\s?walls?|besser\s?blocks?|ag(?:gi|gie)?[-\s]?pipes?|soil\s?retention|tiered\s?(?:wall|garden)s?|(?:timber|concrete|hardwood|treated\s?pine|pine)\s+sleepers?)\b/i,
+  /**
+   * The one trade whose own noun is completely its own, and whose MATERIALS belong to everybody.
+   *
+   * `deck` and `decking` carry this trade on their own - no other trade in the product uses the
+   * word, and "pool deck", "front deck" and "deck stairs" all reach it correctly.
+   *
+   * What must stay COMPOUND is every board: `merbau`, `spotted gum`, `treated pine`, `blackbutt`
+   * and `jarrah` are all fencing materials too, and `merbau` is a retaining wall's `premium_timber`
+   * as well. "Merbau fence" and "merbau deck" are two different jobs and the only thing telling
+   * them apart is the noun beside the timber. Bare `composite` is worse again - a composite
+   * balustrade, a composite screen and a composite sleeper are three trades.
+   *
+   * `balustrade` is claimed bare, and it is safe: it names a deck railing and no other trade in the
+   * product prices one. `decking` also covers `deck builder` and `deck board` for free.
+   *
+   * Left out deliberately: `stairs` (a retaining wall has them and so does a house), `screens`
+   * (fencing sells privacy screens), `pergola` (sold by three trades), and `timber` on its own,
+   * which four trades use.
+   */
+  decking:
+    /\b(?:decks?|decking|deck\s?builders?|balustrades?|(?:merbau|spotted\s?gum|blackbutt|jarrah|treated\s?pine|composite|pvc)\s+deck(?:ing|s)?)\b/i,
 };
 
 export interface TradeRouting {

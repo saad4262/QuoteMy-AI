@@ -149,7 +149,7 @@ export interface Conversation {
   turns: Turn[];
   ai?: AiClient;
   /** Omitted means fencing, so every conversation written before there was a second trade is unchanged. */
-  trade?: 'fencing' | 'tiling' | 'kitchen' | 'retaining_wall';
+  trade?: 'fencing' | 'tiling' | 'kitchen' | 'retaining_wall' | 'decking';
 }
 
 /**
@@ -977,6 +977,245 @@ export const RETAINING_WALL_CONVERSATIONS: Conversation[] = [
       { say: 'no' },
       { say: 'who supplies is wrong' },
       { say: 'labour_only' },
+      { say: 'yes' },
+    ],
+  },
+];
+
+/**
+ * Berwick Decks, as the business pipeline would have stored it.
+ *
+ * Read the three price groups together, because they are the point of this trade: the rates are per
+ * SQUARE METRE of deck, the balustrade is per LINEAR metre along its edge, and a stair flight is one
+ * price each. A quote here multiplies three different quantities, which nothing else in the product
+ * does, and conversation 41 is the one that proves it.
+ *
+ * `high_level` deliberately carries fewer boards than `ground_level`: a builder who does not lay
+ * spotted gum a storey up is a normal, publishable price list, and conversation 42 is what happens
+ * to a customer who asks for one.
+ */
+export function seedDeckBuilder(
+  repo: MemoryRepository,
+  uid: string,
+  businessName: string,
+  pricingOverrides: Record<string, unknown> = {},
+): void {
+  const now = '2026-01-01T00:00:00.000Z';
+
+  repo.addCandidate({
+    uid,
+    businessName,
+    servicesProvided: ['decking'],
+    rating: 4.9,
+    reviewCount: 78,
+    isAutoAcceptEnabled: false,
+    isAiAutoAcceptEnabled: true,
+  });
+
+  repo.savePricing(uid, {
+    trade: 'decking',
+    status: 'confirmed',
+    schemaVersion: 1,
+    updatedAt: now,
+    confirmedAt: now,
+    ratesSaved: 16,
+    gstIncluded: true,
+    enabledDeckMaterials: ['treated_pine', 'merbau', 'spotted_gum', 'blackbutt', 'composite'],
+    enabledDeckHeights: ['ground_level', 'low_level', 'elevated', 'high_level'],
+    rates: {
+      ground_level: [
+        { material: 'treated_pine', pricePerSqm: 280 },
+        { material: 'merbau', pricePerSqm: 420 },
+        { material: 'spotted_gum', pricePerSqm: 445 },
+        { material: 'blackbutt', pricePerSqm: 465 },
+        { material: 'composite', pricePerSqm: 520 },
+      ],
+      low_level: [
+        { material: 'treated_pine', pricePerSqm: 310 },
+        { material: 'merbau', pricePerSqm: 455 },
+        { material: 'composite', pricePerSqm: 560 },
+      ],
+      elevated: [
+        { material: 'treated_pine', pricePerSqm: 390 },
+        { material: 'merbau', pricePerSqm: 540 },
+        { material: 'composite', pricePerSqm: 650 },
+      ],
+      high_level: [
+        { material: 'treated_pine', pricePerSqm: 470 },
+        { material: 'merbau', pricePerSqm: 640 },
+      ],
+    },
+    /* Per LINEAR metre, every one of them. A balustrade stored per_sqm would be charged against the
+       deck's floor area, which on a 40m2 deck is three times the railing that exists. */
+    balustrades: [
+      { type: 'timber', price: 220, unit: 'per_metre' },
+      { type: 'aluminium', price: 290, unit: 'per_metre' },
+      { type: 'steel', price: 340, unit: 'per_metre' },
+      { type: 'wire', price: 380, unit: 'per_metre' },
+      { type: 'glass', price: 520, unit: 'per_metre' },
+    ],
+    /* A flight at one price, and a per-step row that can never be quoted from - this conversation
+       deliberately never asks how many steps, because a customer guessing produces a wrong price
+       rather than a missing one. It is stored because the builder published it. */
+    stairs: [
+      { grade: 'timber', label: 'Standard timber flight up to 5 steps', price: 950, unit: 'per_job' },
+      { grade: 'hardwood', label: 'Hardwood flight up to 5 steps', price: 1350, unit: 'per_job' },
+      { grade: null, label: 'Each additional step above five', price: 140, unit: 'per_item' },
+    ],
+    screens: [
+      { type: 'timber_batten', price: 340, unit: 'per_sqm' },
+      { type: 'merbau', price: 420, unit: 'per_sqm' },
+    ],
+    removals: [
+      { removes: 'timber_deck', price: 85, unit: 'per_sqm' },
+      { removes: 'composite_deck', price: 95, unit: 'per_sqm' },
+    ],
+    siteConditions: [
+      { condition: 'restricted_access', price: 450, percent: null, unit: 'per_job' },
+      /* Charged by the hour, so it can never reach a total: nobody knows how many hours of rock
+         there are until the ground is open. Stored, shown, and named as not included. */
+      { condition: 'rock', price: 180, percent: null, unit: 'per_hour' },
+    ],
+    extras: [
+      { type: 'skirting', label: 'Deck skirting', price: 180, unit: 'per_metre', isFromPrice: false },
+      { type: 'oiling', label: 'Deck oiling', price: 38, unit: 'per_sqm', isFromPrice: false },
+    ],
+    serviceArea: {
+      baseLocation: 'Berwick',
+      resolved: { suburb: 'Berwick', state: 'VIC', postcode: '3806', lat: BERWICK.latitude, lng: BERWICK.longitude, source: 'google' },
+      radiusKm: 20,
+      excludedAreas: [],
+    },
+    minimumCharge: 1200,
+    siteInspectionFee: 150,
+    designFee: null,
+    travelFee: 90,
+    ...pricingOverrides,
+  } as unknown as PricingDoc);
+
+  repo.saveCapabilities(uid, {
+    trade: 'decking',
+    businessName,
+    engineering: {
+      text: 'Whether a deck needs a permit depends on the site. We arrange engineering from $890.',
+      price: 890,
+      isFromPrice: true,
+    },
+    warranty: { text: 'Ten year workmanship warranty' },
+    tags: [],
+    inclusions: [],
+    exclusions: [],
+    otherOfferings: [],
+    couldNotUse: [],
+    schemaVersion: 1,
+    updatedAt: now,
+  } as unknown as CapabilitiesDoc);
+}
+
+const openDeck: Turn[] = [{ say: 'I need a decking quote' }, { say: 'yes go ahead' }];
+
+export const DECKING_CONVERSATIONS: Conversation[] = [
+  {
+    name: '50 decking, a plain ground-level deck in treated pine',
+    why: 'the fifth trade end to end: height asked FIRST because it decides the build, then the board, and a per-square-metre total with nothing added',
+    trade: 'decking',
+    seed: (repo) => seedDeckBuilder(repo, 'deck-1', 'Berwick Decks'),
+    turns: [
+      ...openDeck,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'ground_level' },
+      { say: 'treated_pine' },
+      { say: '24' },
+      { say: 'freestanding' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '51 decking, an elevated deck with a balustrade and stairs',
+    why: 'THE quote this trade exists to get right - three different quantities in one total: 25m2 of deck, 12 LINEAR metres of balustrade along its edge, and one stair flight. A balustrade multiplied by the deck area instead of its length would be out by more than double',
+    trade: 'decking',
+    seed: (repo) => seedDeckBuilder(repo, 'deck-1', 'Berwick Decks'),
+    turns: [
+      ...openDeck,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'elevated' },
+      { say: 'merbau' },
+      { say: '25' },
+      { say: 'attached' },
+      { say: 'timber_deck' },
+      { say: 'timber' },
+      { say: '12' },
+      { say: 'timber' },
+      { say: '1' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '52 decking, a board nobody lays at that height',
+    why: 'the builder lays spotted gum on the ground and not a storey up, which is a normal price list - so the customer is offered what IS quotable rather than told nobody covers them, and the height weighs more than the board in what is offered back',
+    trade: 'decking',
+    seed: (repo) => seedDeckBuilder(repo, 'deck-1', 'Berwick Decks'),
+    turns: [
+      ...openDeck,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'high_level' },
+      { say: 'spotted_gum' },
+      { say: '30' },
+      { say: 'attached' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '53 decking, no balustrade, so its length is never asked',
+    why: 'the conditional field: `balustradeLm` hangs off `balustrade` with dependsOn, so saying "no balustrade" must skip the length question entirely rather than asking for the length of something that does not exist',
+    trade: 'decking',
+    seed: (repo) => seedDeckBuilder(repo, 'deck-1', 'Berwick Decks'),
+    turns: [
+      ...openDeck,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'low_level' },
+      { say: 'composite' },
+      { say: '18' },
+      { say: 'freestanding' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '54 decking, correcting the board from the recap',
+    why: 'a correction re-asks one field and keeps the rest, on the field that headlines the quote - and the total has to move by the difference between two boards at the same height',
+    trade: 'decking',
+    seed: (repo) => seedDeckBuilder(repo, 'deck-1', 'Berwick Decks'),
+    turns: [
+      ...openDeck,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'ground_level' },
+      { say: 'composite' },
+      { say: '20' },
+      { say: 'freestanding' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'no' },
+      { say: 'the decking is wrong' },
+      { say: 'merbau' },
       { say: 'yes' },
     ],
   },

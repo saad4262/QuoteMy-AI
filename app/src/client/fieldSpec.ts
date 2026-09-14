@@ -1,4 +1,4 @@
-import { KITCHEN_QUESTIONS, QUESTIONS, RW_QUESTIONS, TILING_QUESTIONS } from '../messages.js';
+import { DECK_QUESTIONS, KITCHEN_QUESTIONS, QUESTIONS, RW_QUESTIONS, TILING_QUESTIONS } from '../messages.js';
 import type { Trade } from '../vocab.js';
 import { HEIGHT_FALLBACK, QUANTITIES, RW_HEIGHT_FALLBACK } from './vocab.js';
 
@@ -1307,11 +1307,275 @@ export const RETAINING_WALL_FIELDS: FieldSpec[] = [
  * fallback schema and the Firestore seed - so that publishing `schema/tiling` cannot seed it with
  * fencing's questions.
  */
+/**
+ * Decking's ten, and two things that make the order what it is.
+ *
+ * **Height is asked FIRST**, before the board. It is the only trade here where the opening question
+ * is not what the thing is made of, and that is deliberate: height decides what is UNDER the deck -
+ * posts, bracing, deeper footings, stairs - so it is half the rate rather than a finish on it. A
+ * customer answers it by looking out of their door; choosing a timber takes them a minute.
+ *
+ * **Two conditional fields**, which no other trade in the product has in this shape. The balustrade
+ * length is only asked once they have chosen a balustrade, and the stair count only once they have
+ * said they want stairs. Both use `dependsOn`, the same way fencing's `gateQty` hangs off
+ * `gateType` - and both follow that field's shape too, asking WHICH and WHETHER in one question
+ * rather than a yes/no followed by a type.
+ */
+export const DECKING_FIELDS: FieldSpec[] = [
+  {
+    key: 'suburb',
+    namedBy: /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i,
+    aliases: ['suburb', 'location', 'postcode'],
+    type: 'place',
+    title: 'Suburb',
+    question: 'Which suburb is the deck going in? A postcode works too.',
+  },
+  {
+    key: 'deckHeight',
+    namedBy: /\b(heights?|how high|off the ground|ground level|raised|elevated)\b/i,
+    aliases: ['height'],
+    type: 'enum',
+    labelGroup: 'heights',
+    title: 'Height',
+    question: DECK_QUESTIONS.deckHeight,
+    source: 'core.heights',
+    /* Specific before generic, and the two middle bands before the two ends: "high level" contains
+       "level", and "low level" contains both. A page that only says "raised" means elevated. */
+    docHints: {
+      values: [
+        ['high_level', /\bhigh[-\s]?level\b|\bhigh[-\s]?set\b|\bsecond\s+stor(?:e|ey|y)\b/i],
+        ['low_level', /\blow[-\s]?level\b|\blow[-\s]?set\b|\bstep\s+(?:up|down)\b/i],
+        ['elevated', /\belevated\b|\braised\b|\bfirst\s+floor\b|\bover\s+1\s?m\b/i],
+        ['ground_level', /\bground[-\s]?level\b|\bon\s+the\s+ground\b|\bground[-\s]?hugging\b/i],
+      ],
+    },
+  },
+  {
+    key: 'material',
+    namedBy: /\b(materials?|boards?|decking|timbers?|type of deck)\b/i,
+    aliases: ['material', 'boards', 'decking'],
+    type: 'enum',
+    labelGroup: 'materials',
+    title: 'Decking',
+    question: DECK_QUESTIONS.material,
+    source: 'core.materials',
+    acceptsExtras: true,
+    /* Every brand a customer might name for the one board a builder charges one rate to lay. The
+       same reasoning as tiling's `natural_stone`: nobody says "composite" about the deck they saw
+       at a friend's place, they say Trex or Modwood. */
+    valueAliases: {
+      composite: ['trex', 'ekodeck', 'modwood', 'futurewood', 'newtechwood', 'capped composite', 'wpc'],
+      merbau: ['kwila'],
+      treated_pine: ['pine', 'h3 pine', 'h4 pine', 'treated timber'],
+    },
+    /* Specific before generic, and the hardwoods before pine: "spotted gum" and "blackbutt" both
+       contain neither, but a page naming merbau must not land on the treated pine everyone
+       defaults to. `pvc` before `composite` because a PVC board is not a composite one and half
+       the market calls it "vinyl". */
+    docHints: {
+      values: [
+        ['pvc', /\bpvc\b|\bvinyl\s+deck/i],
+        ['composite', /\bcomposite\b|\btrex\b|\bekodeck\b|\bmodwood\b|\bwpc\b/i],
+        ['spotted_gum', /\bspotted\s+gum\b/i],
+        ['blackbutt', /\bblackbutt\b/i],
+        ['jarrah', /\bjarrah\b/i],
+        ['merbau', /\bmerbau\b|\bkwila\b/i],
+        ['treated_pine', /\btreated\s+pine\b|\bh[34]\s+pine\b|\bpine\b/i],
+      ],
+    },
+  },
+  {
+    key: 'areaSqm',
+    namedBy: /\b(areas?|square met(?:re|er)s?|sqm|m2|sizes?|how big)\b/i,
+    aliases: ['area', 'sqm', 'size'],
+    type: 'number',
+    title: 'Size',
+    question: DECK_QUESTIONS.areaSqm,
+    labelUnit: { suffix: 'm²' },
+    /* People measure a deck every way there is - one number, two sides, or in feet. All of them are
+       the same fact, and making somebody do the sum before we will listen is not a question, it is
+       a form. Converted in CODE, never by the model (`CLAUDE.md` #4). */
+    measureIn: 'm2',
+    /* The same refusals tiling makes, and for the same reason: a range's midpoint and both ends are
+       three different inventions, and a page carrying two areas gives no way to tell which one the
+       customer is asking about. Read nothing and let them be asked. */
+    docHints: {
+      refuse: [
+        new RegExp(String.raw`\b\d+(?:\.\d+)?\s*${AREA_UNIT}?\s*(?:-|–|—|to|or)\s*\d+(?:\.\d+)?\s*${AREA_UNIT}`, 'i'),
+        new RegExp(String.raw`\bbetween\s+\d+(?:\.\d+)?[^\n]{0,14}?\d+(?:\.\d+)?\s*${AREA_UNIT}`, 'i'),
+        new RegExp(String.raw`\d+(?:\.\d+)?\s*${AREA_UNIT}\b[\s\S]*?\d+(?:\.\d+)?\s*${AREA_UNIT}\b`, 'i'),
+      ],
+      quantity: [
+        [
+          /(\d+(?:\.\d+)?)\s*m?\s*[x×]\s*(\d+(?:\.\d+)?)\s*m\b(?!m)/i,
+          (value, match) => {
+            const other = Number(match[2]);
+            if (!Number.isFinite(other) || value > 50 || other > 50) return null;
+            return Math.round(value * other * 100) / 100;
+          },
+        ],
+        [new RegExp(String.raw`(\d+(?:\.\d+)?)\s*${AREA_UNIT}\b`, 'i'), (value) => value],
+      ],
+    },
+  },
+  {
+    key: 'attachment',
+    namedBy: /\b(attached|freestanding|free standing|fixed to the house)\b/i,
+    aliases: ['attached'],
+    type: 'enum',
+    labelGroup: 'attachment',
+    title: 'Attachment',
+    question: DECK_QUESTIONS.attachment,
+    source: 'core.attachment',
+    /* Two real answers and no "none" - a deck is one or the other. */
+    pageSize: 2,
+    docHints: {
+      values: [
+        ['freestanding', /\bfree[-\s]?standing\b|\bindependent\s+structure\b|\bnot\s+attached\b/i],
+        ['attached', /\battached\s+to\b|\bledger\b|\bfixed\s+to\s+the\s+house\b/i],
+      ],
+    },
+  },
+  {
+    key: 'removal',
+    recap: { prefix: 'taking out ', lower: true, words: { any: 'the old deck' } },
+    namedBy: /\b(removals?|remove|removing|old deck|existing deck|demolition)\b/i,
+    aliases: ['removal', 'removing', 'demolition'],
+    type: 'enum',
+    labelGroup: 'removes',
+    title: 'Old deck',
+    question: DECK_QUESTIONS.removal,
+    source: 'core.removes',
+    pinned: { label: 'Nothing to take out', value: 'none' },
+    /* Two slots, as fencing and retaining wall have: the question reads yes against no, and the two
+       kinds follow for anyone who knows what theirs is made of. */
+    pageSize: 2,
+    /* Two stages. `requires` asks whether a demolition is being quoted at all, because a page that
+       never mentions an old deck has not said there is none. `values` then reads what is coming
+       OUT - a different question from what is going down, and the trap this trade sets: "remove the
+       existing pine deck and lay merbau" names both, a clause apart. */
+    docHints: {
+      requires: [
+        new RegExp(
+          String.raw`\b(?:dispos\w*|remov\w*|demoli\w*|demo|tear\s*(?:up|out)|pull\s*(?:up|out)|take\s*away|cart\s*away|rip\s*(?:up|out)|strip\w*)\b[^.,;\n]{0,60}(?:deck|board)`,
+          'gi',
+        ),
+        new RegExp(
+          String.raw`\b(?:old|existing|current|rotted|failed)\b[^.,;\n]{0,30}?(?:deck|board)\w*[^.,;\n]{0,40}?\b(?:remov\w*|dispos\w*|demoli\w*|pulled|taken|carted|tip)\b`,
+          'gi',
+        ),
+        // The noun before the verb: "Existing deck removal $85 per square metre".
+        new RegExp(String.raw`\b(?:deck|board)\w*[^.,;\n]{0,20}\b(?:remov\w*|dispos\w*|demoli\w*)\b`, 'gi'),
+      ],
+      // "no removal of the existing deck" prices a demolition nobody asked for.
+      negatedBy: /\b(?:no|not|excl\w*|without|nil)\b[^.\n]{0,24}$/i,
+      values: [
+        ['composite_deck', /\bcomposite\b[^.,;\n]{0,20}\bdeck\b[^.,;\n]{0,20}\bremov|\bremov\w*[^.,;\n]{0,30}\bcomposite\s+deck\b/i],
+        ['timber_deck', /\btimber\b[^.,;\n]{0,20}\bdeck\b[^.,;\n]{0,20}\bremov|\bremov\w*[^.,;\n]{0,30}\b(?:timber|pine|hardwood)\s+deck\b/i],
+        ['any', /\bdeck\b/i],
+      ],
+    },
+  },
+  {
+    key: 'balustrade',
+    namedBy: /\b(balustrades?|railings?|handrails?)\b/i,
+    aliases: ['balustrade', 'railing'],
+    type: 'enum',
+    labelGroup: 'balustrades',
+    title: 'Balustrade',
+    question: DECK_QUESTIONS.needsBalustrade,
+    source: 'core.balustrades',
+    /* Asked as WHICH rather than as whether, exactly like fencing's gate. The pinned "none" carries
+       the no, and the type matters to the price - timber and glass are not close. */
+    pinned: { label: 'No balustrade', value: 'none' },
+    /* Never read off a document. A price list naming a glass balustrade is saying what the BUILDER
+       sells, not what this customer wants, and filling it would put a $520-a-metre railing into a
+       quote nobody asked for. `docHints` deliberately absent. */
+  },
+  {
+    key: 'balustradeLm',
+    /* Already inside the balustrade's own phrase in the recap - "12m of timber balustrade" - so
+       saying it twice would read as two separate answers. */
+    recap: false,
+    namedBy: /\b(how (?:much|many)|metres? of balustrade|balustrade length)\b/i,
+    type: 'number',
+    labelUnit: { suffix: 'm' },
+    title: 'Balustrade length',
+    question: DECK_QUESTIONS.balustradeLm,
+    /* The second of this trade's three quantities, and the reason it has its own pricing module: it
+       runs along the deck's EDGE, so it is metres and not the deck's square metres. */
+    measureIn: 'm',
+    dependsOn: { field: 'balustrade', notEquals: 'none' },
+  },
+  {
+    key: 'stairs',
+    namedBy: /\b(stairs?|steps?)\b/i,
+    aliases: ['stairs', 'steps'],
+    type: 'enum',
+    labelGroup: 'stairs',
+    title: 'Stairs',
+    question: DECK_QUESTIONS.stairs,
+    source: 'core.stairs',
+    /* Asked as WHICH rather than as whether, exactly like fencing's gate and this trade's own
+       balustrade. The pinned "none" carries the no, and the grade matters to the price - a hardwood
+       flight is several hundred dollars more than a standard one.
+
+       `pinned` is why this is an ENUM and not the count it looks like it should be: the "there is
+       none of this" short-circuit in `mergeAndDecide` lives inside the enum branch, so a `count`
+       with a pinned answer can never accept the word "none" and asks for ever. Found by a golden
+       conversation that would not finish. */
+    pinned: { label: 'No stairs', value: 'none' },
+    pageSize: 2,
+  },
+  {
+    key: 'stairFlights',
+    /* Already inside the stairs' own phrase in the recap - "2 x standard timber stairs" - so saying
+       it twice would read as two separate answers. */
+    recap: false,
+    namedBy: /\b(how many (?:flights|stairs)|number of flights)\b/i,
+    type: 'count',
+    labelUnit: { one: 'flight', many: 'flights' },
+    title: 'Flights',
+    question: DECK_QUESTIONS.stairFlights,
+    options: [1, 2, 3],
+    dependsOn: { field: 'stairs', notEquals: 'none' },
+  },
+  {
+    key: 'conditions',
+    recap: false,
+    namedBy: /\b(conditions?|site|access|rocks?|roots?|soil|slopes?|sloping)\b/i,
+    aliases: ['conditions', 'access'],
+    type: 'multiEnum',
+    labelGroup: 'conditions',
+    title: 'Site',
+    question: DECK_QUESTIONS.conditions,
+    source: 'core.conditions',
+    pinned: { label: 'Nothing tricky', value: 'none' },
+    docHints: {
+      none: /\b(?:easy|good|clear|open|no\s+access\s+(?:issues?|problems?))\s+access\b/i,
+      values: [
+        ['restricted_access', /\brestricted\s+access\b|\blimited\s+access\b|\bnarrow\s+(?:access|gate|side)\b|\bhard\s+to\s+(?:get|reach)\b/i],
+        ['rock', /\brock\b|\brocky\b|\bbasalt\b/i],
+        ['roots', /\btree\s+roots?\b|\bmajor\s+roots?\b/i],
+        ['poor_soil', /\bpoor\s+soil\b|\breactive\s+soil\b|\bunstable\s+(?:soil|ground)\b|\bsoft\s+ground\b/i],
+        ['sloped', /\bslop(?:e|ed|ing)\b|\bsteep\b|\bfall\s+across\b/i],
+        ['existing_concrete', /\bexisting\s+concrete\b|\bconcrete\s+(?:slab|in\s+the\s+way)\b/i],
+      ],
+    },
+  },
+  {
+    key: 'existingPrice',
+    type: 'money',
+    asked: false,
+  },
+];
+
 export const TRADE_FIELDS: Record<Trade, FieldSpec[]> = {
   fencing: FENCING_FIELDS,
   tiling: TILING_FIELDS,
   kitchen: KITCHEN_FIELDS,
   retaining_wall: RETAINING_WALL_FIELDS,
+  decking: DECKING_FIELDS,
 };
 
 /** Every spec entry, asked or not. */

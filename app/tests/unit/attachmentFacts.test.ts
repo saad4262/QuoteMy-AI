@@ -818,3 +818,99 @@ describe('retaining wall: the two fields a document may never fill', () => {
     expect(wall('20 metre concrete sleeper retaining wall').lengthMeters).toBe(20);
   });
 });
+
+/**
+ * Decking's hints, and the readings that cost the most when they go wrong.
+ *
+ * Two fields are deliberately NOT read off a document at all - `balustrade`, because a price list
+ * naming a glass railing is saying what the BUILDER sells rather than what this customer wants, and
+ * `stairs` for the same reason. When in doubt, leave it out.
+ */
+const deck = (text: string) => readFor('decking', text).docFacts;
+
+describe('decking: the height, which is half the rate', () => {
+  it('reads the band, not just the word it contains', () => {
+    /* "high level" and "low level" both contain "level", and "elevated" must not take a heading
+       that says neither. Ordered specific-first for exactly that. */
+    expect(deck('HIGH LEVEL DECKS').deckHeight).toBe('high_level');
+    expect(deck('Low level deck, a step up').deckHeight).toBe('low_level');
+    expect(deck('Ground level deck').deckHeight).toBe('ground_level');
+    expect(deck('Elevated deck over 1m').deckHeight).toBe('elevated');
+    expect(deck('Raised deck, first floor').deckHeight).toBe('elevated');
+  });
+
+  it('says nothing when the page does not, so the customer is asked', () => {
+    expect(deck('Merbau $420 per square metre').deckHeight).toBeUndefined();
+  });
+});
+
+describe('decking: which board, when a page names several', () => {
+  it('reads the hardwoods before it falls back to pine', () => {
+    expect(deck('Merbau decking $420 per square metre').material).toBe('merbau');
+    expect(deck('Spotted gum $445 per square metre').material).toBe('spotted_gum');
+    expect(deck('Blackbutt decking').material).toBe('blackbutt');
+    expect(deck('Treated pine $280 per square metre').material).toBe('treated_pine');
+  });
+
+  it('tells PVC apart from composite, which half the market calls vinyl', () => {
+    expect(deck('PVC decking $610 per square metre').material).toBe('pvc');
+    expect(deck('Vinyl deck boards').material).toBe('pvc');
+    expect(deck('Composite decking $520 per square metre').material).toBe('composite');
+    expect(deck('Modwood boards supplied and laid').material).toBe('composite');
+  });
+});
+
+describe('decking: what is coming out, which is not what is going down', () => {
+  /* The trap this trade sets. The new board and the old deck are named in the same sentence, a
+     clause apart, and a character-distance window would reach across the comma. */
+  it('reads the OLD deck from a sentence that also names the new board', () => {
+    expect(deck('Remove the existing pine deck, then lay merbau').removal).toBe('timber_deck');
+    expect(deck('Timber deck removal $85 per square metre').removal).toBe('timber_deck');
+    expect(deck('Composite deck removal $95 per square metre').removal).toBe('composite_deck');
+  });
+
+  it('and reads the new board from the same sentence, not the old one', () => {
+    expect(deck('Remove the existing pine deck, then lay merbau').material).toBe('merbau');
+  });
+
+  it('falls back to the wildcard when the page does not say what it is made of', () => {
+    expect(deck('Removal and disposal of the existing deck').removal).toBe('any');
+  });
+
+  it('does not price a demolition nobody asked for', () => {
+    expect(deck('No removal of the existing deck').removal).toBeUndefined();
+    /* Silence stays silence: a quote that never mentions an old deck has not said there is none. */
+    expect(deck('Merbau $420 per square metre').removal).toBeUndefined();
+  });
+});
+
+describe('decking: the area, which refuses more than it accepts', () => {
+  it('reads two sides of a deck as one area', () => {
+    expect(deck('Deck 6m x 4m').areaSqm).toBe(24);
+    expect(deck('About 30 square metres of decking').areaSqm).toBe(30);
+  });
+
+  it('refuses a range, because the midpoint and both ends are three inventions', () => {
+    expect(deck('Deck 30 to 40 square metres').areaSqm).toBeUndefined();
+    expect(deck('Between 20 and 25 square metres').areaSqm).toBeUndefined();
+  });
+
+  it('refuses a page carrying two areas, because neither one is the answer', () => {
+    /* A decking quote routinely lists the deck and the screening separately - "Deck 24m2, privacy
+       screen 6m2" - and there is no way to tell from the page which one the customer is asking
+       about. Summing them or taking the first both look like a number the customer gave us. */
+    expect(deck('Deck 24 square metres. Privacy screen 6 square metres.').areaSqm).toBeUndefined();
+  });
+});
+
+describe('decking: the two fields a document may never fill', () => {
+  it('never reads a balustrade off a page, however plainly it is priced', () => {
+    expect(deck('Glass balustrade $520 per linear metre').balustrade).toBeUndefined();
+    expect(deck('Timber balustrade $220 per linear metre').balustrade).toBeUndefined();
+  });
+
+  it('never reads stairs off a page either', () => {
+    expect(deck('Standard timber flight up to 5 steps $950').stairs).toBeUndefined();
+    expect(deck('Hardwood flight up to 5 steps $1,350').stairs).toBeUndefined();
+  });
+});

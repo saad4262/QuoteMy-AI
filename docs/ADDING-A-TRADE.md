@@ -32,11 +32,19 @@ grep -n  "Record<$" app/src/messages.ts   # TRADE_WORDS wraps, so the grep above
 Three questions settle most of the work. Answer them from the trade's real price lists, not from
 what would be tidy.
 
-| | Fencing | Tiling | Kitchen | Retaining wall |
-|---|---|---|---|---|
-| What is the job measured in? | linear metres | square metres | **nothing — one price for the job** | linear metres |
-| Which two answers find a rate? | material × height | job type × tile type | job type × kitchen size | **supply model × wall system** |
-| Do the businesses sell materials too? | **no** — one combined rate | **yes** — fitting and tile supply are separate | **yes** — cabinetry packages | **yes — as a second complete rate** |
+| | Fencing | Tiling | Kitchen | Retaining wall | Decking |
+|---|---|---|---|---|---|
+| What is the job measured in? | linear metres | square metres | **nothing — one price for the job** | linear metres | square metres |
+| Which two answers find a rate? | material × height | job type × tile type | job type × kitchen size | **supply model × wall system** | **deck height × board** |
+| Do the businesses sell materials too? | **no** — one combined rate | **yes** — fitting and tile supply are separate | **yes** — cabinetry packages | **yes — as a second complete rate** | **no** — one combined rate |
+
+**A fourth question the first four trades never had to ask: how many quantities is a quote made of?**
+Every trade above multiplies ONE. Decking multiplies three — the deck by its square metres, the
+balustrade by the linear metres along its edge, and the stairs by the flight. `quoteTotal` still
+takes one quantity, so the other two are multiplied out in the trade's own pricing module and handed
+over as `fixedItems`. If your trade prices anything against a measurement other than its main one,
+that is where it goes, and a test that a balustrade never multiplies by the deck area is worth
+writing before the code is.
 
 If the answer to the third is **yes**, you are probably copying tiling. See §7 — **and read the
 retaining wall column before you do**, because "yes" has two shapes and only one of them is
@@ -66,12 +74,13 @@ Add the trade's own lists under its own names. **Do not add values to fencing's 
 is not a concept tiling has and `surfaces` is not one fencing has:
 
 ```ts
-export const DECK_MATERIALS = ['merbau', 'treated_pine', 'composite', 'spotted_gum'] as const;
-export const DECK_JOB_TYPES = ['ground_level', 'raised', 'stairs', 'pergola'] as const;
-export const DECKING_BOUNDS = { pricePerSqm: { min: 0, max: 2000 }, price: { min: 0, max: 100_000 } };
+export const DECK_MATERIALS = ['treated_pine', 'merbau', 'spotted_gum', 'blackbutt', 'jarrah', 'composite', 'pvc'] as const;
+export const DECK_HEIGHTS   = ['ground_level', 'low_level', 'elevated', 'high_level'] as const;
+export const DECK_STAIRS    = ['timber', 'hardwood'] as const;
+export const DECKING_BOUNDS = { pricePerSqm: { min: 0, max: 2000 }, price: { min: 0, max: 100_000 }, radiusKm: { min: 0, max: 500 } };
 
 export const DECKING_VOCAB: TradeVocab = {
-  core: { materials: DECK_MATERIALS, jobTypes: DECK_JOB_TYPES, units: UNITS, tags: DECK_TAGS },
+  core: { heights: DECK_HEIGHTS, materials: DECK_MATERIALS, stairs: DECK_STAIRS, /* … */ units: UNITS, tags: DECK_TAGS },
   bounds: DECKING_BOUNDS,
 };
 ```
@@ -79,9 +88,24 @@ export const DECKING_VOCAB: TradeVocab = {
 Then two edits the compiler will demand:
 
 ```ts
-export const TRADES = ['fencing', 'tiling', 'kitchen', 'decking'] as const;
+export const TRADES = ['fencing', 'tiling', 'kitchen', 'retaining_wall', 'decking'] as const;
 export const TRADE_VOCAB: Record<Trade, TradeVocab> = { …, decking: DECKING_VOCAB };
 ```
+
+Decking is the real worked example above rather than a sketch, and two things about it are worth
+copying. Its heights are a separate list from its job add-ons, because they are a RATE KEY and
+`stairs` is a question of its own — the earlier draft of this document folded `ground_level`,
+`raised`, `stairs` and `pergola` into one `DECK_JOB_TYPES`, which cannot express "merbau, elevated".
+
+⚠ **And no value may collide with `NOTHING`.** `fuzzyMatch.ts` reads "none", "nothing", "flat",
+"easy", "clear" — and **"standard"** — as an explicit no, before the vocabulary is consulted, on any
+field with a pinned "there is none of this" answer. Decking's stair grades were `standard` and
+`premium` until a golden conversation would not finish: every "standard" resolved to "No stairs" and
+the question asked itself for ever, with nothing reporting a fault. `tests/unit/verifyDecking.test.ts`
+now asserts this for every pinned field in every trade.
+(`KITCHEN_SIZES` still contains `standard`. It is safe only because `kitchenSize` has no pinned
+answer — the day one is added, every kitchen customer answering "standard" is told they have no
+kitchen.)
 
 Kitchen's own lists are the third real worked example, and the one to copy for a trade with no
 per-unit rate: `KITCHEN_SIZES` is a rate KEY rather than a quantity, and `KITCHEN_BOUNDS` has a

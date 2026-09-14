@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import {
   CONDITIONS,
+  DECK_BALUSTRADES,
+  DECK_CONDITIONS,
+  DECK_EXTRAS,
+  DECK_HEIGHTS,
+  DECK_MATERIALS,
+  DECK_REMOVES,
+  DECK_SCREENS,
+  DECK_STAIRS,
+  DECK_TAGS,
   GATE_TYPES,
   KITCHEN_BENCHTOPS,
   KITCHEN_EXTRAS,
@@ -658,8 +667,165 @@ export const retainingWallExtractionSchema = z.object({
 });
 export type RetainingWallExtraction = z.infer<typeof retainingWallExtractionSchema>;
 
+export const deckingExtractionSchema = z.object({
+  businessName: z.string().nullable(),
+  gstIncluded: z.boolean().nullable(),
+  gstSourceQuote: z.string().nullable(),
+
+  serviceArea: z.object({
+    baseLocation: z.string().nullable(),
+    radiusKm: z.number().nullable(),
+    radiusSourceQuote: z.string().nullable(),
+    excludedAreas: z.string().array(),
+  }),
+
+  minimumCharge: z.number().nullable(),
+  minimumChargeSourceQuote: z.string().nullable(),
+  /** Deck builders charge to come and measure, and often to design. Both are normal, neither blocks. */
+  siteInspectionFee: z.number().nullable(),
+  siteInspectionFeeSourceQuote: z.string().nullable(),
+  designFee: z.number().nullable(),
+  designFeeSourceQuote: z.string().nullable(),
+  travelFee: z.number().nullable(),
+  travelFeeSourceQuote: z.string().nullable(),
+
+  /**
+   * The core rates: a board at a height, per square metre of deck.
+   *
+   * `deckHeight` is REQUIRED and `material` is required, because both genuinely decide the price and
+   * a list that names neither has published a number nobody can use. Height is not a finish here the
+   * way it is on a fence - it changes what is UNDER the deck, and the posts, bracing, deeper
+   * footings and stairs an elevated deck needs are most of what separates it from one on the ground.
+   *
+   * A builder who prices one rate for every height they build says so in words, and the extraction
+   * prompt tells the model to repeat that rate against each height rather than invent a null band -
+   * because unlike retaining wall, a null height here would be a rate for an unknown build.
+   */
+  rates: z
+    .object({
+      deckHeight: z.enum(DECK_HEIGHTS),
+      material: z.enum(DECK_MATERIALS),
+      pricePerSqm: z.number(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Balustrade, and the second of this trade's THREE quantities.
+   *
+   * It runs along the deck's edge, so it is priced per LINEAR metre - never per square metre of
+   * deck. A list that prices it by area has priced a railing against the floor behind it, and the
+   * verifier says so rather than storing it.
+   */
+  balustrades: z
+    .object({
+      type: z.enum(DECK_BALUSTRADES),
+      price: z.number(),
+      unit: z.enum(['per_metre', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Stairs, the third quantity: a flight at a time, or a price per step.
+   *
+   * `grade` says which of the two a builder publishes against - a standard timber flight or a
+   * premium hardwood one. Null on a row that is neither, and a per-step add-on is exactly that:
+   * "each additional step above five" is not a flight and must never be quoted as one.
+   */
+  stairs: z
+    .object({
+      grade: z.enum(DECK_STAIRS).nullable(),
+      label: z.string(),
+      price: z.number(),
+      unit: z.enum(['per_item', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Screens, priced by the square metre of screen or as a package. */
+  screens: z
+    .object({
+      type: z.enum(DECK_SCREENS),
+      price: z.number(),
+      unit: z.enum(['per_sqm', 'per_metre', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Taking the old deck out, priced by what is coming OUT - not by what is going down. */
+  removals: z
+    .object({
+      removes: z.enum(DECK_REMOVES),
+      price: z.number(),
+      unit: z.enum(['per_sqm', 'per_job']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  siteConditions: z
+    .object({
+      condition: z.enum(DECK_CONDITIONS),
+      price: z.number().nullable(),
+      percent: z.number().nullable(),
+      unit: z.enum(['per_sqm', 'per_item', 'per_job', 'per_hour', 'per_day']).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Where they stand on engineering and a building permit, which this trade shares with retaining
+   * wall and no other.
+   *
+   * Recorded as what the BUSINESS said and never as a judgement about whether a given deck needs
+   * one. The trade's own knowledge base is emphatic that nobody may claim all decks need a permit
+   * or that none do - it depends on the height, the position and the site.
+   */
+  engineering: z.object({
+    text: z.string().nullable(),
+    price: z.number().nullable(),
+    isFromPrice: z.boolean(),
+    sourceQuote: z.string().nullable(),
+  }),
+
+  extras: z
+    .object({
+      type: z.enum(DECK_EXTRAS).nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      isFromPrice: z.boolean(),
+      sourceQuote: z.string().nullable(),
+    })
+    .array(),
+
+  warranty: z.object({ text: z.string().nullable(), sourceQuote: z.string().nullable() }),
+
+  inclusions: z.string().array(),
+  exclusions: z.string().array(),
+  tags: z.enum(DECK_TAGS).array(),
+
+  otherOfferings: z
+    .object({
+      slug: z.string().nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  couldNotUse: z.string().array(),
+});
+export type DeckingExtraction = z.infer<typeof deckingExtractionSchema>;
+
 /** Whatever the extraction stage returns, for the code between the model and the verifier. */
-export type AnyExtraction = Extraction | TilingExtraction | KitchenExtraction | RetainingWallExtraction;
+export type AnyExtraction =
+  | Extraction
+  | TilingExtraction
+  | KitchenExtraction
+  | RetainingWallExtraction
+  | DeckingExtraction;
 
 /**
  * One trade per extraction call (`CLAUDE.md` non-negotiable #5), so the schema is chosen by trade
@@ -673,6 +839,7 @@ export const TRADE_EXTRACTION: Record<Trade, z.ZodType<AnyExtraction>> = {
   tiling: tilingExtractionSchema,
   kitchen: kitchenExtractionSchema,
   retaining_wall: retainingWallExtractionSchema,
+  decking: deckingExtractionSchema,
 };
 
 /**

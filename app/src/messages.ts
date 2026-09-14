@@ -1,5 +1,14 @@
 import {
   CONDITIONS,
+  DECK_ATTACHMENT,
+  DECK_BALUSTRADES,
+  DECK_CONDITIONS,
+  DECK_EXTRAS,
+  DECK_HEIGHTS,
+  DECK_MATERIALS,
+  DECK_REMOVES,
+  DECK_SCREENS,
+  DECK_STAIRS,
   GATE_TYPES,
   KITCHEN_BENCHTOPS,
   KITCHEN_EXTRAS,
@@ -311,6 +320,113 @@ export const RW_LABEL_GROUPS = {
   },
 } as const;
 
+export const DECK_LABEL_GROUPS = {
+  /* Heights named by what a customer can SEE from their back door, with the trade's own band second
+     where it helps. Nobody knows whether their deck is "low level"; everybody knows whether they
+     would step down onto the grass or need stairs. */
+  heights: {
+    ground_level: 'On the ground — step straight out',
+    low_level: 'A step or two up',
+    elevated: 'Up high — needs stairs',
+    high_level: 'Well off the ground — a storey or so',
+  },
+  materials: {
+    treated_pine: 'Treated pine',
+    merbau: 'Merbau',
+    spotted_gum: 'Spotted gum',
+    blackbutt: 'Blackbutt',
+    jarrah: 'Jarrah',
+    composite: 'Composite',
+    pvc: 'PVC',
+  },
+  attachment: {
+    attached: 'Attached to the house',
+    freestanding: 'Standing on its own',
+  },
+  balustrades: {
+    timber: 'Timber',
+    aluminium: 'Aluminium',
+    steel: 'Steel',
+    glass: 'Glass',
+    wire: 'Wire balustrade',
+    composite: 'Composite balustrade',
+  },
+  screens: {
+    timber_batten: 'Timber battens',
+    hardwood: 'Hardwood screen',
+    merbau: 'Merbau screen',
+    aluminium: 'Aluminium battens',
+    composite: 'Composite screen',
+  },
+  stairs: {
+    timber: 'Standard timber stairs',
+    hardwood: 'Hardwood stairs',
+  },
+  /* `any` first, as in all four other trades: somebody replacing a deck knows one is there and has
+     not looked at what the frame underneath is made of. */
+  removes: {
+    any: 'Yes, take it out',
+    timber_deck: 'An old timber deck',
+    composite_deck: 'An old composite deck',
+  },
+  conditions: {
+    restricted_access: 'Hard to get to',
+    rock: 'Rocky ground',
+    roots: 'Tree roots',
+    poor_soil: 'Soft or unstable soil',
+    sloped: 'Sloping ground',
+    existing_concrete: 'Concrete in the way',
+  },
+  extras: {
+    stairs: 'Stairs',
+    handrails: 'Handrails',
+    skirting: 'Skirting underneath',
+    seating: 'Built-in seating',
+    planter_boxes: 'Planter boxes',
+    access_hatch: 'An access hatch',
+    pergola: 'A pergola over it',
+    lighting: 'Deck lighting',
+    oiling: 'Oiling',
+    sanding: 'Sanding',
+    restoration: 'Restoring an old deck',
+    repairs: 'Repairs',
+    design: 'Design',
+    engineering_coordination: 'Engineering',
+    permit_coordination: 'Permit coordination',
+  },
+  /**
+   * The same slugs said to the BUILDER, and assigned last in `TRADE_LABELS` so they win there.
+   *
+   * This trade has the worst case of the repeated-slug trap in the product: `timber`, `merbau`,
+   * `composite` and `aluminium` are each a deck MATERIAL, a BALUSTRADE type and a SCREEN type, and
+   * `hardwood` is both a screen and a word for three of the materials. Flattened, the last one
+   * assigned wins for all three sections.
+   *
+   * The materials are what wins, because the rate table is most of a builder's screen - and the
+   * heights read as bands rather than as the customer's view out of their door, because a builder
+   * is checking a price list and not standing in the garden.
+   */
+  /* The two units no other trade's shared list carries. Rock and roots are charged by the hour here
+     exactly as they are on a retaining wall, and without these a builder's own screen shows
+     `per_hour`. Kept in this trade's own group rather than the shared one, because three trades sell
+     nothing by the hour and widening the map they all read is how a vocabulary starts drifting. */
+  units: {
+    per_hour: 'per hour',
+    per_day: 'per day',
+  },
+  factual: {
+    ground_level: 'Ground level',
+    low_level: 'Low level',
+    elevated: 'Elevated',
+    high_level: 'High level',
+    timber: 'Timber',
+    merbau: 'Merbau',
+    composite: 'Composite',
+    aluminium: 'Aluminium',
+    hardwood: 'Hardwood',
+  },
+} as const;
+
 /**
  * What the chat may OFFER, per trade, in the order it offers them.
  *
@@ -394,6 +510,28 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
        missing one - it comes off the builder's own site inspection. It stays in the vocabulary
        because BUSINESSES price it, and `WHAT_TO_SEND` asks them to. */
   },
+  decking: {
+    /* Height first, and it is the only trade here where the first question is not what the thing is
+       made of. It decides the shape of the build - posts, bracing, stairs, a balustrade - and a
+       customer answers it instantly by looking out of their door, where choosing a timber takes
+       them a minute. */
+    heights: [...DECK_HEIGHTS],
+    /* Treated pine and merbau lead because they are most of this trade, then composite as the
+       common third. The four hardwoods do not all fit on one page and the rarer ones follow. */
+    materials: [
+      'treated_pine',
+      'merbau',
+      'composite',
+      ...DECK_MATERIALS.filter((m) => m !== 'treated_pine' && m !== 'merbau' && m !== 'composite'),
+    ],
+    attachment: [...DECK_ATTACHMENT],
+    balustrades: [...DECK_BALUSTRADES],
+    screens: [...DECK_SCREENS],
+    stairs: [...DECK_STAIRS],
+    removes: ['any', ...DECK_REMOVES.filter((r) => r !== 'any')],
+    conditions: [...DECK_CONDITIONS],
+    extras: [...DECK_EXTRAS],
+  },
 };
 
 /** The same, for the words. Keyed by trade so a second trade brings its own and touches nothing. */
@@ -402,6 +540,7 @@ export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string
   tiling: TILING_LABEL_GROUPS,
   kitchen: KITCHEN_LABEL_GROUPS,
   retaining_wall: RW_LABEL_GROUPS,
+  decking: DECK_LABEL_GROUPS,
 };
 
 /** Flattened, for the business-side response. Derived - never edited by hand. */
@@ -465,6 +604,26 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
        `TRADE_LABELS` already uses for tiling's `bathroom` and kitchen's `full_demolition`. */
     RW_LABEL_GROUPS.supplyFactual,
   ) as Record<string, string>,
+  /* The worst case of this trap in the product, and the reason `factual` exists. `timber`, `merbau`,
+     `composite` and `aluminium` are each a deck MATERIAL, a BALUSTRADE type and a SCREEN type, and
+     `hardwood` is a screen as well as a word for three of the materials. Flattened, whichever group
+     is assigned last wins for all three sections - so the customer-facing phrasings go first to be
+     overwritten, and the materials win, because the rate table is most of a builder's screen. */
+  decking: Object.assign(
+    {},
+    DECK_LABEL_GROUPS.removes,
+    DECK_LABEL_GROUPS.attachment,
+    DECK_LABEL_GROUPS.conditions,
+    DECK_LABEL_GROUPS.extras,
+    DECK_LABEL_GROUPS.screens,
+    DECK_LABEL_GROUPS.stairs,
+    DECK_LABEL_GROUPS.balustrades,
+    DECK_LABEL_GROUPS.heights,
+    DECK_LABEL_GROUPS.materials,
+    LABEL_GROUPS.units,
+    DECK_LABEL_GROUPS.units,
+    DECK_LABEL_GROUPS.factual,
+  ) as Record<string, string>,
 };
 
 /**
@@ -523,11 +682,30 @@ export const RW_QUESTIONS: Record<string, string> = {
   conditions: 'Anything tricky about the site?',
 };
 
+export const DECK_QUESTIONS: Record<string, string> = {
+  /* Height first, and phrased as what they would DO rather than as a band name. A customer knows
+     whether they would step straight out onto it; almost none of them would call that "low level". */
+  deckHeight: 'How far off the ground will the deck sit?',
+  material: 'What decking are you after?',
+  /* "Roughly" for the reason tiling's and kitchen's carry it: the builder measures on site and
+     everything is confirmed there, so a customer stalling over an exact figure is stalling over
+     something that was never going to be used as given. */
+  areaSqm: 'Roughly how big is the deck?',
+  attachment: 'Will it be attached to the house, or standing on its own?',
+  removal: 'Is there an old deck to take out?',
+  needsBalustrade: 'Do you need a balustrade?',
+  balustradeLm: 'Roughly how many metres of balustrade?',
+  stairs: 'Do you need stairs?',
+  stairFlights: 'How many flights of stairs?',
+  conditions: 'Anything tricky about the site?',
+};
+
 export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
   fencing: QUESTIONS,
   tiling: TILING_QUESTIONS,
   kitchen: KITCHEN_QUESTIONS,
   retaining_wall: RW_QUESTIONS,
+  decking: DECK_QUESTIONS,
 };
 
 /**
@@ -596,6 +774,20 @@ export const TRADE_WORDS: Record<
     article: 'a retaining wall',
     tradesperson: 'retaining wall builder',
   },
+  /* `mentions` is the bare noun for once, and it is safe: `deck` belongs to no other trade in the
+     product. The word this trade may NOT claim is `timber` - fencing, retaining wall and decking
+     all sell it - which is why the routing regex keeps the hardwoods compound.
+
+     `tradesperson` is "deck builder" rather than "decker" or "carpenter": it is what these
+     businesses call themselves, and it is honest about the scope - the electrical for deck lighting
+     and any engineering are somebody else's. */
+  decking: {
+    trade: 'decking',
+    noun: 'deck',
+    mentions: /deck/i,
+    article: 'a deck',
+    tradesperson: 'deck builder',
+  },
 };
 
 export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
@@ -643,6 +835,23 @@ export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
     height: 'The builders near you do that wall, but not with the materials supplied the way you asked. Want to change who buys them?',
     material: 'The builders near you do not build that kind of wall yet. Want to try a different one?',
     pricing: 'I found retaining wall builders near you, but none of them have finished setting up their pricing yet.',
+  },
+  /* The same fixed keys naming the SHAPE of the failure. `material` is the decking board and
+     `height` is literally how far off the ground it sits, so this trade fits the fencing-shaped
+     names almost exactly. `gate` keeps its meaning of "a part of the brief nobody prices", which
+     here is usually the balustrade or the stairs.
+
+     `pricing` matters more on this trade than on any before it: `decking` is already sitting in
+     live `services_provided` arrays written long before this backend served the trade, so on day
+     one there ARE candidates and none of them has published a rate. This is the sentence they get,
+     and it is the correct one. */
+  decking: {
+    area: 'No deck builder covers that suburb yet. Try a nearby suburb?',
+    removal: 'None of the builders near you take out an old deck. Want to arrange that separately?',
+    gate: 'Nobody near you prices that part of the job. Want to try without it?',
+    height: 'Nobody near you publishes a rate for a deck at that height. Want to try a different one?',
+    material: 'The builders near you do not lay that decking yet. Want to try a different board?',
+    pricing: 'I found deck builders near you, but none of them have finished setting up their pricing yet.',
   },
 };
 
@@ -888,6 +1097,77 @@ export const WHAT_TO_SEND: Record<Trade, { need: string[]; helpful: string[]; ex
       'All prices include GST. Based in Berwick, we travel 30km.',
       'Minimum installation $650. Site inspection $150. Travel outside our area $95.',
       'Variations $110 per hour. Ten year workmanship warranty.',
+    ].join('\n'),
+  },
+  /* Taken from the blocking rules D1-D9 in prompts/sop/decking/rules.md, in the same order, for the
+     reason all four trades before it do: a business reading this form and a reviewer judging what
+     they send have to be working from one list, or they get rejected for sending exactly what they
+     were asked for.
+
+     The second and fourth lines carry the weight. A deck rate that does not say what HEIGHT it is
+     for is a rate for an unknown build - the posts, bracing and footings under an elevated deck are
+     most of what separates it from one sitting on the ground. And a balustrade priced per square
+     metre is a balustrade priced against the wrong thing: it runs along the deck's edge, so it is
+     measured in linear metres, and a list that gets that wrong quotes a railing by the floor area
+     behind it. */
+  decking: {
+    need: [
+      'Your rate per square metre for every decking board you lay — treated pine, merbau, spotted gum, blackbutt, composite',
+      'What height each of those rates is for — ground level, low, elevated, high — or a line saying one rate covers every height you build',
+      'What you charge for stairs, per flight or per step, and whether that includes the handrail',
+      'Balustrade priced per LINEAR metre by type — timber, aluminium, steel, glass, wire',
+      'Privacy screens priced per square metre or as a package, by material',
+      'What you charge to take out and dispose of an existing deck',
+      'Where you stand on engineering and building permits — who arranges them, who pays, and what you charge if you do',
+      'Your minimum charge, any design fee, any site inspection fee, and any travel charge',
+      'The suburb or postcode you work out from, how far you travel, and whether your prices include GST',
+    ],
+    helpful: [
+      'What a standard deck includes — footings, posts, bearers, joists, bracing, boards, fixings, clean-up',
+      'What it does not — engineering, permits, rock excavation, tree or stump removal, electrical, landscaping, turf',
+      'Your prices for skirting, built-in seating, planter boxes, access hatches and a pergola over the deck',
+      'Oiling, sanding and restoration prices, so a customer with a tired deck can be quoted too',
+      'Your hourly rate for variations, and your workmanship warranty in your own words',
+    ],
+    example: [
+      'DECKING — SUPPLIED AND INSTALLED, PER SQUARE METRE',
+      'Ground level: treated pine $280. Merbau $420. Spotted gum $445. Blackbutt $465. Composite $520.',
+      'Low level: treated pine $310. Merbau $455. Spotted gum $480. Composite $560.',
+      'Elevated: treated pine $390. Merbau $540. Spotted gum $570. Composite $650.',
+      'High level: treated pine $470. Merbau $640. Composite $760.',
+      '',
+      'STAIRS',
+      'Standard timber flight up to 5 steps $950. Each additional step $140.',
+      'Hardwood flight up to 5 steps $1,350. Each additional step $190.',
+      '',
+      'BALUSTRADE — PER LINEAR METRE',
+      'Timber $220. Aluminium $290. Steel $340. Wire $380. Glass $520.',
+      '',
+      'PRIVACY SCREENS',
+      'Timber batten $340 per square metre. Merbau $420. Aluminium $460. Composite $480.',
+      '',
+      'DEMOLITION AND DISPOSAL',
+      'Existing timber deck removal $85 per square metre. Composite $95 per square metre.',
+      'Disposal $550.',
+      '',
+      'ENGINEERING AND PERMITS',
+      'Whether a deck needs a building permit depends on its height, its position and the site, and',
+      'we check it for every job rather than assuming. We arrange engineering from $890 and the',
+      'building permit application from $650; council and surveyor fees are the customer’s.',
+      'Excluded unless the written quotation includes them.',
+      '',
+      'THE REST OF WHAT WE DO',
+      'Skirting $180 per metre. Built-in seating $420 per metre. Planter box $560 each.',
+      'Access hatch $320. Pergola over the deck $640 per square metre. Lighting coordination $280.',
+      'Deck oiling $38 per square metre. Sanding $45 per square metre. Full restoration $95 per square metre.',
+      'Board replacement $85 each. Design $450.',
+      '',
+      'THE REST',
+      'All prices include GST. Based in Berwick, we travel 20km.',
+      'Minimum charge $1,200. Site inspection and measure $150. Travel outside our area $90.',
+      'Ten year workmanship warranty. Manufacturer warranties are the maker’s, not ours.',
+      'Not included: engineering, permits, rock excavation, tree and stump removal, electrical,',
+      'plumbing, drainage changes, retaining walls, landscaping, turf and painting.',
     ].join('\n'),
   },
 };

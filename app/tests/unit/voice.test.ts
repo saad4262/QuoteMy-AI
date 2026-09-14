@@ -615,7 +615,7 @@ describe('a call that is not about fencing', () => {
     /* Asserted per trade rather than as one fixed sentence: the line is generated from `TRADES`,
        so a hardcoded copy of it has to be edited every time a trade is added and says nothing
        about whether the new one is actually named. */
-    for (const word of ['fencing', 'tiling', 'kitchen fitting', 'retaining wall']) expect(body.greeting).toContain(word);
+    for (const word of ['fencing', 'tiling', 'kitchen fitting', 'retaining wall', 'decking']) expect(body.greeting).toContain(word);
   });
 
   /* Pressing the microphone part-way through a typed tiling conversation. The page sends what it

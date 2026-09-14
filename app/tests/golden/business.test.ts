@@ -90,6 +90,18 @@ const SUBMISSIONS: Submission[] = [
     trade: 'retaining_wall',
     why: 'ranges, POA and "from" on core rates are all caught, while "from $850" on an engineering certificate and "from $150" on a site inspection are NOT - that is rule 4a, the carve-out fencing\'s gate motor already produced one false rejection over. Also the supply rule: this business says it can do either model and prices neither of them separately, which is the failure that reads as thorough and quotes nobody',
   },
+  {
+    name: '08 a complete decking price list, approved and extracted',
+    file: 'description-COMPLETE-decking.txt',
+    trade: 'decking',
+    why: 'the trade with THREE quantities in one quote - sixteen per-square-metre rates split across four height headings that carry DOWN the page, a balustrade kept in linear metres along the deck edge, and stairs counted in flights. Also enabledDeckMaterials rather than enabledMaterials, which is what stops the whole document being read back out of Firestore as a fence',
+  },
+  {
+    name: '09 nineteen years of decks, and a balustrade priced by the wrong thing',
+    file: 'description-THIN-decking.txt',
+    trade: 'decking',
+    why: 'two failures this trade makes and no other can. A balustrade at "$180 per square metre of deck" is priced against the floor behind it rather than the edge it runs along, and "most backyard decks don\'t need a permit anyway" is a claim about somebody else\'s site that nobody may make. Ranges and POA on the boards are caught too, while "from $890" on engineering and "from $350" on design are NOT - rule 4a again',
+  },
 ];
 
 /**
@@ -107,6 +119,10 @@ const FIXTURES_PER_TRADE: Record<Trade, number> = {
      that reads as thorough and cannot quote anybody - per-metre rates with no supply model against
      them - and only a fixture that gets REJECTED proves the reviewer catches it. */
   retaining_wall: 2,
+  /* Two, and the rejected one carries this trade's two characteristic failures: a balustrade priced
+     by the deck's area instead of its edge, and a business telling customers a permit is probably
+     not needed. Neither is visible in an approved fixture. */
+  decking: 2,
 };
 
 /**

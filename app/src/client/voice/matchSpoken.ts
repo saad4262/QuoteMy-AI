@@ -83,6 +83,14 @@ const FILLER = new Set([
      `tall`, `high`, `long` and the units are already above, from fencing, and serve this trade
      unchanged: "about 900 mil high" resolves here without a model round trip. */
   'retaining',
+  /* Decking's own noun, and only that - the same restraint kitchen and retaining wall get, and this
+     trade needs it most. Almost every other decking word IS an answer somewhere in its own options:
+     `timber`, `composite`, `merbau` and `pine` are boards AND a stair grade, `ground` and `raised`
+     are heights, `stairs` and `balustrade` are their own questions, and `attached` is one of two.
+     Any of those filed here would swallow a second answer whole - "merbau, and put stairs on it"
+     would lose the stairs - which is the one failure this set exists to prevent.
+     `square`, `sqm` and `m2` are already above from tiling and serve this trade unchanged. */
+  'deck', 'decks',
   /* Verbs and hedges. Safe to ignore wholesale: a second answer is a thing or a number, never a
      verb, so nothing here can be the piece of the sentence worth sending to the model. */
   'need', 'want', 'wanted', 'looking', 'prefer', 'reckon', 'think', 'get', 'have', 'take', 'do',
