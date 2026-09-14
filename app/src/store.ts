@@ -360,6 +360,31 @@ export interface QuoteResultDoc {
 }
 
 /**
+ * The spellings of a trade that `services_provided` is allowed to be written in.
+ *
+ * THE ONE PLACE IN THIS CODEBASE WHERE A SLUG IS READ LOOSELY, and it is deliberate. Everywhere
+ * else - materials, tile types, wall systems - a value that does not match exactly goes to
+ * `unmapped`, because vocabulary drift is silent and permanent. This field is different in kind:
+ * `businesses/{uid}` is owned and written by the FRONTEND, this service only ever reads it, and it
+ * already carries values that are not trades at all (`decking`, `landscaping`).
+ *
+ * The first three trades never exposed the problem because `fencing`, `tiling` and `kitchen` are
+ * single words with no separator to disagree about. `retaining_wall` is the first two-word trade,
+ * and the frontend and the n8n generation before it both write `retaining-wall` - so a business
+ * whose prices were approved, confirmed and live was invisible to every customer, with the business
+ * page and the chat both correctly reporting opposite things.
+ *
+ * Underscore and hyphen only. This does not lower-case, strip spaces, or guess.
+ */
+export const tradeAliases = (trade: string): string[] => [
+  ...new Set([trade, trade.replace(/_/g, '-'), trade.replace(/-/g, '_')]),
+];
+
+/** Is this `services_provided` entry the trade we are looking for, however it was spelled? */
+export const sameTrade = (stored: string, trade: string): boolean =>
+  typeof stored === 'string' && tradeAliases(trade).includes(stored);
+
+/**
  * The `businesses/{uid}` root record, as the frontend writes it directly - this service never
  * creates or edits one. Read-only from here, and only ever in bulk, for the customer chat's
  * candidate search.
@@ -543,7 +568,7 @@ export class MemoryRepository implements BusinessRepository {
   // --- customer-chat matching ---
 
   async findCandidates(trade: Trade): Promise<BusinessCandidate[]> {
-    return [...this.candidates.values()].filter((c) => c.servicesProvided.includes(trade));
+    return [...this.candidates.values()].filter((c) => c.servicesProvided.some((s) => sameTrade(s, trade)));
   }
 
   async getServiceExtract(uid: string, trade: Trade): Promise<ServiceExtract | null> {

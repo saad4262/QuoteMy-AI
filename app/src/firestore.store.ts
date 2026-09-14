@@ -20,7 +20,7 @@ import type {
 } from './store.js';
 import { describeFieldDrift, holdsCode, TRADE_FIELDS } from './client/fieldSpec.js';
 import { CUSTOMER_CORE, CUSTOMER_LABELS, TRADE_QUESTIONS } from './messages.js';
-import { SCHEMA_VERSION } from './store.js';
+import { SCHEMA_VERSION, tradeAliases } from './store.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './verify/index.js';
 import { readyForPromotion, resolveExisting, type ExtraValue } from './vocabulary.js';
 import { TRADE_VOCAB, TRADES, type Trade } from './vocab.js';
@@ -592,10 +592,17 @@ export class FirestoreRepository implements BusinessRepository {
    * `businesses/{uid}` is owned and written by the frontend, not this service - read-only here,
    * and only for the candidate search. A query on `services_provided` rather than n8n's full
    * collection scan: same result, no reason to keep the less scalable version just for fidelity.
-   * `array-contains` needs no composite index.
+   * `array-contains-any` needs no composite index either.
+   *
+   * `array-contains-any` rather than `array-contains`, because the frontend writes a two-word trade
+   * with a hyphen and this service names it with an underscore - see `tradeAliases`. For every
+   * single-word trade the list is one value and this is exactly the old query.
    */
   async findCandidates(trade: Trade): Promise<BusinessCandidate[]> {
-    const snap = await db().collection('businesses').where('services_provided', 'array-contains', trade).get();
+    const snap = await db()
+      .collection('businesses')
+      .where('services_provided', 'array-contains-any', tradeAliases(trade))
+      .get();
     return snap.docs.map((doc) => {
       const data = doc.data() as DocumentData;
       const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);

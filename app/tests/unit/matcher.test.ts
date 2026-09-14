@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { matchBusinesses } from '../../src/client/matcher.js';
-import { MemoryRepository, type ServiceExtract } from '../../src/store.js';
+import { MemoryRepository, sameTrade, tradeAliases, type ServiceExtract } from '../../src/store.js';
 import type { Trade } from '../../src/vocab.js';
 
 /**
@@ -85,5 +85,56 @@ describe('matchBusinesses', () => {
     const first = await matchBusinesses('fencing', BERWICK, 'Berwick', new CountingRepository(30));
     const second = await matchBusinesses('fencing', BERWICK, 'Berwick', new CountingRepository(30));
     expect(first.businesses.map((b) => b.uid)).toEqual(second.businesses.map((b) => b.uid));
+  });
+});
+
+/**
+ * The spelling of a trade in `services_provided`, which is the one field this service reads loosely.
+ *
+ * Found live: a retaining wall business whose prices were approved, confirmed and showing "these
+ * prices are already live" on its own screen was invisible to every customer. The business page and
+ * the chat were both telling the truth and contradicting each other - the frontend had written
+ * `retaining-wall` and the candidate search was asking for `retaining_wall`.
+ *
+ * The first three trades never exposed it. `fencing`, `tiling` and `kitchen` are single words, so
+ * there is no separator for the two sides to disagree about.
+ */
+describe('which spelling of a trade counts as that trade', () => {
+  it('accepts the hyphen the frontend writes and the underscore this service uses', () => {
+    expect(sameTrade('retaining_wall', 'retaining_wall')).toBe(true);
+    expect(sameTrade('retaining-wall', 'retaining_wall')).toBe(true);
+  });
+
+  it('leaves every single-word trade exactly as it was', () => {
+    for (const trade of ['fencing', 'tiling', 'kitchen'] as const) {
+      expect(tradeAliases(trade)).toEqual([trade]);
+      expect(sameTrade(trade, trade)).toBe(true);
+    }
+  });
+
+  it('is a separator rule and nothing more - it never guesses', () => {
+    /* Deliberately NOT a fuzzy match. This is the one loose read in a codebase that sends every
+       other unrecognised value to `unmapped`, so it earns its place by being tiny. */
+    expect(sameTrade('retaining wall', 'retaining_wall')).toBe(false);
+    expect(sameTrade('Retaining_Wall', 'retaining_wall')).toBe(false);
+    expect(sameTrade('retainingwall', 'retaining_wall')).toBe(false);
+    expect(sameTrade('retaining', 'retaining_wall')).toBe(false);
+    // And it must never make one trade answer for another.
+    expect(sameTrade('fencing', 'retaining_wall')).toBe(false);
+    expect(sameTrade('decking', 'retaining_wall')).toBe(false);
+  });
+
+  it('finds a business the frontend registered with a hyphen', async () => {
+    const repo = new MemoryRepository();
+    repo.addCandidate({
+      uid: 'wall-1',
+      businessName: 'Berwick Retaining Wall',
+      servicesProvided: ['fencing', 'retaining-wall', 'decking'],
+      rating: null, reviewCount: null, isAutoAcceptEnabled: false, isAiAutoAcceptEnabled: false,
+    });
+
+    expect((await repo.findCandidates('retaining_wall')).map((c) => c.uid)).toEqual(['wall-1']);
+    // ...and does not hand them back for a trade they never listed.
+    expect(await repo.findCandidates('tiling')).toEqual([]);
   });
 });
