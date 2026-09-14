@@ -1,5 +1,6 @@
 import type { ServiceExtract } from '../store.js';
 import {
+  isDeckingPricing,
   isFencingPricing,
   isKitchenPricing,
   isRetainingWallPricing,
@@ -12,6 +13,7 @@ import { NO_MATCH_MESSAGES } from '../messages.js';
 import { budgetText } from './budget.js';
 import { quoteKitchen, type KitchenBrief } from './pricing/kitchen.js';
 import { quoteRetainingWall, type RetainingWallBrief } from './pricing/retainingWall.js';
+import { quoteDecking, type DeckingBrief } from './pricing/decking.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { quoteTotal } from './pricing/total.js';
@@ -318,6 +320,32 @@ function retainingWallBrief(checklist: Checklist, spec: PricingSpec): RetainingW
   };
 }
 
+/** The decking checklist. Three quantities: the deck, the balustrade and the stairs. */
+function deckingBrief(checklist: Checklist, spec: PricingSpec): DeckingBrief {
+  const removal = asText(checklist.removal);
+  const balustrade = asText(checklist.balustrade);
+  const stairs = asText(checklist.stairs);
+  return {
+    /* NOT slugged, for the reason tiling's and kitchen's supply are not: this is compared against a
+       closed vocabulary value used as an object key, and slugging turns `ground_level` into
+       `ground-level`, which finds no rate table at all. */
+    deckHeight: asText(checklist.deckHeight) ?? '',
+    material: slug(asText(checklist.material)),
+    areaSqm: quantityOf(checklist, spec),
+    balustrade: balustrade && balustrade !== 'none' ? slug(balustrade) : null,
+    /* Zero rather than null when they chose a balustrade and the length never arrived: a per-metre
+       rate multiplied by nothing is nothing, which is the honest answer, where a null would reach
+       the arithmetic as NaN and take the whole total with it. */
+    balustradeLm: asNumber(checklist.balustradeLm) ?? 0,
+    stairs: stairs && stairs !== 'none' ? slug(stairs) : null,
+    /* One rather than zero when they chose stairs and the count never arrived: they said they want
+       stairs, so quoting none of them would show a total below what they will be charged. */
+    stairFlights: asNumber(checklist.stairFlights) ?? 1,
+    removal: removal && removal !== 'none' ? slug(removal) : null,
+    conditions: asTextList(checklist.conditions),
+  };
+}
+
 /** The kitchen checklist. No quantity to read - the whole job is what is priced. */
 function kitchenBrief(checklist: Checklist): KitchenBrief {
   const removal = asText(checklist.removal);
@@ -348,7 +376,13 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
   const base = { sessionId: gate.sessionId, trade: schema.trade, place: gate.place, checklist, checklistDisplay: gate.checklistDisplay, checklistAnswered: gate.checklistAnswered, checklistPending: gate.checklistPending, unit: spec.unit };
 
   if (!matcher.matched) {
-    return fail(base, words.area!, matcher.noMatchReason || 'area');
+    /* The reason was computed and then thrown away, which told a customer with three registered
+       builders down the road that nobody covers their suburb - false, and it sends them to change
+       the one thing that cannot help. `radius`, `suburb` and `place` have no sentence of their own
+       and correctly fall back to the area one; only `pricing` has something truer to say. Same
+       lookup the alternatives path below already uses. */
+    const reason = matcher.noMatchReason || 'area';
+    return fail(base, words[reason] ?? words.area!, reason);
   }
 
   const material = asText(checklist.material);
@@ -463,6 +497,38 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         suburb: business.suburb,
         distanceKm: business.distanceKm,
         material: slug(quote.wallTypeKey),
+        heightKey: quote.rateKey,
+        ratePerMeter: quote.ratePerUnit,
+        autoAcceptsAi: business.autoAcceptsAi,
+        currency: 'AUD',
+        projectTotalMin: quote.total,
+        projectTotalMax: quote.total,
+        estimatedTotal: quote.total,
+        warranty: (stored.capabilities as { warranty?: { text?: string | null } } | null)?.warranty?.text ?? null,
+        badges: quote.badges,
+      });
+      continue;
+    }
+
+    if (schema.trade === 'decking') {
+      const pricing = stored.pricing;
+      if (!pricing || !isDeckingPricing(pricing)) continue;
+
+      const quote = quoteDecking(business, pricing, deckingBrief(checklist, spec));
+      if ('blocked' in quote) {
+        /* The nearest equivalents, and the three failures are genuinely different sentences. A board
+           nobody lays is fencing's `material`; a height nobody builds at is its `height`; and a
+           builder who cannot take the old deck up cannot do the job at all. */
+        blocked[quote.blocked === 'removal' ? 'removal' : quote.blocked === 'deckHeight' ? 'height' : 'material'] += 1;
+        continue;
+      }
+
+      quotes.push({
+        uid: business.uid,
+        businessName: business.businessName,
+        suburb: business.suburb,
+        distanceKm: business.distanceKm,
+        material: slug(quote.materialKey),
         heightKey: quote.rateKey,
         ratePerMeter: quote.ratePerUnit,
         autoAcceptsAi: business.autoAcceptsAi,
@@ -597,6 +663,44 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
                  theirs, and it is the offer that actually unblocks the common case: a builder who
                  only works one way. */
               distanceFromBrief: (wallType === wanted.wallType ? 0 : 2) + (supply === wanted.supply ? 0 : 1),
+            });
+          }
+        }
+        continue;
+      }
+
+      if (schema.trade === 'decking') {
+        const pricing = matcher.pricing[i]!.pricing;
+        if (!pricing || !isDeckingPricing(pricing)) continue;
+        const wanted = deckingBrief(checklist, spec);
+        for (const [deckHeight, rows] of Object.entries(pricing.rates)) {
+          for (const row of rows) {
+            const material = slug(row.material);
+            if (deckHeight === wanted.deckHeight && material === wanted.material) continue;
+            const quote = quoteDecking(business, pricing, { ...wanted, deckHeight, material });
+            if ('blocked' in quote) continue;
+            if (existingPrice !== null && quote.total >= existingPrice) continue;
+            alternatives.push({
+              uid: business.uid,
+              businessName: business.businessName,
+              suburb: business.suburb,
+              distanceKm: business.distanceKm,
+              material: slug(quote.materialKey),
+              heightKey: quote.rateKey,
+              ratePerMeter: quote.ratePerUnit,
+              autoAcceptsAi: business.autoAcceptsAi,
+              currency: 'AUD',
+              projectTotalMin: quote.total,
+              projectTotalMax: quote.total,
+              estimatedTotal: quote.total,
+              warranty: null,
+              badges: quote.badges,
+              /* The HEIGHT weighs more than the board, which is the opposite of fencing's
+                 weighting and right for this trade: a customer can change their mind about
+                 merbau, but how far off the ground their back door sits is a fact about their
+                 house. So the same height in another board is much nearer to what they asked
+                 for than their board at a height they cannot use. */
+              distanceFromBrief: (deckHeight === wanted.deckHeight ? 0 : 2) + (material === wanted.material ? 0 : 1),
             });
           }
         }

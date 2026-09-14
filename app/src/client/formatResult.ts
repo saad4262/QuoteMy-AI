@@ -196,15 +196,27 @@ export function formatFencingResult({ state, matcher, answer = null, budget = nu
       options.push({ label: 'Somewhere else', value: '__other__' });
       message = preamble + ' These suburbs are covered — any of them work?';
       type = 'question';
+    } else if (noMatchReason === 'pricing') {
+      /* The one reason where changing the suburb cannot help, so it is not suggested and the answer
+         they already gave is not thrown away. Their suburb IS covered - the businesses are there and
+         simply have not pressed Confirm - and every other suburb would return the same ones. Asking
+         it again would make them redo a question to reach the same sentence.
+         Found on decking's first day, where three businesses were registered for the trade before
+         any of them had a price list. */
+      message = preamble;
+      type = 'message';
+      options = [];
     } else {
       message = preamble + ' Try a different suburb?';
       type = 'message';
       options = [];
     }
-    const failedKey = state.placeKey || slug(checklist.suburb || '');
-    if (failedKey) rejectedPlaces = [...new Set(rejectedPlaces.concat(failedKey))].slice(-10);
-    checklist.suburb = null;
-    askingSuburbAgain = true;
+    if (noMatchReason !== 'pricing') {
+      const failedKey = state.placeKey || slug(checklist.suburb || '');
+      if (failedKey) rejectedPlaces = [...new Set(rejectedPlaces.concat(failedKey))].slice(-10);
+      checklist.suburb = null;
+      askingSuburbAgain = true;
+    }
   } else if (state.offTopic) {
     /* They sent something that is not about this job - a different trade, a document that is not a
        quote, or nothing to do with building at all. Saying so is better than the opener's "Happy

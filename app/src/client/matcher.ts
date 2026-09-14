@@ -87,15 +87,16 @@ const READ_BATCH = 25;
  * `Priced` carries the narrowing the old inline check did, so nothing downstream re-tests it.
  */
 type Priced = ServiceExtract & { pricing: NonNullable<ServiceExtract['pricing']> };
-type Read = Priced | 'unusable';
+type Read = Priced | 'unpriced' | 'unusable';
 
 async function readExtract(repo: BusinessRepository, uid: string, trade: Trade): Promise<Read> {
   try {
     const extract = await repo.getServiceExtract(uid, trade);
-    // No document for this trade yet is the same as a business that never finished setting up its
-    // pricing - counted rather than ignored, so "nobody covers you" can be told apart from "every
-    // read errored".
-    return extract && extract.pricing ? (extract as Priced) : 'unusable';
+    /* No document for this trade yet is NOT an error - it is a business that has registered for the
+       trade and never finished setting up its pricing, which is a different thing to tell a
+       customer and the commonest state a trade is in on its first day. Kept apart from a read that
+       actually threw, so "they are not set up yet" can be told apart from "every read failed". */
+    return extract && extract.pricing ? (extract as Priced) : 'unpriced';
   } catch {
     return 'unusable';
   }
@@ -131,6 +132,13 @@ export async function matchBusinesses(
     const extract = reads[index]!;
     if (extract === 'unusable') {
       dropped.errored += 1;
+      continue;
+    }
+    /* Registered for the trade, no price list yet. Counted with the businesses that have one but
+       have not confirmed it, because to a customer the two are the same sentence: they are here,
+       and they are not ready. */
+    if (extract === 'unpriced') {
+      dropped.notConfirmed += 1;
       continue;
     }
     // This document's OWN status is authoritative, never a possibly-stale mirror elsewhere.
