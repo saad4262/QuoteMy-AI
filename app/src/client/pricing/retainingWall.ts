@@ -143,14 +143,28 @@ export function quoteRetainingWall(
   }
 
   /* Site conditions the customer named, as a surcharge each. A condition this builder does not
-     charge for is silently skipped rather than blocking, exactly as fencing treats one. */
+     charge for is silently skipped rather than blocking, exactly as fencing treats one.
+
+     AN HOURLY OR DAILY SURCHARGE MAY NOT ENTER THE TOTAL, and this is the same rule `groundworks`
+     is held to one section up - it was missed here and found on a live quote. Rock excavation at
+     "$180 per hour" was added once, as though rocky ground were an hour's work, and the quote then
+     told the customer the rock was included. Fifty metres of rock is not an hour. Nobody may be
+     shown a total below what they will actually be charged, and there is no honest number to put
+     here: the hours are not knowable until somebody opens the ground, and the model may never
+     invent them (`CLAUDE.md` #4). So it is named as NOT included instead, which is true and is
+     something the customer can act on. */
   let conditionsPerMetre = 0;
   let conditionsFixed = 0;
   let conditionsPercent = 0;
   const conditionsPriced: string[] = [];
+  const conditionsOnSite: string[] = [];
   for (const wanted of brief.conditions) {
     const entry = pricing.siteConditions.find((row) => slug(row.condition) === slug(wanted));
     if (!entry) continue;
+    if (entry.unit === 'per_hour' || entry.unit === 'per_day') {
+      conditionsOnSite.push(wanted);
+      continue;
+    }
     if (entry.percent !== null) conditionsPercent += entry.percent;
     else if (entry.price !== null) {
       if (entry.unit === 'per_metre') conditionsPerMetre += entry.price;
@@ -182,6 +196,10 @@ export function quoteRetainingWall(
   if (drainageQuoted) badges.push('Drainage included');
   else if (brief.drainage) badges.push('Drainage not included');
   if (conditionsPriced.length) badges.push(conditionsPriced.length + ' site charge' + (conditionsPriced.length > 1 ? 's' : '') + ' included');
+  /* Said plainly, and said even though it makes this business look dearer than one that never
+     published a rock rate at all. A customer who is told "rock charged on site" can ask what it
+     will cost; one shown a total with an hour of rock silently folded into it cannot. */
+  if (conditionsOnSite.length) badges.push('Rock and difficult ground charged on site, not in this price');
   if (pricing.siteInspectionFee) badges.push('Includes $' + pricing.siteInspectionFee + ' site inspection');
   if (business.isAutoAcceptEnabled) badges.push('Instant accept');
 

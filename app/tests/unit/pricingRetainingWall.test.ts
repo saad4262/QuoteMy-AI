@@ -212,3 +212,32 @@ describe('what gets added to a retaining wall quote', () => {
     expect(quote(pricing({ gstIncluded: false }), brief())).toMatchObject({ total: 4070 });
   });
 });
+
+describe('a surcharge nobody can count the units of', () => {
+  /* Found on a live quote. Rock excavation is published at $180 PER HOUR, and it was going into the
+     total once - as though rocky ground were an hour's work - with a badge telling the customer the
+     rock was included. Fifty metres of rock is not an hour, and the number shown was below what
+     they would actually be charged. The same rule `groundworks` already followed. */
+  const hourlyRock = pricing({
+    siteConditions: [{ condition: 'rock', price: 180, percent: null, unit: 'per_hour' }],
+  });
+
+  it('keeps an hourly site charge out of the total', () => {
+    // 185 x 20 = 3700, and NOT 3880.
+    expect(quote(hourlyRock, brief({ conditions: ['rock'] }))).toMatchObject({ total: 3700 });
+  });
+
+  it('says so, rather than leaving the customer to find out on site', () => {
+    const q = quote(hourlyRock, brief({ conditions: ['rock'] })) as { badges: string[] };
+    expect(q.badges).toEqual(expect.arrayContaining([expect.stringContaining('charged on site')]));
+    expect(q.badges).not.toEqual(expect.arrayContaining([expect.stringContaining('site charge included')]));
+  });
+
+  it('still charges a surcharge published as one price, or as a percentage', () => {
+    // $450 restricted access is a real one-off figure: 185 x 20 + 450.
+    expect(quote(pricing(), brief({ conditions: ['restricted_access'] }))).toMatchObject({ total: 4150 });
+    // 10% loads the work done along the wall: 185 x 1.1 x 20.
+    const pct = pricing({ siteConditions: [{ condition: 'sloped', price: null, percent: 10, unit: null }] });
+    expect(quote(pct, brief({ conditions: ['sloped'] }))).toMatchObject({ total: 4070 });
+  });
+});
