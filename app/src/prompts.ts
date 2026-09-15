@@ -48,6 +48,7 @@ const tradeRules: Record<Trade, string> = {
   kitchen: read('sop', 'kitchen', 'rules.md'),
   retaining_wall: read('sop', 'retaining_wall', 'rules.md'),
   decking: read('sop', 'decking', 'rules.md'),
+  home_renovation: read('sop', 'home_renovation', 'rules.md'),
 };
 
 /**
@@ -61,6 +62,7 @@ const tradeChat: Record<Trade, string> = {
   kitchen: read('chat', 'kitchen.md'),
   retaining_wall: read('chat', 'retaining_wall.md'),
   decking: read('chat', 'decking.md'),
+  home_renovation: read('chat', 'home_renovation.md'),
 };
 
 export function chatPrompt(trade: Trade): string {
@@ -73,6 +75,7 @@ const tradeExtraction: Record<Trade, string> = {
   kitchen: read('extraction.kitchen.md'),
   retaining_wall: read('extraction.retaining_wall.md'),
   decking: read('extraction.decking.md'),
+  home_renovation: read('extraction.home_renovation.md'),
 };
 
 /** Rough, deliberately pessimistic: ~3.6 chars per token for English prose. */
@@ -91,8 +94,21 @@ export const estimateTokens = (text: string) => Math.ceil(text.length / 3.6);
  * the model's, and this prompt has already produced one false rejection by being read unevenly.
  *
  * Trimming safely needs eval coverage of tone and grouping, which does not exist yet.
+ *
+ * 8,000 -> 9,000 (2026-09-15, home renovation). The fourth raise, and the note above asked that the
+ * next one come with a trim instead. It does not, and the reason is worth recording rather than
+ * hiding: this is the first trade whose SUBJECT is bigger than the others, not whose rules are
+ * wordier. A renovator's list covers eleven rooms and nineteen priced extras where a fencer's
+ * covers eight materials, and the blocking rules have to name them. Retaining wall was already at
+ * 7,919 of 8,000 - 81 tokens of headroom across the whole product - so the ceiling had become a
+ * constraint on every trade rather than a guard on any of them.
+ *
+ * The cost is real but small: ~$0.002 more per business review at current input pricing, against
+ * the $0.03-0.05 a full submission already costs. The attention argument in the paragraph above
+ * still stands and still applies - it is an argument for each trade's rules staying lean, which is
+ * why this trade's are grouped by action rather than listing all 110 catalogue lines.
  */
-export const PROMPT_TOKEN_BUDGET = { review: 8000, extraction: 4000, transcribe: 1500 } as const;
+export const PROMPT_TOKEN_BUDGET = { review: 9000, extraction: 4000, transcribe: 1500 } as const;
 
 /**
  * Stage 0. Trade-independent: copying a document out is the same job whatever trade it is for.

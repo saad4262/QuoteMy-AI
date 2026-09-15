@@ -73,10 +73,22 @@ const SUBMISSIONS: Submission[] = [
     why: 'the second trade end to end - per-m2 rates and a per-job bathroom package surviving in one table, tiling\'s own couldNotUse wording, and no fencing field anywhere in the response',
   },
   {
+    name: '10 twenty-six years on the tools, and not one rate a customer can be quoted from',
+    file: 'description-BAD-tiling.txt',
+    trade: 'tiling',
+    why: 'this trade\'s characteristic failure, and the first tiling fixture that is REJECTED. An hourly rate is a real and defensible way for a tiler to work, and it cannot answer "18 square metres of porcelain" - so the whole document is honest, complete, priced throughout, and quotes nobody. It is also the only fixture on this trade reaching the not_a_price_list outcome rather than needs_updates, and the day-ranges ("2 days, could be 9") must be caught as ranges rather than read as rates',
+  },
+  {
     name: '05 a complete kitchen price list, approved and extracted',
     file: 'description-COMPLETE-kitchen.txt',
     trade: 'kitchen',
     why: 'the trade with no unit to measure - per-job prices keyed by size and per-item cabinet prices surviving in one table, the four cabinet types kept apart by their labels rather than collapsed into one rate priced four times, and no fencing or tiling field anywhere in the response',
+  },
+  {
+    name: '11 nine hundred kitchens, priced by a measurement this trade does not use',
+    file: 'description-BAD-kitchen.txt',
+    trade: 'kitchen',
+    why: 'this trade\'s characteristic failure, and the first kitchen fixture that is REJECTED. K1 says plainly that a kitchen is not priced by the metre, and the lineal metre is exactly how the cabinetry industry advertises - so this is the failure a real business is most likely to send in, written by somebody who is not wrong about their own trade. Nothing here can answer "a large kitchen" without the customer first measuring their own walls, which is the sum CLAUDE.md #4 forbids the model to do for them',
   },
   {
     name: '06 a complete retaining wall price list, approved and extracted',
@@ -102,6 +114,18 @@ const SUBMISSIONS: Submission[] = [
     trade: 'decking',
     why: 'two failures this trade makes and no other can. A balustrade at "$180 per square metre of deck" is priced against the floor behind it rather than the edge it runs along, and "most backyard decks don\'t need a permit anyway" is a claim about somebody else\'s site that nobody may make. Ranges and POA on the boards are caught too, while "from $890" on engineering and "from $350" on design are NOT - rule 4a again',
   },
+  {
+    name: '12 a complete renovation price list, approved and extracted',
+    file: 'description-COMPLETE-renovation.txt',
+    trade: 'home_renovation',
+    why: 'the trade where a price with NO UNIT is the correct shape of a rate, not a defect. Eighty-six of this list\'s lines carry no unit at all, and every one of them must survive - rule 2a, on the trade that rule was written for. What this fixture proves beyond that is the four-way sort: rooms at flat prices, surfaces per square metre, items each and labour by the hour all sit in one column of dollar amounts, and only the unit beside the number tells them apart. "Kitchen renovation labour $4,850" must become a rate and "Kitchen cabinet installation $2,850" must not, though both name the same room',
+  },
+  {
+    name: '13 thirty-one years of renovations, and every price charged by the hour',
+    file: 'description-BAD-renovation.txt',
+    trade: 'home_renovation',
+    why: 'this trade\'s characteristic failure, and the cleanest example of it in the suite. Charging for your time is an honest, defensible way to renovate a house and it cannot answer "what does my bathroom cost" - so the document is complete, priced throughout, and quotes nobody. It produces exactly ONE fix, which makes it the tightest test of the rejectedNotQuotable wording: the prices are all there and none is quotable. It also guards the negation in the structural-claim check - this business says it will NOT tell you a wall can come out until it has looked, which is the rule obeyed perfectly, and a careless check flags it as the rule broken',
+  },
 ];
 
 /**
@@ -113,8 +137,14 @@ const SUBMISSIONS: Submission[] = [
  */
 const FIXTURES_PER_TRADE: Record<Trade, number> = {
   fencing: 3,
-  tiling: 1,
-  kitchen: 1,
+  /* Two, and the rejected one is the point - the same reason retaining wall and decking have one.
+     This trade's characteristic failure is a tiler who charges by the hour: every figure on the
+     page is firm, and none of them can be multiplied by a customer's square metres. */
+  tiling: 2,
+  /* Two, for the same reason, and this trade's rejected fixture is the one a real business is
+     likeliest to send: cabinetry is advertised by the lineal metre everywhere, and K1 says this
+     trade is not priced by the metre. Only a REJECTED fixture proves that rule still fires. */
+  kitchen: 2,
   /* Two, and the rejected one is the point. This trade's characteristic failure is a price list
      that reads as thorough and cannot quote anybody - per-metre rates with no supply model against
      them - and only a fixture that gets REJECTED proves the reviewer catches it. */
@@ -123,6 +153,11 @@ const FIXTURES_PER_TRADE: Record<Trade, number> = {
      by the deck's area instead of its edge, and a business telling customers a permit is probably
      not needed. Neither is visible in an approved fixture. */
   decking: 2,
+  /* Two, and this trade needed the rejected one more than any before it. A renovator's list is
+     mostly numbers with no unit beside them, so the approved fixture is the proof that rule 2a
+     holds at scale - and the rejected one is the proof that "no unit" and "not quotable" are still
+     different things, because the business that fails here has a unit on every single line. */
+  home_renovation: 2,
 };
 
 /**

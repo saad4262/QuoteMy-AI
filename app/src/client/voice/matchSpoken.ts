@@ -91,6 +91,18 @@ const FILLER = new Set([
      would lose the stairs - which is the one failure this set exists to prevent.
      `square`, `sqm` and `m2` are already above from tiling and serve this trade unchanged. */
   'deck', 'decks',
+  /* Home renovation's own scope words, and only those - the same restraint the three trades above
+     get, and this trade needs it more than any of them. EVERY ROOM IS AN ANSWER HERE: `bathroom`,
+     `kitchen`, `ensuite`, `laundry`, `bedroom`, `hallway` and the rest are this trade's own
+     options, and `bathroom`, `ensuite` and `laundry` are tiling's answers as well. So are
+     `tiling`, `flooring`, `painting`, `plastering`, `cabinetry`, `benchtop` and `doors`, which are
+     all extras a caller can ask for. Any of them filed here would swallow a second answer whole -
+     "the bathroom, and strip the old one out" would lose the strip-out - which is the one failure
+     this set exists to prevent.
+     What is left is the scope word itself, which names nothing a caller can choose: "renovate the
+     bathroom please" is the room and the word for it, and it resolves here without a model round
+     trip. `reno` is in because it is what Australians actually say. */
+  'renovation', 'renovations', 'renovate', 'renovating', 'reno', 'renos',
   /* Verbs and hedges. Safe to ignore wholesale: a second answer is a thing or a number, never a
      verb, so nothing here can be the piece of the sentence worth sending to the model. */
   'need', 'want', 'wanted', 'looking', 'prefer', 'reckon', 'think', 'get', 'have', 'take', 'do',

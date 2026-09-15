@@ -53,7 +53,6 @@ describe('reading the trade out of what they said', () => {
 
     for (const message of [
       'I need a new kitchen',
-      'kitchen renovation quote',
       'replacing our kitchen cabinets',
       'flat pack kitchen install',
       'stone benchtop and cupboards',
@@ -84,6 +83,70 @@ describe('reading the trade out of what they said', () => {
     ]) {
       expect(detectTrade(message, both), message).toEqual(['decking']);
     }
+
+    /* The rooms nobody else claims, plus this trade's own scope words. Ten of these previously
+       matched NOTHING at all and fell through to "which service?" - they are the reason the trade
+       needs keywords of its own rather than relying on the precedence rule below. */
+    for (const message of [
+      'I need a renovation quote',
+      'can you renovate my whole house',
+      'we want to remodel the living room',
+      'bedroom renovation in Berwick',
+      'need a hallway and home office done',
+      'looking at an open plan conversion',
+      'how much for plastering',
+      'new skirting boards and architraves',
+      'a stud wall in the bedroom',
+      'after a reno quote',
+    ]) {
+      expect(detectTrade(message, both), message).toEqual(['home_renovation']);
+    }
+  });
+
+  /**
+   * THE ONE DELIBERATE BEHAVIOUR CHANGE THE SIXTH TRADE MADE, and the only place where adding it
+   * moved an existing trade's routing.
+   *
+   * `tiling` owns bathroom, ensuite and laundry, and `kitchen` owns its own noun - correctly, and
+   * since long before renovations existed. But "renovate my bathroom" names a room that is a
+   * tiler's AND a scope that is a renovator's, and before this it went to tiling: a tiler cannot
+   * strip the room out, move the vanity and re-plaster it.
+   *
+   * So SCOPE beats ROOM, in `detectTrade` rather than in the regexes. A negative lookahead on
+   * tiling would have fixed "bathroom renovation" and could never have fixed "renovate my
+   * bathroom", where the verb comes first - and it would have edited two live trades' patterns to
+   * do half the job.
+   */
+  it('sends a room that is being renovated to the renovator, not the tiler or the fitter', () => {
+    for (const message of [
+      'I want a bathroom renovation',
+      'renovate my bathroom',
+      'kitchen renovation quote',
+      'renovating the kitchen',
+      'we are remodelling the ensuite',
+      'laundry reno please',
+    ]) {
+      expect(detectTrade(message, both), message).toEqual(['home_renovation']);
+    }
+
+    // And the same rooms WITHOUT the scope word are untouched - this is the half that must not move.
+    expect(detectTrade('retile the bathroom', both)).toEqual(['tiling']);
+    expect(detectTrade('the ensuite needs waterproofing', both)).toEqual(['tiling']);
+    expect(detectTrade('regrouting the laundry', both)).toEqual(['tiling']);
+    expect(detectTrade('I need a new kitchen', both)).toEqual(['kitchen']);
+    expect(detectTrade('stone benchtop and cupboards', both)).toEqual(['kitchen']);
+  });
+
+  /**
+   * The precedence rule drops tiling and kitchen and NOTHING else, which is what keeps it honest:
+   * it resolves the two collisions it was written for and leaves every genuine ambiguity ambiguous.
+   */
+  it('still asks when a renovation is named alongside a trade that is not tiling or kitchen', () => {
+    // This business does sell decks, and so does a deck builder. That is a real question.
+    expect(detectTrade('renovate my deck', both)).toEqual(['decking', 'home_renovation']);
+    // Two jobs, named together, exactly as before.
+    expect(detectTrade('a new fence and a bathroom renovation', both)).toEqual(['fencing', 'home_renovation']);
+    expect(detectTrade('retaining wall and a full house reno', both)).toEqual(['retaining_wall', 'home_renovation']);
   });
 
   /**
@@ -230,9 +293,16 @@ describe('the conversation', () => {
     expect(asked.type).toBe('question');
     expect(asked.trade).toBeNull();
     expect(asked.message).toBe(
-      'Are you looking for Fencing, Tiling, Kitchen fitting, Retaining wall or Decking services?',
+      'Are you looking for Fencing, Tiling, Kitchen fitting, Retaining wall, Decking or Home renovation services?',
     );
-    expect(asked.options.map((o) => o.value)).toEqual(['fencing', 'tiling', 'kitchen', 'retaining_wall', 'decking']);
+    expect(asked.options.map((o) => o.value)).toEqual([
+      'fencing',
+      'tiling',
+      'kitchen',
+      'retaining_wall',
+      'decking',
+      'home_renovation',
+    ]);
     /* The only turn with no trade behind it, so there is nothing for a rate to be per. The golden
        conversations all name their trade and never reach here, and a result card reading `unit` has
        to survive the one turn that cannot answer it. */

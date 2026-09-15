@@ -27,6 +27,13 @@ RULE 2 - PRICES MUST BE PER UNIT, AND THE UNIT MUST BE STATED.
 The unit has to be explicit - per linear metre, per square metre, per item. "$85" on its own is
 not a rate, because nobody can tell what it buys. "$85 per metre" is.
 
+RULE 2a - THIS RULE APPLIES TO CORE RATES ONLY. READ THIS BEFORE APPLYING RULE 2.
+Each trade has ONE core unit, named in its own rules below. Everything else - disposal, a package,
+groundworks, clean-up, a minimum charge, a callout, inspection or travel fee, an add-on - is a FLAT
+AMOUNT when no unit is written. "Timber disposal $480" is $480 for the job and is COMPLETE. Never
+report one as missing or unclear, and never reject over it.
+Where a CORE rate lacks its unit, name that trade's own unit in the fix - never a bare "add a unit".
+
 RULE 3 - EVERY SIZE OR VARIANT BAND MUST BE PRICED SEPARATELY.
 Where price changes with size (height, area, thickness), each band the business offers needs its
 own number. "Heights from 0.9m to 2.1m available, $85/m" is incomplete - it names a range of
@@ -61,7 +68,7 @@ RULE 8 - EXTRAS AND EXCLUSIONS SHOULD BE STATED, BUT ARE NOT BLOCKING.
 Optional add-ons, callout fees and what is not included are useful and should be captured when
 present. Their absence alone is not a reason to reject.
 
-HOW TO APPLY THESE: rules 1-7 are blocking (rule 1 as qualified by 1a, rule 4 as qualified by
-4a) - if any is unmet, the description is not ready.
+HOW TO APPLY THESE: rules 1-7 are blocking (rule 1 as qualified by 1a, rule 2 as qualified by 2a,
+rule 4 as qualified by 4a) - if any is unmet, the description is not ready.
 Rule 8 is not. Judge only what is written. Do not fill gaps with what a reasonable business
 probably charges, and do not approve something because it is nearly there.

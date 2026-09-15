@@ -24,6 +24,40 @@ interface Check {
   detail?: string;
 }
 
+/**
+ * The price for one rate, out of whichever shape this trade stores its rates in.
+ *
+ * Two layouts exist and both are correct. Fencing nests a plain number under a height band
+ * (`rates.timber_pine['1.8m'] = 85`) because a band is a key. Every trade after it keys a LIST of
+ * rows by its bucket (`rates.ground_level = [{ material, pricePerSqm }]`) because the row carries
+ * more than a price - a tile type, a nullable size, a label, a unit. Flattening either into the
+ * other was the alternative and it loses something real each way.
+ *
+ * So the expectation file writes bucket/row/price for all five, and the knowledge of which field
+ * names a row lives here, in ONE place, rather than as five near-identical scoring branches.
+ */
+/* `jobType` is home renovation's, and it is the field that finds a row in a trade whose rates are
+   keyed by room and carry no unit at all. Without it `rateAt` returns undefined for every
+   renovation rate and the whole trade scores zero while looking like a model failure. */
+const ROW_NAMES = ['tileType', 'size', 'wallType', 'material', 'heightBand', 'jobType', 'label'] as const;
+const ROW_PRICES = ['price', 'pricePerMetre', 'pricePerSqm'] as const;
+
+const slug = (v: unknown) => String(v).trim().toLowerCase().replace(/[\s-]+/g, '_');
+
+function rateAt(rates: Record<string, unknown> | undefined, bucket: string, row: string): unknown {
+  const inBucket = rates?.[bucket];
+  if (inBucket === undefined || inBucket === null) return undefined;
+
+  // Fencing: the bucket is itself a map of band -> price.
+  if (!Array.isArray(inBucket)) return (inBucket as Record<string, unknown>)[row];
+
+  const hit = (inBucket as Record<string, unknown>[]).find((r) =>
+    ROW_NAMES.some((name) => r[name] != null && slug(r[name]) === row),
+  );
+  if (!hit) return undefined;
+  return ROW_PRICES.map((name) => hit[name]).find((v) => typeof v === 'number');
+}
+
 const eq = (name: string, got: unknown, want: unknown): Check => ({
   name,
   ok: JSON.stringify(got) === JSON.stringify(want),
@@ -35,7 +69,11 @@ async function score(e: Expectation): Promise<Check[]> {
   clearVocabularyCache();
 
   const text = readFileSync(`tests/fixtures/${e.file}`, 'utf8');
-  const { data } = await runOnboarding('eval', { action: 'submit', businessUid: 'eval', trade: 'fencing', text });
+  /* The fixture's own trade, not fencing's. This was hardcoded while fencing was the only trade
+     scored here, and it is the line that decides which SOP and which extraction schema the
+     submission meets - a tiling price list sent through it would have been reviewed against
+     fencing's rules and rejected for saying nothing about fence heights. */
+  const { data } = await runOnboarding('eval', { action: 'submit', businessUid: 'eval', trade: e.trade ?? 'fencing', text });
   const business = data.business as Record<string, any>;
 
   const checks: Check[] = [eq('approved', data.approved, e.approved)];
@@ -56,16 +94,28 @@ async function score(e: Expectation): Promise<Check[]> {
     checks.push(eq('removals', got, [...want.removals].sort((a, b) => a.removes.localeCompare(b.removes))));
   }
 
+  if (want.counts) {
+    for (const [field, n] of Object.entries(want.counts)) {
+      checks.push(eq(`${field} count`, Array.isArray(p[field]) ? p[field].length : undefined, n));
+    }
+  }
+
   // Rates are scored one band at a time: "18 of 20 correct" is far more useful than "rates: wrong".
   if (want.rates) {
     for (const [material, bands] of Object.entries(want.rates)) {
       for (const [band, price] of Object.entries(bands)) {
-        checks.push(eq(`rate ${material} ${band}`, p.rates?.[material]?.[band], price));
+        checks.push(eq(`rate ${material} ${band}`, rateAt(p.rates, material, band), price));
       }
     }
-    const extra = Object.entries(p.rates ?? {}).flatMap(([m, b]) =>
-      Object.keys(b as object).filter((band) => want.rates?.[m]?.[band] === undefined).map((band) => `${m} ${band}`),
-    );
+    /* Nothing came back that was not asked for. Only meaningful where the bucket is a plain map of
+       band -> price: a row-list bucket carries rows this file deliberately does not enumerate -
+       tiling's per-job packages sit in the same array as its per-m2 rates - and calling those
+       "invented" would report a correct extraction as a fault. */
+    const extra = Object.entries(p.rates ?? {})
+      .filter(([, b]) => b && !Array.isArray(b))
+      .flatMap(([m, b]) =>
+        Object.keys(b as object).filter((band) => want.rates?.[m]?.[band] === undefined).map((band) => `${m} ${band}`),
+      );
     checks.push({ name: 'no invented rates', ok: extra.length === 0, detail: extra.join(', ') || undefined });
   }
 

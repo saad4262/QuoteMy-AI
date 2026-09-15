@@ -94,7 +94,49 @@ export const TRADE_KEYWORDS: Record<Trade, RegExp> = {
    */
   decking:
     /\b(?:decks?|decking|deck\s?builders?|balustrades?|(?:merbau|spotted\s?gum|blackbutt|jarrah|treated\s?pine|composite|pvc)\s+deck(?:ing|s)?)\b/i,
+  /**
+   * The trade whose rooms all belong to somebody else, and whose own word belongs to nobody.
+   *
+   * `renovate`, `renovation`, `remodel` and `reno` name nothing else in the product and carry this
+   * trade on their own. What this trade may NOT claim is a ROOM: `bathroom`, `ensuite` and `laundry`
+   * are tiling's and have been since before this trade existed, and `kitchen` is the kitchen
+   * trade's. Claiming them here would make every "retile the bathroom" ambiguous, which the comment
+   * at the top of this table already says is worse than matching nothing at all.
+   *
+   * The rooms that ARE here are the ones nobody else wants - a bedroom, a living or dining room, a
+   * hallway, a home office - plus `open plan` and `whole house`, which name a renovation and
+   * nothing else. Measured against the five regexes above, ten of fifteen real renovation phrasings
+   * previously matched NOTHING and fell through to "which service?"; these are those ten.
+   *
+   * The four that matched the WRONG trade - "bathroom renovation", "renovate my bathroom", "kitchen
+   * renovation" - are settled by `detectTrade`'s precedence rule below, not here. A negative
+   * lookahead on tiling would fix "bathroom renovation" and could never fix "renovate my bathroom",
+   * where the verb comes first.
+   *
+   * Left out deliberately: `painting`, `flooring` and `tiling` (all three are half of what a tiler
+   * or a painter writes, and two are tiling's already), `wall` (tiling's and retaining wall's),
+   * `doors`, `ceiling`, `benchtop` and `cabinetry` (the kitchen trade's), `carpentry` and `builder`
+   * (too broad to name any one trade), and `deck` and `pergola`, which this business does sell but
+   * which decking names better.
+   */
+  home_renovation:
+    /\b(?:renovat(?:e|es|ed|ing|ion|ions|or|ors)|remodel(?:s|ling|led)?|renos?|(?:bed|living|dining|family|rumpus)\s?rooms?|hallways?|home\s?office|open[-\s]?plan|whole[-\s]?(?:house|home)|plaster(?:ing|board)?|cornices?|skirting\s?boards?|architraves?|stud\s?walls?|partition\s?walls?)\b/i,
 };
+
+/**
+ * The scope word that outranks a room word.
+ *
+ * A tiler works in bathrooms and a kitchen fitter works in kitchens, so "bathroom" and "kitchen"
+ * genuinely belong to those trades - but somebody who says they are RENOVATING one is describing
+ * the whole room coming out and going back in, which is this trade and not either of them.
+ *
+ * Kept as a precedence rule here rather than as negative lookaheads on tiling and kitchen, for two
+ * reasons. A lookahead can only see what follows the room word, so `bathroom(?!\s+renovat)` catches
+ * "bathroom renovation" and can never catch "renovate my bathroom" - and the verb-first phrasing is
+ * the commoner one. And this way the five regexes above are untouched, so no existing routing can
+ * move.
+ */
+const RENOVATING = /\b(?:renovat\w*|remodel\w*|renos?)\b/i;
 
 export interface TradeRouting {
   /** Null means nobody has said and the customer's words did not settle it. */
@@ -111,7 +153,22 @@ export interface TradeRouting {
  * guessing which one they meant first is worse than spending a turn asking.
  */
 export function detectTrade(message: string, published: readonly Trade[]): Trade[] {
-  return published.filter((trade) => TRADE_KEYWORDS[trade].test(message));
+  const matched = published.filter((trade) => TRADE_KEYWORDS[trade].test(message));
+
+  /* The one tie-break in this file, and it is deliberately narrow: it drops TILING and KITCHEN, and
+     only when the customer has said in so many words that they are renovating.
+
+     "Renovate my bathroom" names a room that is genuinely tiling's and a scope that is genuinely
+     this trade's, and before this rule it matched both and spent a turn asking which - to somebody
+     who had already said exactly what they wanted. Scope wins because it is the larger statement:
+     a renovation includes the tiling, and a tiler cannot do the rest of it.
+
+     The other three trades are NOT dropped, and that is not an oversight. "Renovate my deck" is
+     genuinely ambiguous - this business does sell decks and so does a deck builder - and "a fence
+     and a renovation" is two jobs. Both should keep going to the question, which is what happens
+     when two trades are still matched. */
+  if (!matched.includes('home_renovation') || !RENOVATING.test(message)) return matched;
+  return matched.filter((trade) => trade !== 'tiling' && trade !== 'kitchen');
 }
 
 export function routeTrade(

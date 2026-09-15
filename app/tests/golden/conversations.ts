@@ -149,7 +149,7 @@ export interface Conversation {
   turns: Turn[];
   ai?: AiClient;
   /** Omitted means fencing, so every conversation written before there was a second trade is unchanged. */
-  trade?: 'fencing' | 'tiling' | 'kitchen' | 'retaining_wall' | 'decking';
+  trade?: 'fencing' | 'tiling' | 'kitchen' | 'retaining_wall' | 'decking' | 'home_renovation';
 }
 
 /**
@@ -705,7 +705,7 @@ export const KITCHEN_CONVERSATIONS: Conversation[] = [
 
   {
     name: '32 kitchen, nobody prices a kitchen that size',
-    why: "the no-match sentence is kitchen's own - never a fence height and never a tile",
+    why: "the alternatives fallback on the one trade that used to have none - this fitter publishes small and the customer asked for large, and the answer is Beky Kitchens' own $2,070 rather than a sentence telling them to guess a different size. Also the bucket name staying off the screen: the rate is filed under `general`, which is storage and not a word anybody chose, so the offer reads \"Small - a galley or one run\" and not \"general for Small\"",
     trade: 'kitchen',
     seed: (repo) =>
       seedKitchenFitter(repo, 'kitchen-1', 'Beky Kitchens', {
@@ -1216,6 +1216,246 @@ export const DECKING_CONVERSATIONS: Conversation[] = [
       { say: 'no' },
       { say: 'the decking is wrong' },
       { say: 'merbau' },
+      { say: 'yes' },
+    ],
+  },
+];
+
+/**
+ * A renovator, and the shape no trade before it has: a CATALOGUE.
+ *
+ * Every figure here is Berwick Home Renovations' own, from the document this trade was built from.
+ * The rate table is rooms at flat prices with no unit on any of them - which is this trade's
+ * correct shape and the whole reason rule 2a exists - and the three lists beside it are the work
+ * this business also sells and that a customer can never be quoted for: surfaces by the square
+ * metre, items each, and labour by the hour.
+ *
+ * Those three are seeded deliberately. A conversation that never sees them cannot prove they stay
+ * out of a total, and staying out of a total is the single thing this trade's pricing module exists
+ * to guarantee.
+ */
+export function seedRenovator(
+  repo: MemoryRepository,
+  uid: string,
+  businessName: string,
+  pricingOverrides: Record<string, unknown> = {},
+): void {
+  const now = '2026-01-01T00:00:00.000Z';
+
+  repo.addCandidate({
+    uid,
+    businessName,
+    servicesProvided: ['home_renovation'],
+    rating: 4.8,
+    reviewCount: 64,
+    isAutoAcceptEnabled: false,
+    isAiAutoAcceptEnabled: true,
+  });
+
+  repo.savePricing(uid, {
+    trade: 'home_renovation',
+    status: 'confirmed',
+    schemaVersion: 1,
+    updatedAt: now,
+    confirmedAt: now,
+    ratesSaved: 13,
+    gstIncluded: true,
+    enabledRooms: [
+      'bathroom',
+      'ensuite',
+      'kitchen',
+      'laundry',
+      'bedroom',
+      'living_room',
+      'dining_room',
+      'home_office',
+      'hallway',
+      'open_plan',
+    ],
+    /* Keyed by ROOM, and every price is flat with no unit. `supply` is null on all of them, which
+       is this trade's common case rather than a gap: the renovator says once, at the top of their
+       list, that the prices are labour and the materials are quoted separately.
+       The bathroom, kitchen and laundry carry a SECOND row - the strip-out, as a job in its own
+       right. That is one price on the list read two ways, and `pricing/homeRenovation.ts` refuses
+       to charge it twice. */
+    rates: {
+      bathroom: [
+        { jobType: 'full_renovation', supply: null, price: 6850, unit: 'per_job' },
+        { jobType: 'demolition_only', supply: null, price: 1450, unit: 'per_job' },
+      ],
+      ensuite: [{ jobType: 'full_renovation', supply: null, price: 5950, unit: 'per_job' }],
+      kitchen: [
+        { jobType: 'full_renovation', supply: null, price: 4850, unit: 'per_job' },
+        { jobType: 'demolition_only', supply: null, price: 1650, unit: 'per_job' },
+      ],
+      laundry: [
+        { jobType: 'full_renovation', supply: null, price: 3850, unit: 'per_job' },
+        { jobType: 'demolition_only', supply: null, price: 750, unit: 'per_job' },
+      ],
+      bedroom: [{ jobType: 'full_renovation', supply: null, price: 2850, unit: 'per_job' }],
+      living_room: [{ jobType: 'full_renovation', supply: null, price: 3250, unit: 'per_job' }],
+      dining_room: [{ jobType: 'full_renovation', supply: null, price: 2450, unit: 'per_job' }],
+      home_office: [{ jobType: 'full_renovation', supply: null, price: 2750, unit: 'per_job' }],
+      hallway: [{ jobType: 'full_renovation', supply: null, price: 1850, unit: 'per_job' }],
+      open_plan: [{ jobType: 'full_renovation', supply: null, price: 8500, unit: 'per_job' }],
+    },
+    supplyModels: ['labour_only', 'supply_and_install'],
+    materialPackages: [{ label: 'Kitchen cabinetry package', price: 8950, unit: 'per_job' }],
+    removals: [
+      { removes: 'bathroom_strip', price: 1450 },
+      { removes: 'kitchen_strip', price: 1650 },
+      { removes: 'laundry_strip', price: 750 },
+      { removes: 'small_room', price: 750 },
+      { removes: 'full_interior', price: 4250 },
+    ],
+    extras: [
+      { type: 'waterproofing', label: 'Bathroom waterproofing', price: 950, unit: 'per_job', isFromPrice: false },
+      { type: 'benchtop', label: 'Stone benchtop installation', price: 1250, unit: 'per_job', isFromPrice: false },
+      { type: 'wardrobe', label: 'Built-in wardrobe installation', price: 1850, unit: 'per_job', isFromPrice: false },
+      { type: 'site_protection', label: 'Site protection', price: 350, unit: 'per_job', isFromPrice: false },
+      { type: 'waste_disposal', label: 'General renovation waste', price: 550, unit: 'per_job', isFromPrice: false },
+      { type: 'project_management', label: 'Project management', price: 3500, unit: 'per_job', isFromPrice: false },
+      /* Priced per square metre, so it can never reach a total: this conversation asks for no area,
+         and adding 75 would quote the customer one square metre of tiling. Stored, shown, and named
+         in a badge as measured on site. The same treatment decking gives rock by the hour. */
+      { type: 'tiling', label: 'Floor tiling', price: 75, unit: 'per_sqm', isFromPrice: false },
+    ],
+    surfaces: [
+      { label: 'Standard wall plastering', pricePerSqm: 65 },
+      { label: 'Timber flooring', pricePerSqm: 95 },
+    ],
+    perItem: [
+      { label: 'Internal door installation', price: 280 },
+      { label: 'Base cabinet installation', price: 180 },
+    ],
+    /* Charged by the hour, so they can never reach a total: nobody knows how many hours of
+       carpentry there are until the walls are open. Stored, shown, and named as not included. */
+    hourly: [
+      { label: 'General carpentry', price: 95, unit: 'per_hour' },
+      { label: 'Finish carpentry', price: 110, unit: 'per_hour' },
+    ],
+    serviceArea: {
+      baseLocation: 'Berwick',
+      resolved: { suburb: 'Berwick', state: 'VIC', postcode: '3806', lat: BERWICK.latitude, lng: BERWICK.longitude, source: 'google' },
+      radiusKm: 30,
+      excludedAreas: [],
+    },
+    minimumCharge: 450,
+    siteInspectionFee: 150,
+    consultationFee: 180,
+    travelFee: 95,
+    ...pricingOverrides,
+  } as unknown as PricingDoc);
+
+  repo.saveCapabilities(uid, {
+    trade: 'home_renovation',
+    businessName,
+    warranty: { text: 'Ten year workmanship warranty' },
+    tags: [],
+    inclusions: [],
+    exclusions: [
+      'Building permits, engineering and council fees',
+      'Electrical, plumbing and gas work',
+      'Asbestos removal',
+    ],
+    otherOfferings: [],
+    couldNotUse: [],
+    schemaVersion: 1,
+    updatedAt: now,
+  } as unknown as CapabilitiesDoc);
+}
+
+const openReno: Turn[] = [{ say: 'I need a renovation quote' }, { say: 'yes go ahead' }];
+
+export const HOME_RENOVATION_CONVERSATIONS: Conversation[] = [
+  {
+    name: '60 renovation, a bathroom with the customer buying the materials',
+    why: 'the sixth trade end to end: the room asked first because it IS the job, a flat price with no unit anywhere in it, and a total that is the room plus the strip-out and nothing else. The badge must say the customer supplies the materials, because that is the biggest single difference between two renovators quoting the same room',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bathroom' },
+      { say: 'full_renovation' },
+      { say: 'labour_only' },
+      { say: 'bathroom_strip' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '61 renovation, a kitchen with the renovator supplying everything',
+    why: 'THE distinction this trade’s own document calls fundamental. The same room is the labour figure or that plus every material in it, and nothing in the number says which - so the cabinetry package has to enter the total here and must NOT in conversation 60. Two extras priced per job come in with it; the waterproofing does not, because nobody asked for it',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'kitchen' },
+      { say: 'full_renovation' },
+      { say: 'supply_and_install' },
+      { say: 'kitchen_strip' },
+      { say: 'benchtop' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '62 renovation, asking for work that is only sold by the square metre and by the hour',
+    why: 'THE quote this trade exists to get right, and the one thing its pricing module is for. Floor tiling is $75 per square metre and carpentry is $95 an hour - both real, both published, both asked for - and neither may enter the total, because this conversation asks for no area and no hours. They must appear as badges saying so instead. A total containing 75 or 95 is this trade’s worst failure: it shows a customer a number far below what they will actually be charged',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bedroom' },
+      { say: 'full_renovation' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'tiling' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '63 renovation, stripping a room out and nothing more',
+    why: 'the second job type against a room the renovator also renovates, reached through optionsKeyedBy - and the double-charge guard. "Bathroom demolition $1,450" is ONE price on the list stored as both a demolition_only rate and a removal, so a customer who wants only the strip-out must be charged $1,450 and never $2,900. The strip-out question is not even asked here, because the strip-out IS the job',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bathroom' },
+      { say: 'demolition_only' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '64 renovation, correcting the room from the recap',
+    why: 'a correction re-asks one field and keeps the rest, on the field that headlines the quote and finds the rate. The total has to move by the difference between two rooms - and the job type has to survive, even though its options are keyed off the room that just changed',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bedroom' },
+      { say: 'full_renovation' },
+      { say: 'labour_only' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'none' },
+      { say: 'no' },
+      { say: 'the room is wrong' },
+      { say: 'living_room' },
       { say: 'yes' },
     ],
   },

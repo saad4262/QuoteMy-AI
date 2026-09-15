@@ -1,4 +1,11 @@
-import { DECK_QUESTIONS, KITCHEN_QUESTIONS, QUESTIONS, RW_QUESTIONS, TILING_QUESTIONS } from '../messages.js';
+import {
+  DECK_QUESTIONS,
+  KITCHEN_QUESTIONS,
+  QUESTIONS,
+  RENO_QUESTIONS,
+  RW_QUESTIONS,
+  TILING_QUESTIONS,
+} from '../messages.js';
 import type { Trade } from '../vocab.js';
 import { HEIGHT_FALLBACK, QUANTITIES, RW_HEIGHT_FALLBACK } from './vocab.js';
 
@@ -1570,12 +1577,237 @@ export const DECKING_FIELDS: FieldSpec[] = [
   },
 ];
 
+/**
+ * Home renovation, and the shortest asked list of any trade after fencing.
+ *
+ * Seven questions against a catalogue of a hundred and ten priced lines, and that gap is the whole
+ * design. The room and the job type find the rate; the supply model decides whether materials are
+ * in the number; the strip-out and the extras are fixed items. Everything else on a renovator's list
+ * - the per-square-metre surfaces, the per-item doors and cabinets, the hourly carpentry - is
+ * captured on the business side and never asked about here, because asking would mean asking a
+ * customer for an area, a count and a duration they do not have.
+ *
+ * `jobType` is keyed off the room for the same reason fencing's height is keyed off the material: a
+ * renovator who publishes a bathroom renovation but no bathroom strip-out should not be made to
+ * answer for one, and the alternative is a single flat list of every job in every room.
+ */
+export const HOME_RENOVATION_FIELDS: FieldSpec[] = [
+  {
+    key: 'suburb',
+    namedBy: /\b(suburbs?|subrubs?|surburbs?|suberbs?|locations?|addresse?s?|areas?|post ?codes?)\b/i,
+    aliases: ['suburb', 'location', 'postcode'],
+    type: 'place',
+    title: 'Suburb',
+    question: 'Which suburb is the job in? A postcode works too.',
+  },
+  {
+    key: 'room',
+    namedBy: /\b(rooms?|which room|bathrooms?|kitchens?|ensuites?|laundry|bedrooms?|lounges?)\b/i,
+    aliases: ['room'],
+    type: 'enum',
+    title: 'Room',
+    question: RENO_QUESTIONS.room,
+    source: 'core.rooms',
+    labelGroup: 'rooms',
+    /* A renovator's own headings, and a customer's own words, are not the same vocabulary. */
+    valueAliases: {
+      living_room: ['lounge', 'lounge room', 'family room', 'rumpus', 'sitting room', 'loungeroom'],
+      home_office: ['study', 'office'],
+      hallway: ['hall', 'entry', 'entrance', 'passage', 'corridor'],
+      bathroom: ['toilet', 'washroom', 'powder room', 'main bathroom'],
+      open_plan: ['open plan', 'knock through', 'knocking rooms together'],
+      whole_home: ['whole house', 'the whole house', 'full house', 'everything', 'the lot'],
+    },
+    /* ORDER MATTERS AND THIS IS THE TRAP SPECIFIC TO THIS TRADE. The compound answers come first,
+       because both of them CONTAIN the specific rooms: "open-plan kitchen and living area" names
+       three values and only the first is right, and "whole-home renovation including the bathroom"
+       names two. Read the other way round, the biggest job on the list gets quoted as the smallest.
+       `ensuite` before `bathroom` for the same reason - an ensuite is a bathroom in plain English
+       and they are different lines at a $900 difference. */
+    docHints: {
+      values: [
+        ['open_plan', /\bopen[-\s]?plan\b|\bknock(?:ing)?\s+(?:through|two\s+rooms)\b/i],
+        ['whole_home', /\bwhole[-\s]?(?:home|house)\b|\bfull[-\s]?(?:home|house)\b|\bentire\s+(?:home|house)\b/i],
+        ['ensuite', /\bensuites?\b|\ben[-\s]suites?\b/i],
+        ['bathroom', /\bbathrooms?\b|\bpowder\s+rooms?\b/i],
+        ['kitchen', /\bkitchens?\b/i],
+        ['laundry', /\blaundr(?:y|ies)\b/i],
+        ['bedroom', /\bbedrooms?\b/i],
+        ['living_room', /\bliving\s+(?:room|area)\b|\blounge\b|\bfamily\s+room\b|\brumpus\b/i],
+        ['dining_room', /\bdining\s+(?:room|area)\b/i],
+        ['home_office', /\bhome\s+office\b|\bstudy\b/i],
+        ['hallway', /\bhallways?\b|\bentry\b|\bpassage\b/i],
+      ],
+    },
+  },
+  {
+    key: 'jobType',
+    namedBy: /\b(jobs?|what.{0,12}(?:doing|having done)|full renovation|strip|demolition)\b/i,
+    aliases: ['job'],
+    type: 'enum',
+    title: 'Job',
+    question: RENO_QUESTIONS.jobType,
+    source: 'core.jobTypes',
+    labelGroup: 'jobTypes',
+    /* Keyed off the room: `core.jobTypes` is published as { bathroom: [...], kitchen: [...] } so a
+       renovator is only ever asked for the jobs they actually price in that room. Fencing's
+       `heightKey` is the same mechanism. */
+    optionsKeyedBy: 'room',
+    /* `fit_out_only` first, and that order is the rule. "Install the vanity and tiles the customer
+       supplies" contains the words for the other answers, and read the other way round a job with no
+       demolition in it gets quoted as a full renovation. `demolition_only` before `full_renovation`
+       because "strip out the old bathroom and renovate it" is a full renovation and the strip-out
+       words are in both - but a list that says ONLY strip-out is demolition_only. */
+    docHints: {
+      values: [
+        [
+          'fit_out_only',
+          /\bfit[-\s]?out\s+only\b|\binstall(?:ation)?\s+only\b|\bcustomer[-\s]?supplied\b|\bowner[-\s]?supplied\b/i,
+        ],
+        ['demolition_only', /\bdemolition\s+only\b|\bstrip[-\s]?out\s+only\b|\bjust\s+(?:strip|demolish)/i],
+        ['repair', /\brepairs?\b|\bpatch\b|\bmake\s+good\b|\btouch[-\s]?up\b/i],
+        ['full_renovation', /\bfull\s+renovation\b|\brenovation\s+labour\b|\bcomplete\s+renovation\b/i],
+      ],
+    },
+  },
+  {
+    key: 'supply',
+    namedBy: /\b(supply|supplied|who.{0,12}buying|who.{0,12}supplies|materials?)\b/i,
+    aliases: ['supply', 'materials'],
+    type: 'enum',
+    title: 'Who supplies',
+    question: RENO_QUESTIONS.supply,
+    source: 'core.supply',
+    labelGroup: 'supply',
+    /* Two real answers and no "none" - somebody is buying the materials either way. */
+    pageSize: 2,
+    /* `labour_only` first, exactly as in tiling and kitchen and for the same reason: "supply and
+       install the client's own materials" contains the standard phrase for the other answer, and
+       reading it as `supply_and_install` would add a materials package to a quote that was only ever
+       for labour. */
+    docHints: {
+      values: [
+        [
+          'labour_only',
+          /\blabour[-\s]?only\b|\binstallation\s+only\b|\bcustomer[-\s]?supplied\b|\bowner[-\s]?supplied\b|\byou\s+supply\b|\bclient\s+supplies\b/i,
+        ],
+        ['supply_and_install', /\bsupply\s*(?:&|and|\+)\s*install\b|\bwe\s+supply\b|\bmaterials\s+included\b/i],
+      ],
+    },
+  },
+  {
+    key: 'removal',
+    namedBy: /\b(removals?|strip|strip ?out|demolition|old|existing|take out)\b/i,
+    aliases: ['removal', 'demolition'],
+    type: 'enum',
+    title: 'Strip-out',
+    question: RENO_QUESTIONS.removal,
+    source: 'core.removes',
+    labelGroup: 'removes',
+    pinned: { label: 'Nothing to strip out', value: 'none' },
+    recap: { prefix: 'stripping out ', lower: true, words: { any: 'the old one' } },
+    /* Never asked when the strip-out IS the job. "Bathroom demolition $1,450" is one line on the
+       price list, and it is read as a `demolition_only` rate AND as a removal - correctly, because
+       a customer renovating the room wants it as an addition and a customer who only wants the room
+       gutted wants it as the whole job. Asking both questions of the same customer would add that
+       $1,450 to itself. `pricing/homeRenovation.ts` refuses the same pair a second time, because
+       this field can also be filled off an attached document without ever being asked. */
+    dependsOn: { field: 'jobType', notEquals: 'demolition_only' },
+    /* Nothing is read for this field unless the page is plainly talking about taking something out.
+       Without the guard, "full interior renovation" reads as `full_interior` demolition - a $4,250
+       line - on a page that never mentioned demolition at all. */
+    docHints: {
+      requires: [/\b(?:demolition|strip[-\s]?out|removals?|remove|taking?\s+out|rip[-\s]?out)\b/gi],
+      negatedBy: /\bno\b|\bnot\b|\bwithout\b|\bexcluding\b/i,
+      values: [
+        ['full_interior', /\bfull\s+interior\b|\bwhole\s+interior\b|\bentire\s+interior\b/i],
+        ['bathroom_strip', /\bbathroom\s+(?:demolition|strip)/i],
+        ['kitchen_strip', /\bkitchen\s+(?:demolition|strip)/i],
+        ['laundry_strip', /\blaundry\s+(?:demolition|strip)/i],
+        ['small_room', /\bsmall\s+room\s+demolition\b/i],
+        ['any', /\b(?:demolition|strip[-\s]?out)\b/i],
+      ],
+    },
+  },
+  {
+    key: 'extras',
+    recap: { lower: true },
+    namedBy: /\b(extras?|anything else|add[- ]?ons?|inclusions?)\b/i,
+    aliases: ['extras'],
+    type: 'multiEnum',
+    title: 'Extras',
+    question: RENO_QUESTIONS.extras,
+    source: 'core.extras',
+    labelGroup: 'extras',
+    pinned: { label: 'Nothing else', value: 'none' },
+    /* In this trade the extras are most of the quote, exactly as in kitchen: a supply-and-install
+       bathroom is the room price plus five of these, and between them they more than half it again.
+       `wall_removal` before `wall_build` because "remove the wall and build a new one" contains
+       both, and the removal is the expensive half. */
+    docHints: {
+      values: [
+        ['waterproofing', /\bwater\s?proof(?:ing)?\b/i],
+        ['wall_removal', /\bwall\s+removal\b|\bremov(?:e|ing|al\s+of)\s+(?:a\s+|the\s+)?wall\b/i],
+        ['wall_build', /\bstud\s+wall\b|\bpartition\s+wall\b|\bnew\s+wall\b|\bwall\s+construction\b/i],
+        ['plastering', /\bplaster(?:ing|board)?\b|\bcornice\b/i],
+        ['painting', /\bpaint(?:ing)?\b|\brepaint\b/i],
+        ['flooring', /\bfloor(?:ing)?\b|\blaminate\b|\bvinyl\s+plank\b|\bhybrid\s+floor/i],
+        ['tiling', /\btil(?:e|es|ing)\b/i],
+        ['splashback', /\bsplash\s?backs?\b/i],
+        ['benchtop', /\bbench\s?tops?\b/i],
+        ['cabinetry', /\bcabinet(?:ry|s)?\b|\bjoinery\b/i],
+        ['wardrobe', /\bwardrobes?\b|\bwalk[-\s]?in\s+robe\b/i],
+        ['ceiling', /\bceilings?\b|\bbulkhead\b/i],
+        ['doors', /\bdoors?\b/i],
+        ['skirting', /\bskirting\b/i],
+        ['architraves', /\barchitraves?\b/i],
+        ['site_protection', /\bsite\s+protection\b|\bprotect(?:ing)?\s+(?:the\s+)?(?:rest|floors?)\b/i],
+        ['waste_disposal', /\bwaste\s+(?:disposal|removal)\b|\brubbish\s+removal\b|\bskip\b/i],
+        ['material_delivery', /\bmaterial\s+delivery\b|\bdelivery\s+(?:fee|charge)\b/i],
+        ['project_management', /\bproject\s+manage(?:ment|r)?\b/i],
+      ],
+    },
+  },
+  {
+    key: 'conditions',
+    recap: false,
+    namedBy: /\b(conditions?|site|access|structural|asbestos|damage|wall)\b/i,
+    aliases: ['conditions', 'access'],
+    type: 'multiEnum',
+    title: 'Site',
+    question: RENO_QUESTIONS.conditions,
+    source: 'core.conditions',
+    labelGroup: 'conditions',
+    pinned: { label: 'Nothing tricky', value: 'none' },
+    /* Read off a customer's OWN words only. A renovator's price list naming structural wall removal
+       is saying what the BUILDER does, not what is true of this customer's house - and the four
+       things in this list are precisely the ones this trade's rules say must never be assumed. */
+    docHints: {
+      none: /\b(?:easy|good|clear|open)\s+access\b|\bnothing\s+(?:tricky|unusual)\b/i,
+      values: [
+        ['structural_wall', /\bstructural\s+wall\b|\bload[-\s]?bearing\b|\bholding\s+(?:up|something)\b/i],
+        ['asbestos_suspected', /\basbestos\b/i],
+        ['hidden_damage', /\bwater\s+damage\b|\brot(?:ten|ting)?\b|\bmould\b|\btermites?\b/i],
+        ['services_in_wall', /\bpipes?\s+in\s+the\s+wall\b|\bwiring\s+in\b|\bservices\s+in\s+the\s+wall\b/i],
+        ['uneven_floor', /\buneven\s+floors?\b|\bfloor\s+(?:is\s+)?not\s+level\b|\bsloping\s+floors?\b/i],
+        ['restricted_access', /\brestricted\s+access\b|\blimited\s+access\b|\bhard\s+to\s+(?:get|reach)\b|\bupstairs\b|\bsecond\s+floor\b/i],
+      ],
+    },
+  },
+  {
+    key: 'existingPrice',
+    type: 'money',
+    asked: false,
+  },
+];
+
 export const TRADE_FIELDS: Record<Trade, FieldSpec[]> = {
   fencing: FENCING_FIELDS,
   tiling: TILING_FIELDS,
   kitchen: KITCHEN_FIELDS,
   retaining_wall: RETAINING_WALL_FIELDS,
   decking: DECKING_FIELDS,
+  home_renovation: HOME_RENOVATION_FIELDS,
 };
 
 /** Every spec entry, asked or not. */

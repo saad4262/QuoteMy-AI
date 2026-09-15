@@ -62,6 +62,9 @@ HOW TO JUDGE - STRICTLY:
   and never enter the calculation. Do NOT reject a submission because an optional extra is priced
   "from". If every core rate is one set number and the only loose figures are on extras, that is an
   APPROVAL.
+- THE SAME APPLIES TO UNITS (rule 2a). A bare dollar amount on disposal, a package, groundworks, a
+  fee or an add-on is a flat job price and is COMPLETE. Never reject over one and never call it
+  unclear. Only a CORE rate needs its unit, and the trade's own rules name what that unit is.
 - Listing a service is not pricing it.
 - Partial compliance is non-compliance. One failed blocking rule means outcome = "needs_updates".
 - Volume of detail is not compliance. Two thousand words with one vague price fails. Four lines with

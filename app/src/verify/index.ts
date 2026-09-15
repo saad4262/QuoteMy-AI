@@ -2,6 +2,7 @@ import type {
   AnyExtraction,
   Extraction,
   DeckingExtraction,
+  HomeRenovationExtraction,
   KitchenExtraction,
   RetainingWallExtraction,
   TilingExtraction,
@@ -12,6 +13,7 @@ import { verifyTiling, type TilingVerifiedResult } from './tiling.js';
 import { verifyKitchen, type KitchenVerifiedResult } from './kitchen.js';
 import { verifyRetainingWall, type RetainingWallVerifiedResult } from './retainingWall.js';
 import { verifyDecking, type DeckingVerifiedResult } from './decking.js';
+import { verifyHomeRenovation, type HomeRenovationVerifiedResult } from './homeRenovation.js';
 import type { VerifiedCapabilities, VerifiedOffering, VerifiedPricing } from './fencing.js';
 import type {
   TilingVerifiedCapabilities,
@@ -33,6 +35,11 @@ import type {
   DeckingVerifiedOffering,
   DeckingVerifiedPricing,
 } from './decking.js';
+import type {
+  HomeRenovationVerifiedCapabilities,
+  HomeRenovationVerifiedOffering,
+  HomeRenovationVerifiedPricing,
+} from './homeRenovation.js';
 
 /**
  * Verification, by trade.
@@ -69,6 +76,8 @@ export function verifyExtraction(
       return verifyRetainingWall(x as RetainingWallExtraction, sourceText, trade, knownSlugs);
     case 'decking':
       return verifyDecking(x as DeckingExtraction, sourceText, trade, knownSlugs);
+    case 'home_renovation':
+      return verifyHomeRenovation(x as HomeRenovationExtraction, sourceText, trade, knownSlugs);
   }
 }
 
@@ -85,25 +94,29 @@ export type AnyVerifiedPricing =
   | TilingVerifiedPricing
   | KitchenVerifiedPricing
   | RetainingWallVerifiedPricing
-  | DeckingVerifiedPricing;
+  | DeckingVerifiedPricing
+  | HomeRenovationVerifiedPricing;
 export type AnyVerifiedCapabilities =
   | VerifiedCapabilities
   | TilingVerifiedCapabilities
   | KitchenVerifiedCapabilities
   | RetainingWallVerifiedCapabilities
-  | DeckingVerifiedCapabilities;
+  | DeckingVerifiedCapabilities
+  | HomeRenovationVerifiedCapabilities;
 export type AnyVerifiedOffering =
   | VerifiedOffering
   | TilingVerifiedOffering
   | KitchenVerifiedOffering
   | RetainingWallVerifiedOffering
-  | DeckingVerifiedOffering;
+  | DeckingVerifiedOffering
+  | HomeRenovationVerifiedOffering;
 export type VerifiedResult =
   | FencingResult
   | TilingVerifiedResult
   | KitchenVerifiedResult
   | RetainingWallVerifiedResult
-  | DeckingVerifiedResult;
+  | DeckingVerifiedResult
+  | HomeRenovationVerifiedResult;
 
 /**
  * Which shape this is, decided by a field only one of them has.
@@ -132,6 +145,14 @@ export const isRetainingWallPricing = (p: AnyVerifiedPricing): p is RetainingWal
 
 export const isDeckingPricing = (p: AnyVerifiedPricing): p is DeckingVerifiedPricing =>
   Array.isArray((p as DeckingVerifiedPricing).enabledDeckMaterials);
+
+/* `enabledRooms`, and NOT `enabledJobTypes`. A renovation has job types exactly as tiling does, and
+   it was the obvious name for this list - which is the same trap retaining wall nearly fell into
+   with `enabledMaterials`. Reusing tiling's name would have made every renovation document answer
+   true to `isTilingPricing` and be priced per square metre against a tile that does not exist.
+   `tests/unit/verifyHomeRenovation.test.ts` asserts all five negatives for exactly that reason. */
+export const isHomeRenovationPricing = (p: AnyVerifiedPricing): p is HomeRenovationVerifiedPricing =>
+  Array.isArray((p as HomeRenovationVerifiedPricing).enabledRooms);
 
 export type {
   VerifiedCapabilities,
@@ -163,6 +184,14 @@ export type {
   DeckingVerifiedPricing,
   DeckingVerifiedResult,
 } from './decking.js';
+
+export type {
+  RenoRate,
+  HomeRenovationVerifiedCapabilities,
+  HomeRenovationVerifiedOffering,
+  HomeRenovationVerifiedPricing,
+  HomeRenovationVerifiedResult,
+} from './homeRenovation.js';
 
 export type {
   RwRate,

@@ -2,6 +2,7 @@ import type { ServiceExtract } from '../store.js';
 import {
   isDeckingPricing,
   isFencingPricing,
+  isHomeRenovationPricing,
   isKitchenPricing,
   isRetainingWallPricing,
   isTilingPricing,
@@ -14,6 +15,7 @@ import { budgetText } from './budget.js';
 import { quoteKitchen, type KitchenBrief } from './pricing/kitchen.js';
 import { quoteRetainingWall, type RetainingWallBrief } from './pricing/retainingWall.js';
 import { quoteDecking, type DeckingBrief } from './pricing/decking.js';
+import { quoteHomeRenovation, type RenoBrief } from './pricing/homeRenovation.js';
 import { slug } from './fuzzyMatch.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { quoteTotal } from './pricing/total.js';
@@ -321,6 +323,27 @@ function retainingWallBrief(checklist: Checklist, spec: PricingSpec): RetainingW
 }
 
 /** The decking checklist. Three quantities: the deck, the balustrade and the stairs. */
+/**
+ * The renovation brief, and the only one of the six that takes no `spec`.
+ *
+ * There is no quantity to look up. A renovator prices the ROOM, so the whole brief is which room,
+ * what is being done to it, who is buying the materials, and what else is in the job - the same
+ * shape kitchen's brief has, and for the same reason.
+ */
+function renovationBrief(checklist: Checklist): RenoBrief {
+  const removal = asText(checklist.removal);
+  return {
+    /* NOT slugged, for the reason decking's height and kitchen's supply are not: these are closed
+       vocabulary values used as object keys, and slugging turns `living_room` into `living-room`,
+       which finds no rate table at all. */
+    room: asText(checklist.room) ?? '',
+    jobType: asText(checklist.jobType) ?? '',
+    supply: asText(checklist.supply) ?? '',
+    removal: removal && removal !== 'none' ? slug(removal) : null,
+    extras: asTextList(checklist.extras),
+  };
+}
+
 function deckingBrief(checklist: Checklist, spec: PricingSpec): DeckingBrief {
   const removal = asText(checklist.removal);
   const balustrade = asText(checklist.balustrade);
@@ -542,6 +565,39 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
       continue;
     }
 
+    if (schema.trade === 'home_renovation') {
+      const pricing = stored.pricing;
+      if (!pricing || !isHomeRenovationPricing(pricing)) continue;
+
+      const quote = quoteHomeRenovation(business, pricing, renovationBrief(checklist));
+      if ('blocked' in quote) {
+        /* The nearest equivalents, and the three failures are genuinely different sentences. A room
+           nobody renovates is fencing's `material`; a job they will not do to a room they DO
+           renovate is its `height`, the slot retaining wall already repurposes for its supply
+           model; and a renovator who cannot strip the old one out cannot do the job at all. */
+        blocked[quote.blocked === 'removal' ? 'removal' : quote.blocked === 'jobType' ? 'height' : 'material'] += 1;
+        continue;
+      }
+
+      quotes.push({
+        uid: business.uid,
+        businessName: business.businessName,
+        suburb: business.suburb,
+        distanceKm: business.distanceKm,
+        material: slug(quote.roomKey),
+        heightKey: slug(quote.jobKey),
+        ratePerMeter: quote.ratePerUnit,
+        autoAcceptsAi: business.autoAcceptsAi,
+        currency: 'AUD',
+        projectTotalMin: quote.total,
+        projectTotalMax: quote.total,
+        estimatedTotal: quote.total,
+        warranty: (stored.capabilities as { warranty?: { text?: string | null } } | null)?.warranty?.text ?? null,
+        badges: quote.badges,
+      });
+      continue;
+    }
+
     const extract = asFencing(stored);
     if (!extract) continue;
     const quote = quoteFor(business, extract, wantedMaterial, wantedHeight, heightKey ?? '', brief, spec);
@@ -629,6 +685,65 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         continue;
       }
 
+      if (schema.trade === 'kitchen') {
+        const pricing = matcher.pricing[i]!.pricing;
+        if (!pricing || !isKitchenPricing(pricing)) continue;
+        const wanted = kitchenBrief(checklist);
+        for (const [rateKey, rows] of Object.entries(pricing.rates)) {
+          for (const row of rows) {
+            /* Ask for the size this row is written for, and let `quoteKitchen` decide what that
+               resolves to. Reading `row.price` here instead would be a second, divergent copy of
+               the rate lookup - and this trade's lookup is the one that genuinely redirects: a
+               fitter who prints all three sizes under "Installation-only pricing" answers a
+               REPLACEMENT from that same bucket, which is the fault `rateForJob` exists to fix. */
+            const quote = quoteKitchen(business, pricing, {
+              ...wanted,
+              jobType: slug(rateKey),
+              kitchenSize: row.size ? slug(row.size) : wanted.kitchenSize,
+            });
+            if ('blocked' in quote) continue;
+            if (existingPrice !== null && quote.total >= existingPrice) continue;
+
+            /* The keys the quote actually came back on, never the ones asked for, and this is the
+               reason the brief is filtered out down here rather than before the call: what was
+               asked for and what was priced are routinely different rows on this trade, and a
+               `{size, job}` pair that redirects back onto the brief would otherwise be offered to
+               the customer as an alternative to itself. They are also what the dedupe below and
+               the sentence in `describe` read, so distance has to be measured on the same pair or
+               one offer arrives twice at two different rankings. */
+            const sizeKey = slug(quote.sizeKey);
+            const jobKey = slug(quote.rateKey);
+            if (sizeKey === wanted.kitchenSize && jobKey === wanted.jobType) continue;
+
+            alternatives.push({
+              uid: business.uid,
+              businessName: business.businessName,
+              suburb: business.suburb,
+              distanceKm: business.distanceKm,
+              material: sizeKey,
+              heightKey: jobKey,
+              ratePerMeter: quote.ratePerUnit,
+              autoAcceptsAi: business.autoAcceptsAi,
+              currency: 'AUD',
+              projectTotalMin: quote.total,
+              projectTotalMax: quote.total,
+              estimatedTotal: quote.total,
+              warranty: null,
+              badges: quote.badges,
+              /* The SIZE weighs more than the job type, and this is tiling's weighting for the
+                 opposite reason. A customer can change what they call the job - whether the
+                 cabinets are theirs or the fitter's is a decision, and it is priced separately
+                 anyway - but they cannot make their kitchen smaller. So the same size under
+                 another heading is much nearer to what they asked for than another size under
+                 theirs, and it is the offer that unblocks the common case: a fitter who published
+                 two sizes and not the third. */
+              distanceFromBrief: (sizeKey === wanted.kitchenSize ? 0 : 2) + (jobKey === wanted.jobType ? 0 : 1),
+            });
+          }
+        }
+        continue;
+      }
+
       if (schema.trade === 'retaining_wall') {
         const pricing = matcher.pricing[i]!.pricing;
         if (!pricing || !isRetainingWallPricing(pricing)) continue;
@@ -707,6 +822,50 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
         continue;
       }
 
+      if (schema.trade === 'home_renovation') {
+        const pricing = matcher.pricing[i]!.pricing;
+        if (!pricing || !isHomeRenovationPricing(pricing)) continue;
+        const wanted = renovationBrief(checklist);
+        for (const [room, rows] of Object.entries(pricing.rates)) {
+          for (const row of rows) {
+            /* RAW, not slugged: `slug` turns `full_renovation` into `full-renovation`, and both
+               the skip below and `quoteHomeRenovation`'s own lookup compare against the closed
+               vocabulary value. Slugged, the skip never fires and the customer is offered the exact
+               job they asked for as the nearest alternative to itself. */
+            const jobType = row.jobType;
+            if (room === wanted.room && jobType === wanted.jobType) continue;
+            const quote = quoteHomeRenovation(business, pricing, { ...wanted, room, jobType });
+            if ('blocked' in quote) continue;
+            if (existingPrice !== null && quote.total >= existingPrice) continue;
+            alternatives.push({
+              uid: business.uid,
+              businessName: business.businessName,
+              suburb: business.suburb,
+              distanceKm: business.distanceKm,
+              material: slug(quote.roomKey),
+              heightKey: slug(quote.jobKey),
+              ratePerMeter: quote.ratePerUnit,
+              autoAcceptsAi: business.autoAcceptsAi,
+              currency: 'AUD',
+              projectTotalMin: quote.total,
+              projectTotalMax: quote.total,
+              estimatedTotal: quote.total,
+              warranty: null,
+              badges: quote.badges,
+              /* The ROOM weighs more than the job, and this trade needs the weighting more than any
+                 other: it walks a hundred-line catalogue rather than the three to fifteen rows
+                 every other trade has, so an unweighted score would rank "internal door
+                 installation" level with "bathroom renovation" as an alternative to a kitchen.
+                 The room is also the fact about the customer's house - they came about a bathroom -
+                 where what is done to it is the thing they can be flexible on. Same shape as
+                 tiling's room-over-tile and decking's height-over-board. */
+              distanceFromBrief: (room === wanted.room ? 0 : 2) + (jobType === wanted.jobType ? 0 : 1),
+            });
+          }
+        }
+        continue;
+      }
+
       const extract = asFencing(matcher.pricing[i]!);
       if (!extract) continue;
       const enabled = extract.pricing.enabledMaterials.map(slug);
@@ -751,13 +910,24 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
       const otherLabel = (value: string): string => {
         const group = otherGroup ? schema.labels[otherGroup] : undefined;
         if (!group) return value;
-        return group[Object.keys(group).find((k) => slug(k) === slug(value)) ?? value] ?? value;
+        /* A value the trade PUBLISHES a label group for and does not label in it is a storage key,
+           not a choice anybody made, and the empty string is what says so to both readers below.
+           Kitchen is where this showed up: the verifier files a fitter's single installation price
+           under `general`, and quoting that back built "The closest they can do is general for
+           Small - a galley or one run". Returning the raw value is still right when there is no
+           group at all - fencing's other half is a height, "1.8m", already a word. */
+        return group[Object.keys(group).find((k) => slug(k) === slug(value)) ?? value] ?? '';
       };
       const describe = (headline: string, other: string): string => {
         const name = materialLabel(headline);
         if (!other || other === 'any') return name;
         const sentence = spec.rateSentence;
-        const qualifier = sentence.lowerOther ? otherLabel(other).toLowerCase() : otherLabel(other);
+        const label = otherLabel(other);
+        /* Nothing to call it, so it is not named: the headline alone is a true sentence where
+           "<slug> for Small" is not one. Same outcome as `any` above, reached one step later
+           because only the lookup knows the value was never a published choice. */
+        if (!label) return name;
+        const qualifier = sentence.lowerOther ? label.toLowerCase() : label;
         /* A punctuation joiner takes no space in front of it. Every trade until retaining wall
            joined with a word - "at", "in", "for" - and a naive space either side turned its comma
            into "Concrete sleepers , they supply the materials". */
@@ -809,10 +979,20 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
           offers[0]!.businessName +
           '. Want one of these instead?',
         options: offers
-          .map((offer) => ({
-            label: materialLabel(offer.material) + ', ' + otherLabel(offer.heightKey) + ' · $' + offer.projectTotalMin.toLocaleString(),
-            value: 'alt:' + offer.material + ':' + offer.heightKey,
-          }))
+          .map((offer) => {
+            /* A tappable label, not the sentence `describe` writes - two halves and a price. The
+               second half is dropped entirely when the trade has no word for it, because the comma
+               was being printed either way: "Small - a galley or one run,  · $2,070". */
+            const qualifier = offer.heightKey && offer.heightKey !== 'any' ? otherLabel(offer.heightKey) : '';
+            return {
+              label:
+                materialLabel(offer.material) +
+                (qualifier ? ', ' + qualifier : '') +
+                ' · $' +
+                offer.projectTotalMin.toLocaleString(),
+              value: 'alt:' + offer.material + ':' + offer.heightKey,
+            };
+          })
           .concat([{ label: "No thanks, I'll change something", value: 'no' }]),
         noMatchReason: 'alternative',
         checklistComplete: false,

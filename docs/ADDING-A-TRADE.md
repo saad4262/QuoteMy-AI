@@ -32,11 +32,29 @@ grep -n  "Record<$" app/src/messages.ts   # TRADE_WORDS wraps, so the grep above
 Three questions settle most of the work. Answer them from the trade's real price lists, not from
 what would be tidy.
 
-| | Fencing | Tiling | Kitchen | Retaining wall | Decking |
-|---|---|---|---|---|---|
-| What is the job measured in? | linear metres | square metres | **nothing — one price for the job** | linear metres | square metres |
-| Which two answers find a rate? | material × height | job type × tile type | job type × kitchen size | **supply model × wall system** | **deck height × board** |
-| Do the businesses sell materials too? | **no** — one combined rate | **yes** — fitting and tile supply are separate | **yes** — cabinetry packages | **yes — as a second complete rate** | **no** — one combined rate |
+| | Fencing | Tiling | Kitchen | Retaining wall | Decking | Home renovation |
+|---|---|---|---|---|---|---|
+| What is the job measured in? | linear metres | square metres | **nothing — one price for the job** | linear metres | square metres | **nothing — one price per room** |
+| Which two answers find a rate? | material × height | job type × tile type | job type × kitchen size | **supply model × wall system** | **deck height × board** | **room × job type** |
+| Do the businesses sell materials too? | **no** — one combined rate | **yes** — fitting and tile supply are separate | **yes** — cabinetry packages | **yes — as a second complete rate** | **no** — one combined rate | **yes** — material packages |
+
+**A fifth question home renovation was the first to ask: does the trade sell work it can never
+quote?** Most trades publish one kind of rate. A renovator publishes four in one column of dollar
+amounts — rooms at flat prices, surfaces per square metre, items each, and labour by the hour — and
+only the unit beside the number tells them apart. Three of the four cannot reach a customer's total,
+because the chat asks for no area, no count and no duration, and multiplying by a number nobody gave
+you is the same invention as pricing by the hour. They are extracted, stored, shown on the
+business's own screen, and turned into a BADGE on the customer's: *"Carpentry charged by the hour on
+site, not in this price."* If your trade has lines like these, give each its own field in the
+extraction schema rather than a `unit` on the core rate — then a wrong reading is a compile error
+rather than a total that is quietly too low.
+
+**And a sixth, which is about the REVIEW prompt rather than the code: what is this trade's core
+unit?** Rule 2 says a price must carry its unit; rule 2a says that applies to core rates only.
+Eighty-six of a renovator's hundred and ten lines carry no unit at all, and "Bathroom renovation
+labour $6,850" is a complete, quotable rate exactly as written. A trade whose prices are flat MUST
+say so at the top of its `rules.md`, in as many words, or the reviewer rejects every correct
+submission it ever sees.
 
 **A fourth question the first four trades never had to ask: how many quantities is a quote made of?**
 Every trade above multiplies ONE. Decking multiplies three — the deck by its square metres, the
@@ -363,6 +381,38 @@ matches both and is correctly sent to the question. **This was found by a test, 
 
 Write a routing test both ways: your trade's sentences reach it, and the other trades' sentences do
 not.
+
+### When a lookahead cannot do it: the precedence rule
+
+Home renovation added the one tie-break this file has, and it is worth knowing before you reach for
+a lookahead. Its problem was kitchen's, twice over and worse: `tiling` owns `bathroom`, `ensuite`
+and `laundry`, `kitchen` owns its own noun, and a renovator does all four rooms.
+
+A lookahead cannot fix it. `bathroom(?!\s+renovat)` catches *"bathroom renovation"* and can never
+catch *"renovate my bathroom"* — the verb comes first, and that is the commoner phrasing. So the
+rule lives in `detectTrade` instead:
+
+```ts
+const RENOVATING = /\b(?:renovat\w*|remodel\w*|renos?)\b/i;
+
+export function detectTrade(message: string, published: readonly Trade[]): Trade[] {
+  const matched = published.filter((trade) => TRADE_KEYWORDS[trade].test(message));
+  if (!matched.includes('home_renovation') || !RENOVATING.test(message)) return matched;
+  return matched.filter((trade) => trade !== 'tiling' && trade !== 'kitchen');
+}
+```
+
+SCOPE beats ROOM: a renovation includes the tiling, and a tiler cannot do the rest of it. Two things
+make this safe rather than a precedent for special-casing:
+
+- It drops **two named trades** and no others. *"Renovate my deck"* is genuinely ambiguous and still
+  goes to the question, and so does *"a fence and a renovation"*.
+- It leaves all five existing regexes **byte-identical**, so no existing routing could move. The
+  seven-row table in `tests/unit/routing.test.ts` pins both halves — the rooms that now reach
+  renovations, and the same rooms without the scope word still reaching tiling and kitchen.
+
+Prefer a lookahead when the collision is about what FOLLOWS a word. Reach for precedence only when
+one trade's claim genuinely contains another's, in either word order.
 
 ---
 

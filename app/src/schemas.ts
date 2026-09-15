@@ -21,6 +21,12 @@ import {
   KITCHEN_TAGS,
   MATERIALS,
   REMOVES,
+  RENO_EXTRAS,
+  RENO_JOB_TYPES,
+  RENO_REMOVES,
+  RENO_ROOMS,
+  RENO_SUPPLY,
+  RENO_TAGS,
   RW_CONDITIONS,
   RW_DRAINAGE,
   RW_EXTRAS,
@@ -819,13 +825,174 @@ export const deckingExtractionSchema = z.object({
 });
 export type DeckingExtraction = z.infer<typeof deckingExtractionSchema>;
 
+export const homeRenovationExtractionSchema = z.object({
+  businessName: z.string().nullable(),
+  gstIncluded: z.boolean().nullable(),
+  gstSourceQuote: z.string().nullable(),
+
+  serviceArea: z.object({
+    baseLocation: z.string().nullable(),
+    radiusKm: z.number().nullable(),
+    radiusSourceQuote: z.string().nullable(),
+    excludedAreas: z.string().array(),
+  }),
+
+  minimumCharge: z.number().nullable(),
+  minimumChargeSourceQuote: z.string().nullable(),
+  /** What they charge to come and look. Renovators charge this AND a separate design consultation. */
+  siteInspectionFee: z.number().nullable(),
+  siteInspectionFeeSourceQuote: z.string().nullable(),
+  consultationFee: z.number().nullable(),
+  consultationFeeSourceQuote: z.string().nullable(),
+  travelFee: z.number().nullable(),
+  travelFeeSourceQuote: z.string().nullable(),
+
+  /**
+   * The core rates, and the shape that makes this trade its own.
+   *
+   * A renovator prices the ROOM. "Bathroom renovation labour $6,850" is one number covering
+   * demolition through to final finishing, and no part of it is per metre - so like kitchen there is
+   * no per-unit core rate here at all, and unlike every other trade the commonest line on the list
+   * carries no unit whatsoever. That is not a defect in their writing: a flat price per room IS this
+   * trade's unit, and the review rules say so in as many words.
+   *
+   * `unit` therefore CANNOT be per_hour or per_day, and that is structural rather than a runtime
+   * check. `schemas.ts` already records that hourly units are legal on groundworks "and nowhere
+   * else"; a room priced by the hour is not a quotable rate, it is a business that has not published
+   * one, and the right place for it is `hourly` below where it can be shown without being summed.
+   *
+   * `jobType` is required because the room alone cannot find a rate - a full bathroom renovation is
+   * $6,850 and stripping the same bathroom out is $1,450. `supply` is NULLABLE, unlike retaining
+   * wall's: most renovators publish one labour price that is the same either way and add materials
+   * on top, so null means "covers both" rather than "they forgot".
+   */
+  rates: z
+    .object({
+      room: z.enum(RENO_ROOMS),
+      jobType: z.enum(RENO_JOB_TYPES),
+      supply: z.enum(RENO_SUPPLY).nullable(),
+      price: z.number(),
+      unit: z.enum(['per_job', 'per_sqm', 'per_item']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Which of the two models they work under. Empty means they never said. */
+  supplyModels: z.enum(RENO_SUPPLY).array(),
+
+  /** Materials they SELL, when they supply as well as install. Never a figure off a website. */
+  materialPackages: z
+    .object({
+      label: z.string(),
+      price: z.number(),
+      unit: z.enum(['per_job', 'per_item']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /** Stripping out what is there, priced by what is coming OUT - not by what is going in. */
+  removals: z
+    .object({ removes: z.enum(RENO_REMOVES), price: z.number(), sourceQuote: z.string() })
+    .array(),
+
+  /**
+   * Every other priced line, and in this trade that is most of the quote.
+   *
+   * `type` carries one of the closed extra values where one applies and null otherwise - a $85 tap
+   * hole is a real priced line with no home in the vocabulary, and null is the right answer rather
+   * than the nearest guess. `label` is always the business's own wording, so nothing is lost.
+   */
+  extras: z
+    .object({
+      type: z.enum(RENO_EXTRAS).nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      isFromPrice: z.boolean(),
+      sourceQuote: z.string().nullable(),
+    })
+    .array(),
+
+  /**
+   * Work sold by the square metre - plastering at $65, floor tiling at $75, timber flooring at $95.
+   *
+   * Captured in full because it is a quarter of a renovator's list and the business's own screen
+   * should show it, but it never enters a customer's total: this conversation asks for no area, and
+   * multiplying a rate by an area nobody measured is the same invention as pricing by the hour.
+   */
+  surfaces: z
+    .object({
+      label: z.string(),
+      pricePerSqm: z.number(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Work sold each - a $280 internal door, a $180 base cabinet, a $95 door handle.
+   *
+   * Same status as `surfaces`: stored and shown, never summed, because no count is asked for.
+   */
+  perItem: z
+    .object({
+      label: z.string(),
+      price: z.number(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  /**
+   * Work sold by time. THE ONE THING IN THIS FILE THAT MAY NEVER REACH A TOTAL.
+   *
+   * Carpentry at $95/hr is a perfectly honest line on a renovator's list and this trade has five of
+   * them. It is captured so the business's profile is complete and so a customer can be told the
+   * work is available - but the hours are not knowable before somebody stands on the site, and
+   * "rock excavation at $180 per hour" has already been added to one total in this codebase as
+   * though rocky ground were an hour's work. The customer side turns these into a badge.
+   */
+  hourly: z
+    .object({
+      label: z.string(),
+      price: z.number(),
+      unit: z.enum(['per_hour', 'per_day']),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  warranty: z.object({ text: z.string().nullable(), sourceQuote: z.string().nullable() }),
+
+  inclusions: z.string().array(),
+  /**
+   * What the quote does NOT cover, and in this trade it is a blocking rule rather than a nicety.
+   *
+   * Permits, engineering, electrical, plumbing, gas and asbestos are all normally excluded and all
+   * expensive. A renovation quote that never says so is the one a customer reads as all-inclusive.
+   */
+  exclusions: z.string().array(),
+  tags: z.enum(RENO_TAGS).array(),
+
+  otherOfferings: z
+    .object({
+      slug: z.string().nullable(),
+      label: z.string(),
+      price: z.number().nullable(),
+      unit: z.enum(UNITS).nullable(),
+      sourceQuote: z.string(),
+    })
+    .array(),
+
+  couldNotUse: z.string().array(),
+});
+export type HomeRenovationExtraction = z.infer<typeof homeRenovationExtractionSchema>;
+
 /** Whatever the extraction stage returns, for the code between the model and the verifier. */
 export type AnyExtraction =
   | Extraction
   | TilingExtraction
   | KitchenExtraction
   | RetainingWallExtraction
-  | DeckingExtraction;
+  | DeckingExtraction
+  | HomeRenovationExtraction;
 
 /**
  * One trade per extraction call (`CLAUDE.md` non-negotiable #5), so the schema is chosen by trade
@@ -840,6 +1007,7 @@ export const TRADE_EXTRACTION: Record<Trade, z.ZodType<AnyExtraction>> = {
   kitchen: kitchenExtractionSchema,
   retaining_wall: retainingWallExtractionSchema,
   decking: deckingExtractionSchema,
+  home_renovation: homeRenovationExtractionSchema,
 };
 
 /**

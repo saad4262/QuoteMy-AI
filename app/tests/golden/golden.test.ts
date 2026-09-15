@@ -4,6 +4,7 @@ import { MemoryRepository, setRepository } from '../../src/store.js';
 import {
   CONVERSATIONS,
   DECKING_CONVERSATIONS,
+  HOME_RENOVATION_CONVERSATIONS,
   KITCHEN_CONVERSATIONS,
   RETAINING_WALL_CONVERSATIONS,
   runScript,
@@ -39,6 +40,7 @@ describe('golden conversations', () => {
     ...KITCHEN_CONVERSATIONS,
     ...RETAINING_WALL_CONVERSATIONS,
     ...DECKING_CONVERSATIONS,
+    ...HOME_RENOVATION_CONVERSATIONS,
   ]) {
     it(conversation.name, async () => {
       const transcript = await runScript(conversation, repo);

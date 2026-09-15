@@ -473,6 +473,30 @@ function readRates(text: string): MockRate[] {
 const sentenceWith = (text: string, re: RegExp): string | null =>
   text.split('\n').find((l) => re.test(l))?.trim() ?? null;
 
+/**
+ * Is there anything here to assess at all - the ONLY question `not_a_price_list` answers.
+ *
+ * It is a money test and deliberately nothing more, because that is what the review prompt's
+ * preliminary checks are: empty, too short, no digit anywhere, no pricing content. A submission
+ * with dollar figures on it has pricing content, and whether those figures can be quoted from is a
+ * BLOCKING RULE, decided afterwards, which produces `needs_updates`.
+ *
+ * Fencing's mock always had this. Tiling's and kitchen's did not - they gated the outcome on
+ * finding a core rate in the right unit, so a tiler charging $95 an hour and a cabinetmaker selling
+ * by the lineal metre were both told "we could not find any pricing in what you sent", which is
+ * false and is the one thing the prompt names as the wrong call:
+ *
+ *   "Use 'needs_updates' whenever they have made a real attempt, however incomplete.
+ *    'not_a_price_list' is for submissions with nothing to work from - it produces a different
+ *    message, and using it on someone who tried tells them we did not read what they wrote."
+ *
+ * Checked against the live model on both fixtures (2026-09-15): gpt-5.6-terra returns
+ * needs_updates for each, with the core-rate fix written as `unclear` - "Replace hourly tiling
+ * rates with set per-square-metre prices", "Replace lineal-metre kitchen rates with set
+ * installation prices by kitchen size or cabinet". The mock now agrees with it.
+ */
+const looksLikeAPriceList = (text: string): boolean => /\$\s*\d/.test(text);
+
 export class MockAiClient implements AiClient {
   readonly model = 'mock';
 
@@ -489,6 +513,7 @@ export class MockAiClient implements AiClient {
       [/^Trade:\s*kitchen\b/im, 'kitchen'],
       [/^Trade:\s*retaining_wall\b/im, 'retaining_wall'],
       [/^Trade:\s*decking\b/im, 'decking'],
+    [/^Trade:\s*home_renovation\b/im, 'home_renovation'],
     ];
     const trade: Trade = SNIFF.find(([re]) => re.test(text))?.[1] ?? 'fencing';
     const rates = readRates(text);
@@ -504,6 +529,7 @@ export class MockAiClient implements AiClient {
       else if (trade === 'kitchen') data = this.reviewKitchen(text);
       else if (trade === 'retaining_wall') data = this.reviewRetainingWall(text);
       else if (trade === 'decking') data = this.reviewDecking(text);
+      else if (trade === 'home_renovation') data = this.reviewHomeRenovation(text);
       else data = this.review(text, rates);
     }
     else if (call.name === 'turn') data = this.turn(text);
@@ -513,6 +539,7 @@ export class MockAiClient implements AiClient {
       else if (trade === 'kitchen') data = this.extractionKitchen(text);
       else if (trade === 'retaining_wall') data = this.extractionRetainingWall(text);
       else if (trade === 'decking') data = this.extractionDecking(text);
+      else if (trade === 'home_renovation') data = this.extractionHomeRenovation(text);
       else data = this.extraction(text, rates);
     }
 
@@ -568,9 +595,18 @@ export class MockAiClient implements AiClient {
     const stated = (re: RegExp) => re.test(text);
     const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
 
+    const priced = looksLikeAPriceList(text);
     const perSqm = [...text.matchAll(/\$\s?([0-9,]+)\s*(?:per\s*(?:m2|m²|square\s*metre)|\/\s*(?:m2|m²))/gi)];
     if (!perSqm.length) {
-      fixes.push({ kind: 'missing', what: 'Add your tiling rates per square metre, floor and wall separately.', example: 'Standard floor tiling $65 per m2' });
+      fixes.push({
+        /* They stated prices and none of them is a rate we can quote from, which is exactly what
+           `unclear` means. An hourly tiler is the case: every figure firm, none of them per m2. */
+        kind: priced ? 'unclear' : 'missing',
+        what: priced
+          ? 'Give one set price per square metre for each tile type you lay, floor and wall separately.'
+          : 'Add your tiling rates per square metre, floor and wall separately.',
+        example: 'Standard floor tiling $65 per m2',
+      });
     }
     /* T3 names six preparation items and says each carries a figure WITH ITS UNIT - per square
        metre, per job, or an hourly rate - or is stated as quoted on inspection. A single loose
@@ -620,8 +656,8 @@ export class MockAiClient implements AiClient {
     }
 
     return {
-      outcome: perSqm.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
-      fixes: perSqm.length ? fixes : [],
+      outcome: priced ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      fixes: priced ? fixes : [],
       alsoWorthAdding: [],
     };
   }
@@ -732,9 +768,18 @@ export class MockAiClient implements AiClient {
     /* The one figure without which there is nothing to assess: an installation price. Unlike the
        other two trades there is no unit to look for - a kitchen price is just money against a size
        or a cabinet - so the test is the word beside the number, not the word after it. */
+    const priced = looksLikeAPriceList(text);
     const installs = [...text.matchAll(/\b(?:kitchen|cabinet|drawer unit)\s+(?:installation|install)\b[^\n$]*\$\s?[0-9,]+/gi)];
     if (!installs.length) {
-      fixes.push({ kind: 'missing', what: 'Add what you charge to install a kitchen, by size or per cabinet.', example: 'Standard kitchen installation $2,850' });
+      fixes.push({
+        /* Priced throughout and not one figure this trade can quote from - a cabinetmaker selling
+           by the lineal metre. `unclear`, not `missing`: they told us, in the wrong measurement. */
+        kind: priced ? 'unclear' : 'missing',
+        what: priced
+          ? 'Give your installation price by kitchen size or per cabinet.'
+          : 'Add what you charge to install a kitchen, by size or per cabinet.',
+        example: 'Standard kitchen installation $2,850',
+      });
     }
     if (!stated(/supply|customer.{0,25}(?:cabinet|kitchen)|labour only|flat.?pack|package/i)) {
       fixes.push({ kind: 'missing', what: 'Say whether you supply the cabinetry, install what the customer buys, or both.', example: null });
@@ -781,8 +826,8 @@ export class MockAiClient implements AiClient {
     }
 
     return {
-      outcome: installs.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
-      fixes: installs.length ? fixes.slice(0, 5) : [],
+      outcome: priced ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      fixes: priced ? fixes.slice(0, 5) : [],
       alsoWorthAdding: [],
     };
   }
@@ -948,11 +993,14 @@ export class MockAiClient implements AiClient {
     const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
 
     // R1. The one figure without which there is nothing to assess: a wall priced per linear metre.
+    const priced = looksLikeAPriceList(text);
     const perMetre = [...text.matchAll(/\$\s?[0-9,]+\s*(?:per\s*(?:linear\s*|lineal\s*)?met(?:re|er)|\/\s*(?:l?m)\b)/gi)];
     if (!perMetre.length) {
       fixes.push({
-        kind: 'missing',
-        what: 'Add what you charge per linear metre for each wall system you build.',
+        kind: priced ? 'unclear' : 'missing',
+        what: priced
+          ? 'Give one set price per linear metre for each wall system you build.'
+          : 'Add what you charge per linear metre for each wall system you build.',
         example: 'Concrete sleeper installation $185 per linear metre',
       });
     }
@@ -1038,7 +1086,7 @@ export class MockAiClient implements AiClient {
     }
 
     return {
-      outcome: perMetre.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      outcome: priced ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
       /* SIX, which is what `review.system.md` actually permits - "aim for 3 to 5 ... never more
          than 6" - and what the live model returns on this trade's rejected fixture. Capping at five
          cut the last fix, and the one it cut was "your core rates are ranges and POA", which is the
@@ -1306,11 +1354,14 @@ export class MockAiClient implements AiClient {
     const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
 
     // D1. The one figure without which there is nothing to assess: a deck priced per square metre.
+    const priced = looksLikeAPriceList(text);
     const perSqm = [...text.matchAll(/\$\s?[0-9,]+\s*(?:per\s*(?:square\s*)?met(?:re|er)|\/\s*(?:m2|m²|sqm))/gi)];
     if (!perSqm.length) {
       fixes.push({
-        kind: 'missing',
-        what: 'Add what you charge per square metre for each decking board you lay.',
+        kind: priced ? 'unclear' : 'missing',
+        what: priced
+          ? 'Give one set price per square metre for each decking board you lay.'
+          : 'Add what you charge per square metre for each decking board you lay.',
         example: 'Merbau $420 per square metre',
       });
     }
@@ -1386,9 +1437,9 @@ export class MockAiClient implements AiClient {
     }
 
     return {
-      outcome: perSqm.length ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      outcome: priced ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
       // Six, which is what `review.system.md` permits - "aim for 3 to 5 ... never more than 6".
-      fixes: perSqm.length ? fixes.slice(0, 6) : [],
+      fixes: priced ? fixes.slice(0, 6) : [],
       alsoWorthAdding: [],
     };
   }
@@ -1634,6 +1685,346 @@ export class MockAiClient implements AiClient {
     };
   }
 
+  /**
+   * Home renovation's offline reviewer, held to H1-H8.
+   *
+   * The one thing this has to get right that no other trade's does: A FLAT PRICE WITH NO UNIT IS A
+   * COMPLETE RATE HERE. Eighty-six of the hundred and ten lines on a renovator's list carry no unit
+   * at all, and a reviewer that looks for "per something" the way the other five do would reject
+   * every correct submission in this trade. So H1 looks for a ROOM beside a dollar amount, and the
+   * absence of a unit is never a fault.
+   */
+  private reviewHomeRenovation(text: string) {
+    const stated = (re: RegExp) => re.test(text);
+    const fixes: { kind: 'missing' | 'unclear'; what: string; example: string | null }[] = [];
+
+    const priced = looksLikeAPriceList(text);
+
+    /* H1. A room with a price against it - and the price needs no unit. The room words are matched
+       loosely because a renovator writes "Bathroom renovation labour $6,850" and also plain
+       "Bathroom $6,850", and both are complete. */
+    const ROOMS =
+      /\b(?:bathroom|ensuite|kitchen|laundry|bedroom|living|dining|hallway|home\s?office|open[-\s]?plan|whole[-\s]?(?:home|house))\b/i;
+    const roomPrices = text
+      .split(/\n|(?<=\.)\s+(?=[A-Z])/)
+      .filter((line) => ROOMS.test(line) && /\$\s?[0-9,]+/.test(line) && !/demoli|strip|waste|disposal/i.test(line));
+    if (!roomPrices.length) {
+      fixes.push({
+        kind: priced ? 'unclear' : 'missing',
+        what: priced
+          ? 'Give one set price for each room you renovate - a flat price for the room is what we need, not an hourly rate.'
+          : 'Add your price for each room you renovate. A flat price for the room is exactly right.',
+        example: 'Bathroom renovation labour $6,850',
+      });
+    }
+
+    /* H2, and the most important rule in this trade. A bare room price is a bargain with the bath
+       and the tiles in it and an ordinary price without them, and nothing in the number says which.
+       One line covering the whole list satisfies it - they do not have to repeat it per room. */
+    if (!stated(/labour only|our labour|materials? (?:are )?(?:quoted )?separate|customer[-\s]?supplied|you (?:buy|supply)|we supply|supply (?:&|and|\+) install|installation only/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Say whether your room prices are your labour only or include the materials - one line covering the whole list is enough.',
+        example: 'Every price below is our labour. Materials are quoted separately.',
+      });
+    }
+    // H3.
+    if (!stated(/demoli\w*|strip[-\s]?out|strip out/i)) {
+      fixes.push({ kind: 'missing', what: 'Add what you charge to strip out an old room, or say you do not do demolition.', example: 'Bathroom demolition $1,450' });
+    }
+    // H4.
+    if (!stated(/waste|rubbish|disposal|skip\b/i)) {
+      fixes.push({ kind: 'missing', what: 'Say what waste disposal costs, or that it is included, or that it is the customer to arrange.', example: 'General renovation waste $550' });
+    }
+    /* H5. The exclusions matter more in this trade than anywhere else: they are what stops a
+       customer reading a room price as the whole cost of their renovation. */
+    if (!stated(/not included|exclud\w*|does not include|separate unless/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'List what your prices do not cover - permits, engineering, electrical, plumbing, gas and asbestos.',
+        example: 'Not included: building permits, engineering, electrical, plumbing, gas work, asbestos removal.',
+      });
+    }
+    /* H6, and the one claim worth flagging outright. A business saying a wall MAY be structural is
+       correct; one saying a wall can come out without looking has told a customer something neither
+       it nor we can know about their house. Same shape as decking's permit check. */
+    /* Checked sentence by sentence, with a negation guard, because the careful wording CONTAINS the
+       reckless one. The rejected fixture says "we will not tell you a wall can come out until we
+       have been in the roof and had a look" - which is exactly right, and a bare test for "a wall
+       can come out" flags the one business in the set that got this rule perfect. */
+    const claimsSafe = text
+      .split(/\n|(?<=[.!?])\s+/)
+      .some(
+        (line) =>
+          /\bnon[-\s]?structural\b[^.\n]{0,40}\b(?:any|all|every)\b|\bwalls?\b[^.\n]{0,30}\bcan\s+(?:always\s+)?(?:come|be taken)\s+out\b|\bno\b[^.\n]{0,20}\bpermits?\s+(?:are\s+)?(?:needed|required)\b/i.test(line) &&
+          !/\b(?:not|never|won'?t|cannot|can'?t|until|unless|depends?|before|without|whether)\b/i.test(line),
+      );
+    if (claimsSafe) {
+      fixes.push({
+        kind: 'unclear',
+        what: 'Please do not say a wall can come out or that no permit is needed - both depend on the house. Say who assesses the wall and who pays for engineering instead.',
+        example: 'Every wall is assessed before it comes out. Engineering is quoted separately.',
+      });
+    } else if (!stated(/structural|load[-\s]?bearing|engineer|permit|council|approval/i)) {
+      fixes.push({
+        kind: 'missing',
+        what: 'Say where you stand on structural work and permits - who assesses a wall, who arranges engineering, and who pays.',
+        example: 'Every wall is assessed before it comes out; permits and engineering are the customer’s.',
+      });
+    }
+    // H7.
+    if (!stated(/minimum/i)) {
+      fixes.push({ kind: 'missing', what: 'Add the smallest job you will come out for and what you charge for it.', example: 'Minimum renovation attendance $450' });
+    }
+    /* H8 as TWO fixes, not one. `review.system.md` puts the service area and GST under its "wrong"
+       heading when they are crushed together - they are two unrelated things to go and do. */
+    if (!stated(/\b\d+\s*km\b/i)) {
+      fixes.push({ kind: 'missing', what: 'Say where you work out of and how far you travel.', example: 'Based in Berwick, we travel 30km' });
+    }
+    if (!stated(/gst/i)) {
+      fixes.push({ kind: 'missing', what: 'Say whether your prices include GST.', example: 'All prices include GST' });
+    }
+
+    /* Ranges and POA on a CORE rate, with rule 4a's carve-out - a "from" price on a consultation,
+       an inspection, engineering or a permit is fine and must not be reported.
+       NOTE WHAT IS NOT HERE: a price with no unit. In this trade that is the normal shape of a
+       correct rate, and rule 2a says so explicitly. */
+    const vague = [...text.matchAll(/[^\n.]*(?:\bpoa\b|call (?:us|for pricing)|from \$\d|\$\d[\d,]*\s*(?:to|-|–)\s*\$?\d)[^\n.]*/gi)];
+    const vagueCore = vague.filter(
+      (m) => !/engineer|permit|council|certif|inspection|consult|design|callout|call.?out|deliver|variation|repair|procurement/i.test(m[0]),
+    );
+    if (vagueCore.length) {
+      fixes.push({ kind: 'unclear', what: 'Give one set price for each room - some of what you sent is a range or a "call us".', example: null });
+    }
+
+    return {
+      outcome: priced ? (fixes.length ? 'needs_updates' : 'approved') : 'not_a_price_list',
+      // Six, which is what `review.system.md` permits - "aim for 3 to 5 ... never more than 6".
+      fixes: priced ? fixes.slice(0, 6) : [],
+      alsoWorthAdding: [],
+    };
+  }
+
+  /**
+   * Renovation prices, read off the page.
+   *
+   * What this one has to get right that none of the others do is WHICH OF FOUR LISTS a priced line
+   * belongs to. A renovator's page carries rooms at flat prices, surfaces per square metre, items
+   * each, and labour by the hour, all in the same column of dollar amounts - and the unit written
+   * beside the number is the only thing telling them apart. Read wrongly in either direction the
+   * damage is real: $95 an hour filed as a room quotes a whole kitchen for ninety-five dollars, and
+   * a $6,850 bathroom filed as an hourly rate disappears from the quote entirely.
+   *
+   * So the unit is tested FIRST, before anything else about the line, and a line whose unit is not
+   * a flat price can never become a rate.
+   */
+  private extractionHomeRenovation(text: string) {
+    const gstLine = sentenceWith(text, /gst/i);
+    const radiusLine = sentenceWith(text, /\b\d+\s*km\b/i);
+
+    const money = (line: string) => Number(/\$\s?([0-9,]+)/.exec(line)?.[1]?.replace(/,/g, '') ?? 0) || null;
+    const moneyAfter = (line: string, re: RegExp): number | null => {
+      const at = re.exec(line);
+      return money(at ? line.slice(at.index) : line);
+    };
+    const fee = (re: RegExp): [number | null, string | null] => {
+      const line = sentenceWith(text, re);
+      if (!line) return [null, null];
+      return [moneyAfter(line, re), line];
+    };
+
+    const [minimumCharge, minLine] = fee(/minimum/i);
+    const [siteInspectionFee, inspectionLine] = fee(/site inspection/i);
+    const [consultationFee, consultLine] = fee(/consultation/i);
+    const [travelFee, travelLine] = fee(/travel (?:fee|outside|charge)/i);
+
+    /* `ensuite` before `bathroom`, because an ensuite IS a bathroom in plain English and they are
+       two lines at a $900 difference. `open_plan` and `whole_home` first, because both contain the
+       specific rooms: "open-plan kitchen and living" names three and only one is right. */
+    const ROOMS: [RegExp, string][] = [
+      [/open[-\s]?plan/i, 'open_plan'],
+      [/whole[-\s]?(?:home|house)|full[-\s]?(?:home|house)/i, 'whole_home'],
+      [/ensuite/i, 'ensuite'],
+      [/bathroom/i, 'bathroom'],
+      [/kitchen/i, 'kitchen'],
+      [/laundry/i, 'laundry'],
+      [/bedroom/i, 'bedroom'],
+      [/living\s?room/i, 'living_room'],
+      [/dining\s?room/i, 'dining_room'],
+      [/home\s?office/i, 'home_office'],
+      [/hallway/i, 'hallway'],
+    ];
+    const REMOVES: [RegExp, string][] = [
+      [/full interior demolition/i, 'full_interior'],
+      [/bathroom demolition/i, 'bathroom_strip'],
+      [/kitchen demolition/i, 'kitchen_strip'],
+      [/laundry demolition/i, 'laundry_strip'],
+      [/small room demolition/i, 'small_room'],
+    ];
+    const EXTRAS: [RegExp, string][] = [
+      [/water\s?proofing/i, 'waterproofing'],
+      [/wall removal/i, 'wall_removal'],
+      [/stud wall|partition wall|door opening|framing modification/i, 'wall_build'],
+      [/plaster(?:ing|board)|cornice/i, 'plastering'],
+      [/paint(?:ing)?|repaint/i, 'painting'],
+      [/splash\s?back/i, 'splashback'],
+      [/bench\s?top/i, 'benchtop'],
+      [/cabinet/i, 'cabinetry'],
+      [/wardrobe/i, 'wardrobe'],
+      [/ceiling|bulkhead/i, 'ceiling'],
+      [/tiling/i, 'tiling'],
+      [/flooring|floor levelling|floor preparation/i, 'flooring'],
+      [/\bdoors?\b/i, 'doors'],
+      [/skirting/i, 'skirting'],
+      [/architrave/i, 'architraves'],
+      [/site protection/i, 'site_protection'],
+      [/waste|rubbish/i, 'waste_disposal'],
+      [/delivery/i, 'material_delivery'],
+      [/project management/i, 'project_management'],
+    ];
+
+    const rates: unknown[] = [];
+    const removals: unknown[] = [];
+    const extras: unknown[] = [];
+    const surfaces: unknown[] = [];
+    const perItem: unknown[] = [];
+    const hourly: unknown[] = [];
+    const materialPackages: unknown[] = [];
+    const seen = new Set<string>();
+    const label = (line: string) => line.replace(/\s*\$[\s0-9,]+.*$/, '').replace(/[.:]\s*$/, '').trim();
+
+    for (const raw of text.split(/\n|(?<=\.)\s+(?=[A-Z])/)) {
+      const line = raw.trim();
+      if (!line || !/\$\s?[0-9,]+/.test(line)) continue;
+      const price = money(line);
+      if (!price) continue;
+      const name = label(line);
+      if (!name) continue;
+
+      /* THE UNIT DECIDES, AND IT DECIDES FIRST. Everything below this block is a flat price; these
+         three are not, and none of them may ever reach a customer's total. */
+      if (/per hour|\/\s?hr\b|per day/i.test(line)) {
+        if (seen.has('h' + name.toLowerCase())) continue;
+        seen.add('h' + name.toLowerCase());
+        hourly.push({ label: name, price, unit: /per day/i.test(line) ? 'per_day' : 'per_hour', sourceQuote: line });
+        continue;
+      }
+      /* PER SQUARE METRE ONLY. A per-LINEAR-metre line - cornice, skirting, architrave - is not a
+         surface, and `surfaces.pricePerSqm` is the wrong field for it by a whole dimension. Filing
+         "$55 per linear metre" as $55 per square metre is the same class of error as decking's
+         balustrade priced against the deck's floor, and it is silent: the number survives, the unit
+         is lost, and nothing downstream can tell. Those lines fall through to `extras`, where
+         `skirting`, `architraves` and `plastering` are real vocabulary values and the per_metre unit
+         is carried honestly - and where the pricing module already refuses to total them.
+         Caught by a live run scoring 15 surfaces against this reader's 19. */
+      if (/per\s*(?:square\s*)?met(?:re|er)(?!\w)|\/\s*(?:m2|m²|sqm)/i.test(line) && !/per\s*(?:linear|lineal)\s*met/i.test(line)) {
+        if (seen.has('s' + name.toLowerCase())) continue;
+        seen.add('s' + name.toLowerCase());
+        surfaces.push({ label: name, pricePerSqm: price, sourceQuote: line });
+        continue;
+      }
+      if (/\beach\b|per item|per approved variation/i.test(line)) {
+        if (seen.has('i' + name.toLowerCase())) continue;
+        seen.add('i' + name.toLowerCase());
+        perItem.push({ label: name, price, sourceQuote: line });
+        continue;
+      }
+
+      // Materials the business sells, rather than labour it charges for.
+      if (/package\b|procurement/i.test(line)) {
+        if (seen.has('m' + name.toLowerCase())) continue;
+        seen.add('m' + name.toLowerCase());
+        materialPackages.push({ label: name, price, unit: 'per_job', sourceQuote: line });
+        continue;
+      }
+
+      /* A strip-out line, which is BOTH a removal and a `demolition_only` rate for that room. Two
+         readings of one price and neither is wrong: a customer renovating the room wants it added,
+         and one who only wants the room gutted wants it as the whole job. The double-charge that
+         would otherwise follow is refused in `pricing/homeRenovation.ts`. */
+      const remHit = REMOVES.find(([re]) => re.test(line));
+      if (remHit) {
+        if (seen.has('r' + remHit[1])) continue;
+        seen.add('r' + remHit[1]);
+        removals.push({ removes: remHit[1], price, sourceQuote: line });
+        const room = ROOMS.find(([re]) => re.test(line))?.[1];
+        if (room) {
+          rates.push({ room, jobType: 'demolition_only', supply: null, price, unit: 'per_job', sourceQuote: line });
+        }
+        continue;
+      }
+
+      /* A core rate: a room at a flat price, with no unit needed and none expected. The guard is
+         what keeps "Kitchen cabinet installation $2,850" out of the rate table - it names a room
+         but prices a part of one, and read as a rate it quotes a whole kitchen renovation $2,000
+         short. */
+      const roomHit = ROOMS.find(([re]) => re.test(line));
+      const isWholeRoom = roomHit && /renovation|refit/i.test(line) && !/cabinet|bench|tiling|waterproof|preparation|finishing|waste|demoli/i.test(line);
+      if (isWholeRoom) {
+        const key = 'rt' + roomHit[1];
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rates.push({ room: roomHit[1], jobType: 'full_renovation', supply: null, price, unit: 'per_job', sourceQuote: line });
+        continue;
+      }
+
+      const extHit = EXTRAS.find(([re]) => re.test(line));
+      if (extHit) {
+        if (seen.has('e' + name.toLowerCase())) continue;
+        seen.add('e' + name.toLowerCase());
+        extras.push({
+          type: extHit[1],
+          label: name,
+          price,
+          unit: 'per_job',
+          isFromPrice: /from \$/i.test(line),
+          sourceQuote: line,
+        });
+      }
+    }
+
+    const warrantyLine = sentenceWith(text, /warrant/i);
+    const supplyModels: string[] = [];
+    if (/customer[-\s]?supplied|you (?:buy|supply)|installation only|labour only|our labour/i.test(text)) supplyModels.push('labour_only');
+    if (/we supply|supply (?:&|and|\+) install|materials? included/i.test(text)) supplyModels.push('supply_and_install');
+
+    return {
+      businessName: text.split('<<<DESCRIPTION>>>')[1]?.split('\n').find((l) => l.trim())?.split('—')[0]?.trim() ?? null,
+      gstIncluded: gstLine ? /include/i.test(gstLine) : null,
+      gstSourceQuote: gstLine,
+      serviceArea: {
+        baseLocation: /based in ([A-Z][a-zA-Z ]+)/i.exec(text)?.[1]?.trim() ?? null,
+        radiusKm: radiusLine ? Number(/(\d+)\s*km/i.exec(radiusLine)?.[1] ?? 0) || null : null,
+        radiusSourceQuote: radiusLine,
+        excludedAreas: [],
+      },
+      minimumCharge,
+      minimumChargeSourceQuote: minLine,
+      siteInspectionFee,
+      siteInspectionFeeSourceQuote: inspectionLine,
+      consultationFee,
+      consultationFeeSourceQuote: consultLine,
+      travelFee,
+      travelFeeSourceQuote: travelLine,
+      rates,
+      supplyModels,
+      materialPackages,
+      removals,
+      extras,
+      surfaces,
+      perItem,
+      hourly,
+      warranty: { text: warrantyLine, sourceQuote: warrantyLine },
+      inclusions: [],
+      exclusions: [],
+      tags: [],
+      otherOfferings: [],
+      couldNotUse: [
+        'Read by the offline mock reader - exclusions and other offerings are not extracted in mock mode.',
+      ],
+    };
+  }
+
   private review(text: string, rates: MockRate[]) {
     const hasGst = /gst/i.test(text);
     const hasMinimum = /minimum charge/i.test(text);
@@ -1680,10 +2071,9 @@ export class MockAiClient implements AiClient {
       });
     }
 
-    // Rough stand-in for the real judgement: nothing that looks like a rate anywhere means there
-    // was nothing to assess.
-    const looksLikeAPriceList = rates.length > 0 || /\$\s*\d/.test(text);
-    if (!looksLikeAPriceList) {
+    /* Nothing that looks like a rate anywhere means there was nothing to assess. This is the test
+       the other four now share - it started here, and it was right here the whole time. */
+    if (!(rates.length > 0 || looksLikeAPriceList(text))) {
       return {
         outcome: 'not_a_price_list',
         alsoWorthAdding: [],

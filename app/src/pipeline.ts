@@ -248,7 +248,28 @@ export async function runOnboarding(
     }
 
     const fixes = review.data.fixes;
-    const message = MESSAGES.rejected;
+
+    /* Which rejection this is, decided in CODE from what the model already returned rather than by
+       asking it for a fourth outcome.
+     *
+     * `kind` is the model's own two-way split and its definition is exactly the distinction wanted
+     * here: "missing = they never stated it at all. unclear = they DID state it, but not in a form
+     * we can quote from." So a rejection whose fixes are mostly `unclear` IS the priced-but-not-
+     * quotable case, and no prompt or schema changes to get it. A fourth `outcome` value would
+     * have: the review prompt names three in four places and claims `needs_updates` for a real
+     * attempt "however incomplete".
+     *
+     * MOSTLY, not entirely, and that is measured rather than guessed. Checked against the live
+     * model (gpt-5.6-terra, 2026-09-15): the hourly tiler comes back 5 unclear / 1 missing and the
+     * lineal-metre kitchen 3 unclear / 2 missing - neither is all-unclear, because a business that
+     * cannot price its core work usually also forgot a travel fee. Across all six rejected
+     * fixtures this separates the two priced-but-unquotable ones from the four ordinarily
+     * incomplete ones with nothing in between.
+     *
+     * A tie stays on the ordinary wording: the claim "the prices are all there" has to be earned,
+     * and half the report saying something was never stated is evidence against it. */
+    const unclear = fixes.filter((f) => f.kind === 'unclear').length;
+    const message = unclear > fixes.length - unclear ? MESSAGES.rejectedNotQuotable : MESSAGES.rejected;
 
     logSubmission({
       outcome: 'rejected',

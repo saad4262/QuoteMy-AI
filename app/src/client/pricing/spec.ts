@@ -145,4 +145,30 @@ export const TRADE_PRICING: Record<Trade, PricingSpec> = {
        height band mid-sentence is not a proper noun. */
     rateSentence: { order: 'headline-first', joiner: 'at', lowerOther: true },
   },
+  home_renovation: {
+    /* No quantity field at all, the same as kitchen and for the same reason: the ROOM is the thing
+       being priced. A renovator's list says "bathroom renovation labour $6,850" and that one number
+       is the whole job, so there is nothing for a quantity to multiply. A small bathroom and a large
+       one are the same line on the list. */
+    quantityField: null,
+    /* Nothing is quoted per unit here, so this only ever decides wording, and `item` is the honest
+       one - it tells the results screen to print the total rather than append a "/m" to it.
+       This trade DOES publish per-square-metre rates, for plastering and flooring, and they are
+       stored - but they never enter a total, so they never decide this field either. */
+    unit: 'item',
+    /* pricing.rates is { room: [ { jobType, supply, price, unit } ] }, and the room is the OUTER key
+       because it is the coarser question and the one a customer answers first. `jobType` is REQUIRED
+       on a row - a full bathroom renovation is $6,850 and stripping the same bathroom out is $1,450,
+       so a row that has lost it is a price for nobody knows what. `supply` is the nullable third
+       discriminator, which is why this trade has its own pricing module: most renovators publish one
+       labour price that covers either model, and two keys in `rateKeys` cannot express three. */
+    rateKeys: ['room', 'jobType'],
+    minimumCharge: true,
+    headlineField: 'room',
+    /* "Bathroom, for the full renovation" is what a person says - the room is the job and what is
+       being done to it qualifies it. Same `headline-first` shape as retaining wall, with "for"
+       doing the work a comma does there. `lowerOther` because a job type mid-sentence is not a
+       proper noun. */
+    rateSentence: { order: 'headline-first', joiner: 'for', lowerOther: true },
+  },
 };

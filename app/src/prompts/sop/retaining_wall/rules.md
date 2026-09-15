@@ -33,7 +33,9 @@ The description must say which model each rate belongs to. A bare "$185 per metr
 that is a bargain with the sleepers included and an ordinary price without them, and nothing in the
 number says which. We cannot guess: guessing one way under-quotes the customer by the entire cost
 of the materials, and guessing the other prices the builder out of the job.
-If they do BOTH, both columns need their own rate per system.
+If they do BOTH, each rate must still say which column it belongs to. Do NOT demand every system in
+both columns - a builder who sources concrete sleepers but only installs customer-supplied timber
+posts has answered for both, and the gap is the answer. Same principle as R3 below.
 SATISFIED by "we only install materials the customer supplies" with the installation rates given -
 that is a COMPLETE answer and no supply-and-install prices are needed.
 

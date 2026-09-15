@@ -1,15 +1,15 @@
-# 32 kitchen, nobody prices a kitchen that size
+# 63 renovation, stripping a room out and nothing more
 
-Guards: the alternatives fallback on the one trade that used to have none - this fitter publishes small and the customer asked for large, and the answer is Beky Kitchens' own $2,070 rather than a sentence telling them to guess a different size. Also the bucket name staying off the screen: the rate is filed under `general`, which is storage and not a word anybody chose, so the offer reads "Small - a galley or one run" and not "general for Small"
+Guards: the second job type against a room the renovator also renovates, reached through optionsKeyedBy - and the double-charge guard. "Bathroom demolition $1,450" is ONE price on the list stored as both a demolition_only rate and a removal, so a customer who wants only the strip-out must be charged $1,450 and never $2,900. The strip-out question is not even asked here, because the strip-out IS the job
 
 ## turn 1
 
-customer: "I need a kitchen quote"
+customer: "I need a renovation quote"
 
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": null,
   "type": "message",
@@ -18,12 +18,12 @@ customer: "I need a kitchen quote"
   "checklistComplete": false,
   "checklist": {
     "suburb": null,
+    "room": null,
     "jobType": null,
-    "kitchenSize": null,
     "supply": null,
-    "benchtop": null,
     "removal": null,
     "extras": null,
+    "conditions": null,
     "existingPrice": null,
     "_ui": {
       "turn": 1,
@@ -40,11 +40,11 @@ customer: "I need a kitchen quote"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {},
@@ -55,28 +55,28 @@ customer: "I need a kitchen quote"
       "title": "Suburb"
     },
     {
-      "key": "jobType",
-      "title": "Job type"
+      "key": "room",
+      "title": "Room"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size"
+      "key": "jobType",
+      "title": "Job"
     },
     {
       "key": "supply",
       "title": "Who supplies"
     },
     {
-      "key": "benchtop",
-      "title": "Benchtop"
-    },
-    {
       "key": "removal",
-      "title": "Removal"
+      "title": "Strip-out"
     },
     {
       "key": "extras",
       "title": "Extras"
+    },
+    {
+      "key": "conditions",
+      "title": "Site"
     }
   ],
   "results": [],
@@ -92,7 +92,7 @@ customer: "yes go ahead"
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": null,
   "type": "message",
@@ -102,12 +102,12 @@ customer: "yes go ahead"
   "checklistComplete": false,
   "checklist": {
     "suburb": null,
+    "room": null,
     "jobType": null,
-    "kitchenSize": null,
     "supply": null,
-    "benchtop": null,
     "removal": null,
     "extras": null,
+    "conditions": null,
     "existingPrice": null,
     "_ui": {
       "turn": 2,
@@ -124,7 +124,7 @@ customer: "yes go ahead"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -132,7 +132,7 @@ customer: "yes go ahead"
           "me": "Which suburb is the job in? A postcode works too."
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {},
@@ -143,28 +143,28 @@ customer: "yes go ahead"
       "title": "Suburb"
     },
     {
-      "key": "jobType",
-      "title": "Job type"
+      "key": "room",
+      "title": "Room"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size"
+      "key": "jobType",
+      "title": "Job"
     },
     {
       "key": "supply",
       "title": "Who supplies"
     },
     {
-      "key": "benchtop",
-      "title": "Benchtop"
-    },
-    {
       "key": "removal",
-      "title": "Removal"
+      "title": "Strip-out"
     },
     {
       "key": "extras",
       "title": "Extras"
+    },
+    {
+      "key": "conditions",
+      "title": "Site"
     }
   ],
   "results": [],
@@ -181,7 +181,7 @@ picked place: Berwick, VIC 3806
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": {
     "latitude": -38.0362,
@@ -192,19 +192,23 @@ picked place: Berwick, VIC 3806
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "question",
-  "message": "What are you having done?",
+  "message": "Which room are you renovating?",
   "options": [
     {
-      "label": "A brand new kitchen",
-      "value": "new_kitchen"
+      "label": "Bathroom",
+      "value": "bathroom"
     },
     {
-      "label": "Replacing the old one",
-      "value": "replacement"
+      "label": "Kitchen",
+      "value": "kitchen"
     },
     {
-      "label": "Fitting one I've bought",
-      "value": "install_only"
+      "label": "Ensuite",
+      "value": "ensuite"
+    },
+    {
+      "label": "More options",
+      "value": "__more__"
     },
     {
       "label": "Other",
@@ -214,24 +218,25 @@ picked place: Berwick, VIC 3806
   "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
+    "room": null,
     "jobType": null,
-    "kitchenSize": null,
     "supply": null,
-    "benchtop": null,
     "removal": null,
     "extras": null,
+    "conditions": null,
     "existingPrice": null,
     "_ui": {
       "turn": 3,
       "cursor": {
-        "jobType": 0
+        "room": 0
       },
-      "lastAsked": "jobType",
-      "lastQuestion": "What are you having done?",
+      "lastAsked": "room",
+      "lastQuestion": "Which room are you renovating?",
       "lastValues": [
-        "new_kitchen",
-        "replacement",
-        "install_only",
+        "bathroom",
+        "kitchen",
+        "ensuite",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -250,7 +255,7 @@ picked place: Berwick, VIC 3806
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -259,10 +264,10 @@ picked place: Berwick, VIC 3806
         },
         {
           "you": "Berwick",
-          "me": "What are you having done?"
+          "me": "Which room are you renovating?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {
@@ -280,28 +285,28 @@ picked place: Berwick, VIC 3806
   ],
   "checklistPending": [
     {
-      "key": "jobType",
-      "title": "Job type"
+      "key": "room",
+      "title": "Room"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size"
+      "key": "jobType",
+      "title": "Job"
     },
     {
       "key": "supply",
       "title": "Who supplies"
     },
     {
-      "key": "benchtop",
-      "title": "Benchtop"
-    },
-    {
       "key": "removal",
-      "title": "Removal"
+      "title": "Strip-out"
     },
     {
       "key": "extras",
       "title": "Extras"
+    },
+    {
+      "key": "conditions",
+      "title": "Site"
     }
   ],
   "results": [],
@@ -312,12 +317,12 @@ picked place: Berwick, VIC 3806
 
 ## turn 4
 
-customer: "new_kitchen"
+customer: "bathroom"
 
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": {
     "latitude": -38.0362,
@@ -328,19 +333,23 @@ customer: "new_kitchen"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "question",
-  "message": "Roughly how big is the kitchen?",
+  "message": "What do you need done to it?",
   "options": [
     {
-      "label": "Small — a galley or one run",
-      "value": "small"
+      "label": "The full renovation",
+      "value": "full_renovation"
     },
     {
-      "label": "Standard — an L-shape",
-      "value": "standard"
+      "label": "Just strip it out",
+      "value": "demolition_only"
     },
     {
-      "label": "Large — a U-shape or an island",
-      "value": "large"
+      "label": "Fit out what I already have",
+      "value": "fit_out_only"
+    },
+    {
+      "label": "More options",
+      "value": "__more__"
     },
     {
       "label": "Other",
@@ -350,25 +359,26 @@ customer: "new_kitchen"
   "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": null,
+    "room": "bathroom",
+    "jobType": null,
     "supply": null,
-    "benchtop": null,
     "removal": null,
     "extras": null,
+    "conditions": null,
     "existingPrice": null,
     "_ui": {
       "turn": 4,
       "cursor": {
-        "jobType": 0,
-        "kitchenSize": 0
+        "room": 0,
+        "jobType": 0
       },
-      "lastAsked": "kitchenSize",
-      "lastQuestion": "Roughly how big is the kitchen?",
+      "lastAsked": "jobType",
+      "lastQuestion": "What do you need done to it?",
       "lastValues": [
-        "small",
-        "standard",
-        "large",
+        "full_renovation",
+        "demolition_only",
+        "fit_out_only",
+        "__more__",
         "__other__"
       ],
       "lastType": "question",
@@ -387,7 +397,7 @@ customer: "new_kitchen"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -396,10 +406,10 @@ customer: "new_kitchen"
         },
         {
           "you": "Berwick",
-          "me": "What are you having done?"
+          "me": "Which room are you renovating?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {
@@ -407,9 +417,9 @@ customer: "new_kitchen"
       "title": "Suburb",
       "value": "Berwick, VIC 3806"
     },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
+    "room": {
+      "title": "Room",
+      "value": "Bathroom"
     }
   },
   "checklistAnswered": [
@@ -419,31 +429,31 @@ customer: "new_kitchen"
       "value": "Berwick, VIC 3806"
     },
     {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
+      "key": "room",
+      "title": "Room",
+      "value": "Bathroom"
     }
   ],
   "checklistPending": [
     {
-      "key": "kitchenSize",
-      "title": "Size"
+      "key": "jobType",
+      "title": "Job"
     },
     {
       "key": "supply",
       "title": "Who supplies"
     },
     {
-      "key": "benchtop",
-      "title": "Benchtop"
-    },
-    {
       "key": "removal",
-      "title": "Removal"
+      "title": "Strip-out"
     },
     {
       "key": "extras",
       "title": "Extras"
+    },
+    {
+      "key": "conditions",
+      "title": "Site"
     }
   ],
   "results": [],
@@ -454,12 +464,12 @@ customer: "new_kitchen"
 
 ## turn 5
 
-customer: "large"
+customer: "demolition_only"
 
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": {
     "latitude": -38.0362,
@@ -470,14 +480,14 @@ customer: "large"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "question",
-  "message": "Who's supplying the cabinets?",
+  "message": "Who's buying the materials?",
   "options": [
     {
-      "label": "They supply the cabinets",
+      "label": "Supply the materials and do the work",
       "value": "supply_and_install"
     },
     {
-      "label": "I'm supplying the cabinets",
+      "label": "I'm supplying the materials",
       "value": "labour_only"
     },
     {
@@ -488,22 +498,22 @@ customer: "large"
   "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": "large",
+    "room": "bathroom",
+    "jobType": "demolition_only",
     "supply": null,
-    "benchtop": null,
     "removal": null,
     "extras": null,
+    "conditions": null,
     "existingPrice": null,
     "_ui": {
       "turn": 5,
       "cursor": {
+        "room": 0,
         "jobType": 0,
-        "kitchenSize": 0,
         "supply": 0
       },
       "lastAsked": "supply",
-      "lastQuestion": "Who's supplying the cabinets?",
+      "lastQuestion": "Who's buying the materials?",
       "lastValues": [
         "supply_and_install",
         "labour_only",
@@ -525,7 +535,7 @@ customer: "large"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -534,10 +544,10 @@ customer: "large"
         },
         {
           "you": "Berwick",
-          "me": "What are you having done?"
+          "me": "Which room are you renovating?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {
@@ -545,13 +555,13 @@ customer: "large"
       "title": "Suburb",
       "value": "Berwick, VIC 3806"
     },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
+    "room": {
+      "title": "Room",
+      "value": "Bathroom"
     },
-    "kitchenSize": {
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+    "jobType": {
+      "title": "Job",
+      "value": "Just strip it out"
     }
   },
   "checklistAnswered": [
@@ -561,14 +571,14 @@ customer: "large"
       "value": "Berwick, VIC 3806"
     },
     {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
+      "key": "room",
+      "title": "Room",
+      "value": "Bathroom"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+      "key": "jobType",
+      "title": "Job",
+      "value": "Just strip it out"
     }
   ],
   "checklistPending": [
@@ -577,16 +587,12 @@ customer: "large"
       "title": "Who supplies"
     },
     {
-      "key": "benchtop",
-      "title": "Benchtop"
-    },
-    {
-      "key": "removal",
-      "title": "Removal"
-    },
-    {
       "key": "extras",
       "title": "Extras"
+    },
+    {
+      "key": "conditions",
+      "title": "Site"
     }
   ],
   "results": [],
@@ -602,331 +608,7 @@ customer: "labour_only"
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
-  "intent": "new_quote",
-  "place": {
-    "latitude": -38.0362,
-    "longitude": 145.3478,
-    "suburb": "Berwick",
-    "state": "VIC",
-    "postcode": "3806",
-    "displayLabel": "Berwick, VIC 3806"
-  },
-  "type": "question",
-  "message": "What benchtop are you after?",
-  "options": [
-    {
-      "label": "Laminate",
-      "value": "laminate"
-    },
-    {
-      "label": "Timber",
-      "value": "timber"
-    },
-    {
-      "label": "Not needed",
-      "value": "none"
-    },
-    {
-      "label": "More options",
-      "value": "__more__"
-    },
-    {
-      "label": "Other",
-      "value": "__other__"
-    }
-  ],
-  "checklistComplete": false,
-  "checklist": {
-    "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": "large",
-    "supply": "labour_only",
-    "benchtop": null,
-    "removal": null,
-    "extras": null,
-    "existingPrice": null,
-    "_ui": {
-      "turn": 6,
-      "cursor": {
-        "jobType": 0,
-        "kitchenSize": 0,
-        "supply": 0,
-        "benchtop": 0
-      },
-      "lastAsked": "benchtop",
-      "lastQuestion": "What benchtop are you after?",
-      "lastValues": [
-        "laminate",
-        "timber",
-        "none",
-        "__more__",
-        "__other__"
-      ],
-      "lastType": "question",
-      "fixing": false,
-      "rejectedPlaces": [],
-      "nearbyPlaces": {},
-      "suburbHint": null,
-      "place": {
-        "latitude": -38.0362,
-        "longitude": 145.3478,
-        "suburb": "Berwick",
-        "state": "VIC",
-        "postcode": "3806",
-        "displayLabel": "Berwick, VIC 3806"
-      },
-      "answers": 0,
-      "history": [
-        {
-          "you": "I need a kitchen quote",
-          "me": "Happy to help with that. Mind if I ask a few quick questions?"
-        },
-        {
-          "you": "yes go ahead",
-          "me": "Which suburb is the job in? A postcode works too."
-        },
-        {
-          "you": "Berwick",
-          "me": "What are you having done?"
-        }
-      ],
-      "trade": "kitchen"
-    }
-  },
-  "checklistDisplay": {
-    "suburb": {
-      "title": "Suburb",
-      "value": "Berwick, VIC 3806"
-    },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
-    },
-    "kitchenSize": {
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
-    },
-    "supply": {
-      "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    }
-  },
-  "checklistAnswered": [
-    {
-      "key": "suburb",
-      "title": "Suburb",
-      "value": "Berwick, VIC 3806"
-    },
-    {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
-    },
-    {
-      "key": "kitchenSize",
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
-    },
-    {
-      "key": "supply",
-      "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    }
-  ],
-  "checklistPending": [
-    {
-      "key": "benchtop",
-      "title": "Benchtop"
-    },
-    {
-      "key": "removal",
-      "title": "Removal"
-    },
-    {
-      "key": "extras",
-      "title": "Extras"
-    }
-  ],
-  "results": [],
-  "avgRatePerMeter": null,
-  "unit": "item"
-}
-```
-
-## turn 7
-
-customer: "none"
-
-```json
-{
-  "sessionId": "golden",
-  "trade": "kitchen",
-  "intent": "new_quote",
-  "place": {
-    "latitude": -38.0362,
-    "longitude": 145.3478,
-    "suburb": "Berwick",
-    "state": "VIC",
-    "postcode": "3806",
-    "displayLabel": "Berwick, VIC 3806"
-  },
-  "type": "question",
-  "message": "Is there an old kitchen to take out?",
-  "options": [
-    {
-      "label": "Yes, take it out",
-      "value": "any"
-    },
-    {
-      "label": "Everything — cabinets, bench, splashback",
-      "value": "full_demolition"
-    },
-    {
-      "label": "Nothing to take out",
-      "value": "none"
-    },
-    {
-      "label": "More options",
-      "value": "__more__"
-    },
-    {
-      "label": "Other",
-      "value": "__other__"
-    }
-  ],
-  "checklistComplete": false,
-  "checklist": {
-    "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": "large",
-    "supply": "labour_only",
-    "benchtop": "none",
-    "removal": null,
-    "extras": null,
-    "existingPrice": null,
-    "_ui": {
-      "turn": 7,
-      "cursor": {
-        "jobType": 0,
-        "kitchenSize": 0,
-        "supply": 0,
-        "benchtop": 0,
-        "removal": 0
-      },
-      "lastAsked": "removal",
-      "lastQuestion": "Is there an old kitchen to take out?",
-      "lastValues": [
-        "any",
-        "full_demolition",
-        "none",
-        "__more__",
-        "__other__"
-      ],
-      "lastType": "question",
-      "fixing": false,
-      "rejectedPlaces": [],
-      "nearbyPlaces": {},
-      "suburbHint": null,
-      "place": {
-        "latitude": -38.0362,
-        "longitude": 145.3478,
-        "suburb": "Berwick",
-        "state": "VIC",
-        "postcode": "3806",
-        "displayLabel": "Berwick, VIC 3806"
-      },
-      "answers": 0,
-      "history": [
-        {
-          "you": "I need a kitchen quote",
-          "me": "Happy to help with that. Mind if I ask a few quick questions?"
-        },
-        {
-          "you": "yes go ahead",
-          "me": "Which suburb is the job in? A postcode works too."
-        },
-        {
-          "you": "Berwick",
-          "me": "What are you having done?"
-        }
-      ],
-      "trade": "kitchen"
-    }
-  },
-  "checklistDisplay": {
-    "suburb": {
-      "title": "Suburb",
-      "value": "Berwick, VIC 3806"
-    },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
-    },
-    "kitchenSize": {
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
-    },
-    "supply": {
-      "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    "benchtop": {
-      "title": "Benchtop",
-      "value": "None"
-    }
-  },
-  "checklistAnswered": [
-    {
-      "key": "suburb",
-      "title": "Suburb",
-      "value": "Berwick, VIC 3806"
-    },
-    {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
-    },
-    {
-      "key": "kitchenSize",
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
-    },
-    {
-      "key": "supply",
-      "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    {
-      "key": "benchtop",
-      "title": "Benchtop",
-      "value": "None"
-    }
-  ],
-  "checklistPending": [
-    {
-      "key": "removal",
-      "title": "Removal"
-    },
-    {
-      "key": "extras",
-      "title": "Extras"
-    }
-  ],
-  "results": [],
-  "avgRatePerMeter": null,
-  "unit": "item"
-}
-```
-
-## turn 8
-
-customer: "none"
-
-```json
-{
-  "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": {
     "latitude": -38.0362,
@@ -940,12 +622,12 @@ customer: "none"
   "message": "Anything else in the job?",
   "options": [
     {
-      "label": "An island",
-      "value": "island"
+      "label": "Waterproofing",
+      "value": "waterproofing"
     },
     {
-      "label": "A pantry",
-      "value": "pantry"
+      "label": "Tiling",
+      "value": "tiling"
     },
     {
       "label": "Nothing else",
@@ -963,28 +645,26 @@ customer: "none"
   "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": "large",
+    "room": "bathroom",
+    "jobType": "demolition_only",
     "supply": "labour_only",
-    "benchtop": "none",
-    "removal": "none",
+    "removal": null,
     "extras": null,
+    "conditions": null,
     "existingPrice": null,
     "_ui": {
-      "turn": 8,
+      "turn": 6,
       "cursor": {
+        "room": 0,
         "jobType": 0,
-        "kitchenSize": 0,
         "supply": 0,
-        "benchtop": 0,
-        "removal": 0,
         "extras": 0
       },
       "lastAsked": "extras",
       "lastQuestion": "Anything else in the job?",
       "lastValues": [
-        "island",
-        "pantry",
+        "waterproofing",
+        "tiling",
         "none",
         "__more__",
         "__other__"
@@ -1005,7 +685,7 @@ customer: "none"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -1014,10 +694,10 @@ customer: "none"
         },
         {
           "you": "Berwick",
-          "me": "What are you having done?"
+          "me": "Which room are you renovating?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {
@@ -1025,25 +705,17 @@ customer: "none"
       "title": "Suburb",
       "value": "Berwick, VIC 3806"
     },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
+    "room": {
+      "title": "Room",
+      "value": "Bathroom"
     },
-    "kitchenSize": {
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+    "jobType": {
+      "title": "Job",
+      "value": "Just strip it out"
     },
     "supply": {
       "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    "benchtop": {
-      "title": "Benchtop",
-      "value": "None"
-    },
-    "removal": {
-      "title": "Removal",
-      "value": "Nothing to remove"
+      "value": "I'm supplying the materials"
     }
   },
   "checklistAnswered": [
@@ -1053,35 +725,29 @@ customer: "none"
       "value": "Berwick, VIC 3806"
     },
     {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
+      "key": "room",
+      "title": "Room",
+      "value": "Bathroom"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+      "key": "jobType",
+      "title": "Job",
+      "value": "Just strip it out"
     },
     {
       "key": "supply",
       "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    {
-      "key": "benchtop",
-      "title": "Benchtop",
-      "value": "None"
-    },
-    {
-      "key": "removal",
-      "title": "Removal",
-      "value": "Nothing to remove"
+      "value": "I'm supplying the materials"
     }
   ],
   "checklistPending": [
     {
       "key": "extras",
       "title": "Extras"
+    },
+    {
+      "key": "conditions",
+      "title": "Site"
     }
   ],
   "results": [],
@@ -1090,14 +756,175 @@ customer: "none"
 }
 ```
 
-## turn 9
+## turn 7
 
 customer: "none"
 
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
+  "intent": "new_quote",
+  "place": {
+    "latitude": -38.0362,
+    "longitude": 145.3478,
+    "suburb": "Berwick",
+    "state": "VIC",
+    "postcode": "3806",
+    "displayLabel": "Berwick, VIC 3806"
+  },
+  "type": "question",
+  "message": "Anything tricky we should know about?",
+  "options": [
+    {
+      "label": "A wall that might be holding something up",
+      "value": "structural_wall"
+    },
+    {
+      "label": "Water damage or rot I know about",
+      "value": "hidden_damage"
+    },
+    {
+      "label": "Nothing tricky",
+      "value": "none"
+    },
+    {
+      "label": "More options",
+      "value": "__more__"
+    },
+    {
+      "label": "Other",
+      "value": "__other__"
+    }
+  ],
+  "checklistComplete": false,
+  "checklist": {
+    "suburb": "Berwick, VIC 3806",
+    "room": "bathroom",
+    "jobType": "demolition_only",
+    "supply": "labour_only",
+    "removal": null,
+    "extras": [],
+    "conditions": null,
+    "existingPrice": null,
+    "_ui": {
+      "turn": 7,
+      "cursor": {
+        "room": 0,
+        "jobType": 0,
+        "supply": 0,
+        "extras": 0,
+        "conditions": 0
+      },
+      "lastAsked": "conditions",
+      "lastQuestion": "Anything tricky we should know about?",
+      "lastValues": [
+        "structural_wall",
+        "hidden_damage",
+        "none",
+        "__more__",
+        "__other__"
+      ],
+      "lastType": "question",
+      "fixing": false,
+      "rejectedPlaces": [],
+      "nearbyPlaces": {},
+      "suburbHint": null,
+      "place": {
+        "latitude": -38.0362,
+        "longitude": 145.3478,
+        "suburb": "Berwick",
+        "state": "VIC",
+        "postcode": "3806",
+        "displayLabel": "Berwick, VIC 3806"
+      },
+      "answers": 0,
+      "history": [
+        {
+          "you": "I need a renovation quote",
+          "me": "Happy to help with that. Mind if I ask a few quick questions?"
+        },
+        {
+          "you": "yes go ahead",
+          "me": "Which suburb is the job in? A postcode works too."
+        },
+        {
+          "you": "Berwick",
+          "me": "Which room are you renovating?"
+        }
+      ],
+      "trade": "home_renovation"
+    }
+  },
+  "checklistDisplay": {
+    "suburb": {
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    "room": {
+      "title": "Room",
+      "value": "Bathroom"
+    },
+    "jobType": {
+      "title": "Job",
+      "value": "Just strip it out"
+    },
+    "supply": {
+      "title": "Who supplies",
+      "value": "I'm supplying the materials"
+    },
+    "extras": {
+      "title": "Extras",
+      "value": ""
+    }
+  },
+  "checklistAnswered": [
+    {
+      "key": "suburb",
+      "title": "Suburb",
+      "value": "Berwick, VIC 3806"
+    },
+    {
+      "key": "room",
+      "title": "Room",
+      "value": "Bathroom"
+    },
+    {
+      "key": "jobType",
+      "title": "Job",
+      "value": "Just strip it out"
+    },
+    {
+      "key": "supply",
+      "title": "Who supplies",
+      "value": "I'm supplying the materials"
+    },
+    {
+      "key": "extras",
+      "title": "Extras",
+      "value": ""
+    }
+  ],
+  "checklistPending": [
+    {
+      "key": "conditions",
+      "title": "Site"
+    }
+  ],
+  "results": [],
+  "avgRatePerMeter": null,
+  "unit": "item"
+}
+```
+
+## turn 8
+
+customer: "none"
+
+```json
+{
+  "sessionId": "golden",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": {
     "latitude": -38.0362,
@@ -1108,7 +935,7 @@ customer: "none"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "confirmation",
-  "message": "Got it — Berwick, VIC 3806, A brand new kitchen, Large — a U-shape or an island, I'm supplying the cabinets. All correct?",
+  "message": "Got it — Berwick, VIC 3806, Bathroom, Just strip it out, I'm supplying the materials. All correct?",
   "options": [
     {
       "label": "Yes, that's all correct",
@@ -1122,25 +949,24 @@ customer: "none"
   "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": "large",
+    "room": "bathroom",
+    "jobType": "demolition_only",
     "supply": "labour_only",
-    "benchtop": "none",
-    "removal": "none",
+    "removal": null,
     "extras": [],
+    "conditions": [],
     "existingPrice": null,
     "_ui": {
-      "turn": 9,
+      "turn": 8,
       "cursor": {
+        "room": 0,
         "jobType": 0,
-        "kitchenSize": 0,
         "supply": 0,
-        "benchtop": 0,
-        "removal": 0,
-        "extras": 0
+        "extras": 0,
+        "conditions": 0
       },
       "lastAsked": null,
-      "lastQuestion": "Got it — Berwick, VIC 3806, A brand new kitchen, Large — a U-shape or an island, I'm supplying the cabinets. All correct?",
+      "lastQuestion": "Got it — Berwick, VIC 3806, Bathroom, Just strip it out, I'm supplying the materials. All correct?",
       "lastValues": [
         "yes",
         "no"
@@ -1161,7 +987,7 @@ customer: "none"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -1170,10 +996,10 @@ customer: "none"
         },
         {
           "you": "Berwick",
-          "me": "What are you having done?"
+          "me": "Which room are you renovating?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
   "checklistDisplay": {
@@ -1181,29 +1007,25 @@ customer: "none"
       "title": "Suburb",
       "value": "Berwick, VIC 3806"
     },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
+    "room": {
+      "title": "Room",
+      "value": "Bathroom"
     },
-    "kitchenSize": {
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+    "jobType": {
+      "title": "Job",
+      "value": "Just strip it out"
     },
     "supply": {
       "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    "benchtop": {
-      "title": "Benchtop",
-      "value": "None"
-    },
-    "removal": {
-      "title": "Removal",
-      "value": "Nothing to remove"
+      "value": "I'm supplying the materials"
     },
     "extras": {
       "title": "Extras",
       "value": ""
+    },
+    "conditions": {
+      "title": "Site",
+      "value": "Nothing tricky"
     }
   },
   "checklistAnswered": [
@@ -1213,34 +1035,29 @@ customer: "none"
       "value": "Berwick, VIC 3806"
     },
     {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
+      "key": "room",
+      "title": "Room",
+      "value": "Bathroom"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+      "key": "jobType",
+      "title": "Job",
+      "value": "Just strip it out"
     },
     {
       "key": "supply",
       "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    {
-      "key": "benchtop",
-      "title": "Benchtop",
-      "value": "None"
-    },
-    {
-      "key": "removal",
-      "title": "Removal",
-      "value": "Nothing to remove"
+      "value": "I'm supplying the materials"
     },
     {
       "key": "extras",
       "title": "Extras",
       "value": ""
+    },
+    {
+      "key": "conditions",
+      "title": "Site",
+      "value": "Nothing tricky"
     }
   ],
   "checklistPending": [],
@@ -1250,14 +1067,14 @@ customer: "none"
 }
 ```
 
-## turn 10
+## turn 9
 
 customer: "yes"
 
 ```json
 {
   "sessionId": "golden",
-  "trade": "kitchen",
+  "trade": "home_renovation",
   "intent": "new_quote",
   "place": {
     "latitude": -38.0362,
@@ -1267,45 +1084,72 @@ customer: "yes"
     "postcode": "3806",
     "displayLabel": "Berwick, VIC 3806"
   },
-  "type": "question",
-  "message": "Nobody near you does a brand new kitchen for Large — a U-shape or an island. The closest they can do is Small — a galley or one run, $2,070 from Beky Kitchens. Want one of these instead?",
-  "options": [
+  "type": "result",
+  "message": "Here are the local businesses that cover your job.",
+  "options": [],
+  "results": [
     {
-      "label": "Small — a galley or one run · $2,070",
-      "value": "alt:small:general"
-    },
-    {
-      "label": "No thanks, I'll change something",
-      "value": "no"
+      "businessId": "reno-1",
+      "autoAcceptsAi": true,
+      "businessName": "Berwick Home Renovations",
+      "suburb": "Berwick, VIC 3806",
+      "ratePerMeter": 1600,
+      "estimatedTotal": 1600,
+      "notes": "incl. GST · In your suburb · 4.8★ (64) · You supply the materials · Carpentry charged by the hour on site, not in this price · Includes $150 site inspection"
     }
   ],
-  "noMatchReason": "alternative",
-  "checklistComplete": false,
+  "avgRatePerMeter": 1600,
+  "unit": "item",
+  "comparison": {
+    "potentialSavings": null,
+    "marketAverage": 1600,
+    "totalQuotesScreened": 1,
+    "userExistingPrice": null,
+    "quotes": [
+      {
+        "businessId": "reno-1",
+        "autoAcceptsAi": true,
+        "businessName": "Berwick Home Renovations",
+        "ratePerMeter": 1600,
+        "projectTotalMin": 1600,
+        "projectTotalMax": 1600,
+        "badges": [
+          "incl. GST",
+          "In your suburb",
+          "4.8★ (64)",
+          "You supply the materials",
+          "Carpentry charged by the hour on site, not in this price",
+          "Includes $150 site inspection"
+        ],
+        "warranty": "Ten year workmanship warranty",
+        "tag": "BEST_VALUE",
+        "savingsFromAverage": null,
+        "suburb": "Berwick, VIC 3806"
+      }
+    ]
+  },
   "checklist": {
     "suburb": "Berwick, VIC 3806",
-    "jobType": "new_kitchen",
-    "kitchenSize": "large",
+    "room": "bathroom",
+    "jobType": "demolition_only",
     "supply": "labour_only",
-    "benchtop": "none",
-    "removal": "none",
+    "removal": null,
     "extras": [],
+    "conditions": [],
     "existingPrice": null,
     "_ui": {
-      "turn": 10,
+      "turn": 9,
       "cursor": {
+        "room": 0,
         "jobType": 0,
-        "kitchenSize": 0,
         "supply": 0,
-        "benchtop": 0,
-        "removal": 0,
-        "extras": 0
+        "extras": 0,
+        "conditions": 0
       },
-      "lastAsked": "alternative",
-      "lastQuestion": "alternatives",
-      "lastValues": [
-        "alt:small:general"
-      ],
-      "lastType": "question",
+      "lastAsked": null,
+      "lastQuestion": "Let me check what businesses are available near you…",
+      "lastValues": [],
+      "lastType": "message",
       "fixing": false,
       "rejectedPlaces": [],
       "nearbyPlaces": {},
@@ -1321,7 +1165,7 @@ customer: "yes"
       "answers": 0,
       "history": [
         {
-          "you": "I need a kitchen quote",
+          "you": "I need a renovation quote",
           "me": "Happy to help with that. Mind if I ask a few quick questions?"
         },
         {
@@ -1330,40 +1174,37 @@ customer: "yes"
         },
         {
           "you": "Berwick",
-          "me": "What are you having done?"
+          "me": "Which room are you renovating?"
         }
       ],
-      "trade": "kitchen"
+      "trade": "home_renovation"
     }
   },
+  "checklistComplete": true,
   "checklistDisplay": {
     "suburb": {
       "title": "Suburb",
       "value": "Berwick, VIC 3806"
     },
-    "jobType": {
-      "title": "Job type",
-      "value": "A brand new kitchen"
+    "room": {
+      "title": "Room",
+      "value": "Bathroom"
     },
-    "kitchenSize": {
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+    "jobType": {
+      "title": "Job",
+      "value": "Just strip it out"
     },
     "supply": {
       "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    "benchtop": {
-      "title": "Benchtop",
-      "value": "None"
-    },
-    "removal": {
-      "title": "Removal",
-      "value": "Nothing to remove"
+      "value": "I'm supplying the materials"
     },
     "extras": {
       "title": "Extras",
       "value": ""
+    },
+    "conditions": {
+      "title": "Site",
+      "value": "Nothing tricky"
     }
   },
   "checklistAnswered": [
@@ -1373,52 +1214,31 @@ customer: "yes"
       "value": "Berwick, VIC 3806"
     },
     {
-      "key": "jobType",
-      "title": "Job type",
-      "value": "A brand new kitchen"
+      "key": "room",
+      "title": "Room",
+      "value": "Bathroom"
     },
     {
-      "key": "kitchenSize",
-      "title": "Size",
-      "value": "Large — a U-shape or an island"
+      "key": "jobType",
+      "title": "Job",
+      "value": "Just strip it out"
     },
     {
       "key": "supply",
       "title": "Who supplies",
-      "value": "I'm supplying the cabinets"
-    },
-    {
-      "key": "benchtop",
-      "title": "Benchtop",
-      "value": "None"
-    },
-    {
-      "key": "removal",
-      "title": "Removal",
-      "value": "Nothing to remove"
+      "value": "I'm supplying the materials"
     },
     {
       "key": "extras",
       "title": "Extras",
       "value": ""
+    },
+    {
+      "key": "conditions",
+      "title": "Site",
+      "value": "Nothing tricky"
     }
   ],
-  "checklistPending": [],
-  "results": [],
-  "avgRatePerMeter": null,
-  "unit": "item",
-  "alternatives": [
-    {
-      "material": "small",
-      "materialLabel": "Small — a galley or one run",
-      "heightKey": "general",
-      "label": "Small — a galley or one run",
-      "heightKeyLabel": "",
-      "businessId": "kitchen-1",
-      "businessName": "Beky Kitchens",
-      "estimatedTotal": 2070,
-      "value": "alt:small:general"
-    }
-  ]
+  "checklistPending": []
 }
 ```

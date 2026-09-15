@@ -589,7 +589,155 @@ export const DECKING_BOUNDS = {
   radiusKm: { min: 0, max: 500 },
 } as const;
 
-export const TRADES = ['fencing', 'tiling', 'kitchen', 'retaining_wall', 'decking'] as const;
+// --- home renovation ---------------------------------------------------------------------------
+
+/**
+ * The room, which is the first half of what finds a rate - and in this trade it is the WHOLE job,
+ * not a location for one.
+ *
+ * Every other trade prices a thing and asks where it goes. A renovator prices the ROOM: "bathroom
+ * renovation labour $6,850" is one number covering demolition through to final finishing, and no
+ * part of it is per metre. That is why this trade has no quantity field at all, the same as kitchen.
+ *
+ * `open_plan` and `whole_home` are rooms here even though neither is a room, because both are
+ * priced as one - $8,500 and a project-managed sum - and a customer knocking two rooms together is
+ * buying the single line called "open-plan renovation", not two smaller ones.
+ *
+ * `kitchen` deliberately shares a word with the `kitchen` TRADE. Different namespaces, and the
+ * difference is real: the kitchen trade fits cabinetry, this one strips the room back and rebuilds
+ * it. What keeps them apart for a customer is `detectTrade`'s precedence rule, not this list.
+ */
+export const RENO_ROOMS = [
+  'kitchen',
+  'bathroom',
+  'ensuite',
+  'laundry',
+  'bedroom',
+  'living_room',
+  'dining_room',
+  'hallway',
+  'home_office',
+  'open_plan',
+  'whole_home',
+] as const;
+
+/**
+ * What is being done TO the room, which is the other half of the rate.
+ *
+ * A renovator's list prices the same room more than once - a full bathroom renovation is $6,850 and
+ * stripping the same bathroom out is $1,450 - so the room alone cannot find a rate. These four are
+ * the headings that actually appear on a price list, not a scale of thoroughness.
+ *
+ * `full_renovation` is NOT called `standard`, and that is not a style choice: `standard` is in the
+ * `NOTHING` pattern in `fuzzyMatch.ts` that reads "none", "nothing tricky", "flat", "easy" as an
+ * explicit no. Decking's stair grades were `standard`/`premium` until a golden conversation looped
+ * for ever on exactly that collision.
+ */
+export const RENO_JOB_TYPES = ['full_renovation', 'demolition_only', 'fit_out_only', 'repair'] as const;
+
+/**
+ * Who buys the materials - and this document calls it "the fundamental business distinction".
+ *
+ * The same shape as `KITCHEN_SUPPLY` and `TILE_SUPPLY`, and the same rule: the labour price is the
+ * same either way, and what differs is whether a materials package is added on top from the
+ * business's own published list. A bare "$6,850 bathroom" is a bargain with the vanity, the bath
+ * and the tiles included and an ordinary price without them, and nothing in the number says which.
+ */
+export const RENO_SUPPLY = ['supply_and_install', 'labour_only'] as const;
+
+/**
+ * What is being stripped out, which is what demolition is priced against. `any` is the business-side
+ * wildcard every trade here has.
+ */
+export const RENO_REMOVES = [
+  'small_room',
+  'bathroom_strip',
+  'kitchen_strip',
+  'laundry_strip',
+  'full_interior',
+  'any',
+] as const;
+
+/**
+ * Every other priced line a renovation quote is built from. Each is a real heading on this trade's
+ * own list, and each is priced once.
+ *
+ * This list is long because in this trade the extras ARE most of the quote - a supply-and-install
+ * bathroom is $6,850 of room plus five separate lines that more than half it again. Same reason
+ * `KITCHEN_EXTRAS` grew: a priced line a customer cannot ask for is a line that never gets sold.
+ */
+export const RENO_EXTRAS = [
+  'waterproofing',
+  'tiling',
+  'flooring',
+  'plastering',
+  'painting',
+  'cabinetry',
+  'benchtop',
+  'splashback',
+  'doors',
+  'skirting',
+  'architraves',
+  'ceiling',
+  'wall_removal',
+  'wall_build',
+  'wardrobe',
+  'site_protection',
+  'waste_disposal',
+  'material_delivery',
+  'project_management',
+] as const;
+
+/**
+ * What makes the job harder, asked of the customer and passed to the builder.
+ *
+ * `structural_wall` and `asbestos_suspected` are the two that matter most, and neither is a price:
+ * they are the flags this trade's own AI rules say must never be assumed away. A renovator needs to
+ * know before they quote; nobody may decide either from a photograph.
+ */
+export const RENO_CONDITIONS = [
+  'structural_wall',
+  'hidden_damage',
+  'asbestos_suspected',
+  'restricted_access',
+  'services_in_wall',
+  'uneven_floor',
+] as const;
+
+export const RENO_TAGS = [
+  'supply-and-install',
+  'installation-only',
+  'project-management',
+  'structural-capable',
+  'whole-home',
+  'insured',
+] as const;
+
+export type RenoRoom = (typeof RENO_ROOMS)[number];
+export type RenoJobType = (typeof RENO_JOB_TYPES)[number];
+export type RenoSupply = (typeof RENO_SUPPLY)[number];
+export type RenoRemoves = (typeof RENO_REMOVES)[number];
+export type RenoExtra = (typeof RENO_EXTRAS)[number];
+export type RenoCondition = (typeof RENO_CONDITIONS)[number];
+export type RenoTag = (typeof RENO_TAGS)[number];
+
+/**
+ * Home renovation's bounds. Like kitchen, there is no per-unit core rate at all - every headline
+ * figure is a price for a whole room - so `price` does the work `pricePerMetre` does elsewhere, and
+ * its ceiling is this trade's alone: a whole-home renovation genuinely reaches five figures before
+ * anything has gone wrong.
+ *
+ * `pricePerSqm` is here for the surface lines - plastering at $65/m2, flooring at $95/m2 - which are
+ * captured and shown but never enter a total. Its ceiling is far below decking's, because these are
+ * interior finishes rather than structures.
+ */
+export const HOME_RENOVATION_BOUNDS = {
+  price: { min: 0, max: 100_000 },
+  pricePerSqm: { min: 0, max: 500 },
+  radiusKm: { min: 0, max: 500 },
+} as const;
+
+export const TRADES = ['fencing', 'tiling', 'kitchen', 'retaining_wall', 'decking', 'home_renovation'] as const;
 export type Trade = (typeof TRADES)[number];
 
 /**
@@ -689,10 +837,25 @@ export const DECKING_VOCAB: TradeVocab = {
   bounds: DECKING_BOUNDS,
 };
 
+export const HOME_RENOVATION_VOCAB: TradeVocab = {
+  core: {
+    rooms: RENO_ROOMS,
+    jobTypes: RENO_JOB_TYPES,
+    supply: RENO_SUPPLY,
+    removes: RENO_REMOVES,
+    extras: RENO_EXTRAS,
+    conditions: RENO_CONDITIONS,
+    units: UNITS,
+    tags: RENO_TAGS,
+  },
+  bounds: HOME_RENOVATION_BOUNDS,
+};
+
 export const TRADE_VOCAB: Record<Trade, TradeVocab> = {
   fencing: FENCING_VOCAB,
   tiling: TILING_VOCAB,
   kitchen: KITCHEN_VOCAB,
   retaining_wall: RETAINING_WALL_VOCAB,
   decking: DECKING_VOCAB,
+  home_renovation: HOME_RENOVATION_VOCAB,
 };

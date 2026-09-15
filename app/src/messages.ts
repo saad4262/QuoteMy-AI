@@ -18,6 +18,11 @@ import {
   KITCHEN_SUPPLY,
   MATERIALS,
   REMOVES,
+  RENO_CONDITIONS,
+  RENO_EXTRAS,
+  RENO_JOB_TYPES,
+  RENO_REMOVES,
+  RENO_SUPPLY,
   RW_CONDITIONS,
   RW_DRAINAGE,
   RW_EXTRAS,
@@ -457,6 +462,104 @@ export const DECK_LABEL_GROUPS = {
   },
 } as const;
 
+export const RENO_LABEL_GROUPS = {
+  /* Rooms named the way a customer says them, not the way a builder files them. "The whole house"
+     and "Knocking rooms together" are what people actually write; `whole_home` and `open_plan` are
+     what the price list calls the same two lines. */
+  rooms: {
+    kitchen: 'Kitchen',
+    bathroom: 'Bathroom',
+    ensuite: 'Ensuite',
+    laundry: 'Laundry',
+    bedroom: 'Bedroom',
+    living_room: 'Living room',
+    dining_room: 'Dining room',
+    hallway: 'Hallway',
+    home_office: 'Home office',
+    open_plan: 'Knocking rooms together — open plan',
+    whole_home: 'The whole house',
+  },
+  /* What is being done TO the room. Written as the customer's own sentence rather than the trade's
+     heading, because "fit out only" means nothing to somebody who has not been quoted before. */
+  jobTypes: {
+    full_renovation: 'The full renovation',
+    demolition_only: 'Just strip it out',
+    fit_out_only: 'Fit out what I already have',
+    repair: 'A repair, not a renovation',
+  },
+  supply: {
+    supply_and_install: 'Supply the materials and do the work',
+    labour_only: "I'm supplying the materials",
+  },
+  /* `any` first, as in all five other trades: somebody renovating a bathroom knows there is one
+     there and has not thought about whether the vanity comes out separately from the tiles. */
+  removes: {
+    any: 'Yes, strip it out',
+    small_room: 'A small room',
+    bathroom_strip: 'An old bathroom',
+    kitchen_strip: 'An old kitchen',
+    laundry_strip: 'An old laundry',
+    full_interior: 'The whole interior',
+  },
+  conditions: {
+    structural_wall: 'A wall that might be holding something up',
+    hidden_damage: 'Water damage or rot I know about',
+    asbestos_suspected: 'The house is old enough for asbestos',
+    restricted_access: 'Hard to get to',
+    services_in_wall: 'Pipes or wiring in the way',
+    uneven_floor: 'Uneven floors',
+  },
+  extras: {
+    waterproofing: 'Waterproofing',
+    tiling: 'Tiling',
+    flooring: 'Flooring',
+    plastering: 'Plastering',
+    painting: 'Painting',
+    cabinetry: 'Cabinetry',
+    benchtop: 'A benchtop',
+    splashback: 'A splashback',
+    doors: 'Doors',
+    skirting: 'Skirting boards',
+    architraves: 'Architraves',
+    ceiling: 'Ceiling work',
+    wall_removal: 'Taking a wall out',
+    wall_build: 'Building a new wall',
+    wardrobe: 'A built-in wardrobe',
+    site_protection: 'Protecting the rest of the house',
+    waste_disposal: 'Taking the rubbish away',
+    material_delivery: 'Material delivery',
+    project_management: 'Managing the whole project',
+  },
+  /* Hourly and daily rates are a real part of this trade's list - carpentry at $95, $110 and $125 -
+     and without these a renovator's own screen shows `per_hour`. In this trade's own group rather
+     than the shared one, for the reason decking's comment gives. */
+  units: {
+    per_hour: 'per hour',
+    per_day: 'per day',
+  },
+  /**
+   * The same slugs said to the BUILDER, and assigned last in `TRADE_LABELS` so they win there.
+   *
+   * The repeated-slug trap is mild here but real: `kitchen`, `bathroom` and `laundry` are ROOMS,
+   * and `kitchen_strip`/`bathroom_strip`/`laundry_strip` are what comes out of them. The rooms win,
+   * because the rate table is most of a builder's screen - and they read as plain nouns rather than
+   * as the customer's sentence, because a builder is checking a price list, not choosing a room.
+   */
+  factual: {
+    kitchen: 'Kitchen',
+    bathroom: 'Bathroom',
+    laundry: 'Laundry',
+    open_plan: 'Open plan',
+    whole_home: 'Whole home',
+    full_renovation: 'Full renovation',
+    demolition_only: 'Demolition only',
+    fit_out_only: 'Fit-out only',
+    repair: 'Repair',
+    supply_and_install: 'Supply and install',
+    labour_only: 'Installation only',
+  },
+} as const;
+
 /**
  * What the chat may OFFER, per trade, in the order it offers them.
  *
@@ -562,6 +665,31 @@ export const CUSTOMER_CORE: Record<Trade, Record<string, string[]>> = {
     conditions: [...DECK_CONDITIONS],
     extras: [...DECK_EXTRAS],
   },
+  home_renovation: {
+    /* The wet rooms lead, and that is where this trade's money is: a bathroom and a kitchen are the
+       two dearest lines on the list and between them are most of what anybody renovates. The
+       whole-house and open-plan options come LAST rather than first despite being the biggest jobs,
+       because a customer who wants one of those will say so in their opening sentence, and putting
+       them at the top offers an $8,500 job to somebody asking about a hallway. */
+    rooms: [
+      'bathroom',
+      'kitchen',
+      'ensuite',
+      'laundry',
+      'bedroom',
+      'living_room',
+      'dining_room',
+      'hallway',
+      'home_office',
+      'open_plan',
+      'whole_home',
+    ],
+    jobTypes: [...RENO_JOB_TYPES],
+    supply: [...RENO_SUPPLY],
+    removes: ['any', ...RENO_REMOVES.filter((r) => r !== 'any')],
+    conditions: [...RENO_CONDITIONS],
+    extras: [...RENO_EXTRAS],
+  },
 };
 
 /** The same, for the words. Keyed by trade so a second trade brings its own and touches nothing. */
@@ -571,6 +699,7 @@ export const CUSTOMER_LABELS: Record<Trade, Record<string, Record<string, string
   kitchen: KITCHEN_LABEL_GROUPS,
   retaining_wall: RW_LABEL_GROUPS,
   decking: DECK_LABEL_GROUPS,
+  home_renovation: RENO_LABEL_GROUPS,
 };
 
 /** Flattened, for the business-side response. Derived - never edited by hand. */
@@ -657,6 +786,22 @@ export const TRADE_LABELS: Record<Trade, Record<string, string>> = {
     DECK_LABEL_GROUPS.units,
     DECK_LABEL_GROUPS.factual,
   ) as Record<string, string>,
+  /* The same trap, mild but real: `kitchen`, `bathroom` and `laundry` are ROOMS a renovator prices,
+     and `kitchen_strip`/`bathroom_strip`/`laundry_strip` are what comes out of them. The rooms win,
+     because the rate table is most of a builder's screen - so the customer-chat phrasings go first
+     to be overwritten and `factual` is assigned last, as it is for decking and retaining wall. */
+  home_renovation: Object.assign(
+    {},
+    RENO_LABEL_GROUPS.removes,
+    RENO_LABEL_GROUPS.supply,
+    RENO_LABEL_GROUPS.conditions,
+    RENO_LABEL_GROUPS.extras,
+    RENO_LABEL_GROUPS.jobTypes,
+    RENO_LABEL_GROUPS.rooms,
+    LABEL_GROUPS.units,
+    RENO_LABEL_GROUPS.units,
+    RENO_LABEL_GROUPS.factual,
+  ) as Record<string, string>,
 };
 
 /**
@@ -733,12 +878,32 @@ export const DECK_QUESTIONS: Record<string, string> = {
   conditions: 'Anything tricky about the site?',
 };
 
+export const RENO_QUESTIONS: Record<string, string> = {
+  /* The room is the whole job in this trade, so it is asked first and asked plainly. */
+  room: 'Which room are you renovating?',
+  /* Not "what job type" - nobody describes their own renovation as a job type. The three real
+     answers are the whole thing, just the strip-out, or fitting what they have already bought. */
+  jobType: 'What do you need done to it?',
+  /* The question this trade turns on, and the one customers do not know is a question: the same
+     bathroom is $6,850 of labour or that plus every fitting, and nothing in the number says which.
+     "Materials" rather than any one product, because the answer covers tiles, vanity, bath and
+     tapware all at once. */
+  supply: "Who's buying the materials?",
+  removal: 'Is there an old one to strip out?',
+  extras: 'Anything else in the job?',
+  /* Asked of every caller, because this trade's own rules say a wall must never be assumed
+     non-structural and a house of a certain age must never be assumed clear of asbestos. Phrased so
+     a customer who does not know can still answer. */
+  conditions: 'Anything tricky we should know about?',
+};
+
 export const TRADE_QUESTIONS: Record<Trade, Record<string, string>> = {
   fencing: QUESTIONS,
   tiling: TILING_QUESTIONS,
   kitchen: KITCHEN_QUESTIONS,
   retaining_wall: RW_QUESTIONS,
   decking: DECK_QUESTIONS,
+  home_renovation: RENO_QUESTIONS,
 };
 
 /**
@@ -821,6 +986,26 @@ export const TRADE_WORDS: Record<
     article: 'a deck',
     tradesperson: 'deck builder',
   },
+  /* `trade` is two words because there is no single one: "renovating" is a gerund nobody searches
+     for and "renovations" plural reads wrong in `askWhichTrade`'s sentence, which puts "services"
+     after it. "Home renovation services" is what these businesses advertise.
+
+     `noun` is what gets appended to an image search, and `renovation` is right: "bathroom
+     renovation australia" returns finished rooms, where "bathroom australia" returns a map. The
+     word this trade may NOT claim in `mentions` is any room - `bathroom` is tiling's, `kitchen` is
+     the kitchen trade's - so the pattern stays on the scope word, which is exactly the same
+     reasoning `detectTrade`'s precedence rule rests on.
+
+     `tradesperson` is "renovator" rather than "builder": a builder builds a house, and this trade's
+     own document is careful that structural work, plumbing, electrical and gas belong to somebody
+     licensed for them. */
+  home_renovation: {
+    trade: 'home renovation',
+    noun: 'renovation',
+    mentions: /renovat|remodel/i,
+    article: 'a renovation',
+    tradesperson: 'renovator',
+  },
 };
 
 export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
@@ -886,6 +1071,21 @@ export const NO_MATCH_MESSAGES: Record<Trade, Record<string, string>> = {
     material: 'The builders near you do not lay that decking yet. Want to try a different board?',
     pricing: 'I found deck builders near you, but none of them have finished setting up their pricing yet.',
   },
+  /* The same fixed keys naming the SHAPE of the failure. `material` is the ROOM here - the thing
+     nobody near you does - and `height` is the job type, the second half of the rate. That is the
+     furthest either name has been stretched in the product, and it is still the right trade-off:
+     renaming them is a wire change across six trades to make one table read better.
+
+     `gate` keeps its meaning of "a part of the brief nobody prices", which in this trade is usually
+     waterproofing or a benchtop. */
+  home_renovation: {
+    area: 'No renovator covers that suburb yet. Try a nearby suburb?',
+    removal: 'None of the renovators near you strip out an old one. Want to arrange that separately?',
+    gate: 'Nobody near you prices that part of the job. Want to try without it?',
+    height: 'The renovators near you do that room, but not the way you asked. Want to try something else?',
+    material: 'The renovators near you do not do that room yet. Want to try a different one?',
+    pricing: 'I found renovators near you, but none of them have finished setting up their pricing yet.',
+  },
 };
 
 export const MESSAGES = {
@@ -907,6 +1107,28 @@ export const MESSAGES = {
   },
   rejected: {
     opening: 'We have been through the details you sent. A few things need updating before your profile can go live.',
+    nextStep:
+      'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
+  },
+  /**
+   * The same rejection, for a business whose prices are all there and none of them quotable.
+   *
+   * A tiler who charges $95 an hour and a cabinetmaker who sells by the lineal metre have both
+   * written a complete, firm, professional price list. Neither can answer "18 square metres of
+   * porcelain" or "a large kitchen", because the customer would have to do the sum first - and
+   * doing it for them is the one thing the model may never do (`CLAUDE.md` #4). So they are turned
+   * away, and "a few things need updating" reads to them as though we skimmed it: nothing is
+   * missing, and they know it.
+   *
+   * It does not name the unit, and must not. Which measurement is wrong is the TRADE's business and
+   * differs every time - hours here, lineal metres there - and the model's own fixes name it
+   * precisely ("Replace hourly tiling rates with set per-square-metre prices"). This opening says
+   * only what is true of all of them, because the review prompt is explicit that the fixed text
+   * around the fixes must not repeat what the fixes say.
+   */
+  rejectedNotQuotable: {
+    opening:
+      'We have been through the details you sent. The prices are all there - they are just not in a form we can quote a customer from yet.',
     nextStep:
       'Update your details and send them through again for approval. If something above does not look right, use the contact button below and one of our team will go through it with you.',
   },
@@ -1201,6 +1423,77 @@ export const WHAT_TO_SEND: Record<Trade, { need: string[]; helpful: string[]; ex
       'Ten year workmanship warranty. Manufacturer warranties are the maker’s, not ours.',
       'Not included: engineering, permits, rock excavation, tree and stump removal, electrical,',
       'plumbing, drainage changes, retaining walls, landscaping, turf and painting.',
+    ].join('\n'),
+  },
+
+  /* Taken from the blocking rules H1-H8 in prompts/sop/home_renovation/rules.md, in the same order,
+     so a business reading this and a reviewer judging it are working from one list.
+
+     The first line does more work here than in any other trade. A renovator's price list is mostly
+     numbers with no unit on them - "Bathroom renovation labour $6,850" - and a business that has
+     been told elsewhere that a price needs a unit will start writing "per bathroom" and "per job"
+     on every line, or worse, decide their own list is wrong. Saying plainly that a flat price per
+     room IS the unit here is what stops that. */
+  home_renovation: {
+    need: [
+      'Each room you renovate, and your price for it - a flat price for the room is exactly right, no unit needed',
+      'Your strip-out and demolition prices, by room (or say you do not do demolition)',
+      'Whether the price is your labour only or includes the materials - and your material prices if you supply them',
+      'What waste disposal costs (or say it is included)',
+      'What your prices do NOT cover - permits, engineering, electrical, plumbing, gas, asbestos',
+      'Your position on structural work: who assesses a wall before it comes out, and who pays for engineering',
+      'Your minimum attendance, site inspection fee, design consultation fee, and any travel charge',
+      'The suburb or postcode you work out from, and how far you travel',
+      'Whether your prices include GST',
+    ],
+    helpful: [
+      'Your per-square-metre rates - plastering, flooring, tiling, painting - for customers wanting one thing done',
+      'Your per-item prices: doors, cabinets, benchtop cut-outs',
+      'Your hourly rates for carpentry and variations, and your variation administration fee',
+      'What a standard renovation includes - protection, demolition, preparation, installation, finishing, clean-up',
+      'Your project management fee for larger jobs, and how you handle hidden damage found mid-job',
+      'How long your workmanship is warranted for, in your own words',
+    ],
+    example: [
+      'ROOM RENOVATIONS — OUR LABOUR, MATERIALS QUOTED SEPARATELY',
+      'Bathroom $6,850. Ensuite $5,950. Kitchen $4,850. Laundry $3,850.',
+      'Bedroom $2,850. Living room $3,250. Dining room $2,450. Hallway $1,850. Home office $2,750.',
+      'Open-plan renovation $8,500. Whole-home projects are quoted room by room from the above.',
+      '',
+      'STRIP-OUT AND DEMOLITION',
+      'Bathroom $1,450. Kitchen $1,650. Laundry $750. Small room $750. Full interior $4,250.',
+      '',
+      'SUPPLY AND INSTALL',
+      'We can supply the materials or install what you have already bought.',
+      'Kitchen cabinetry package $8,950. Material procurement $180. Standard delivery $250.',
+      '',
+      'THE REST OF WHAT WE DO',
+      'Waterproofing $950. Bathroom tiling $2,450. Vanity $450. Toilet $350. Bath $650.',
+      'Cabinet installation $2,850. Benchtop installation $850. Splashback preparation $480.',
+      'Final finishing $650. Built-in wardrobe $1,850. Site protection $350.',
+      'Non-structural wall removal $850. Structural wall removal $2,850. Stud wall $1,250.',
+      'Waste disposal $550. Bathroom waste $650. Kitchen waste $650.',
+      '',
+      'BY THE SQUARE METRE',
+      'Wall plastering $65. Ceiling plastering $75. Floor tiling $75. Wall tiling $78.',
+      'Laminate flooring $55. Hybrid $60. Engineered timber $75. Timber $95.',
+      '',
+      'EACH, AND BY THE HOUR',
+      'Internal door $280. Base cabinet $180. Wall cabinet $165. Sink cut-out $180.',
+      'General carpentry $95 per hour. Finish carpentry $110 per hour. Variations $110 per hour.',
+      '',
+      'STRUCTURAL WORK AND APPROVALS',
+      'We never assume a wall is non-structural. Every wall is assessed before it comes out, and',
+      'engineering, temporary support and structural steel are quoted separately where needed.',
+      'Whether a renovation needs a permit depends on the work and the property, and we check it',
+      'rather than assuming either way.',
+      '',
+      'THE REST',
+      'All prices include GST. Based in Berwick, we travel 30km.',
+      'Minimum attendance $450. Site inspection $150. Design consultation $180. Travel outside $95.',
+      'Project management on larger renovations $3,500.',
+      'Not included: building permits, engineering, council fees, electrical, plumbing, gas,',
+      'asbestos removal, appliance supply, specialist stone fabrication and major landscaping.',
     ].join('\n'),
   },
 };
