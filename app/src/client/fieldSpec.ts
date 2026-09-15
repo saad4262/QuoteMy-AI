@@ -59,7 +59,9 @@ export interface RecapPhrasing {
 export interface DependsOn {
   field: string;
   equals?: string;
-  notEquals?: string;
+  /** A value, or several. Several is how one field hangs off a job type that has more than one
+      shape where the question makes no sense - see home renovation's `removal`. */
+  notEquals?: string | string[];
 }
 
 /**
@@ -1716,7 +1718,10 @@ export const HOME_RENOVATION_FIELDS: FieldSpec[] = [
        gutted wants it as the whole job. Asking both questions of the same customer would add that
        $1,450 to itself. `pricing/homeRenovation.ts` refuses the same pair a second time, because
        this field can also be filled off an attached document without ever being asked. */
-    dependsOn: { field: 'jobType', notEquals: 'demolition_only' },
+    /* Not asked when the strip-out IS the job, and not asked when there is nothing to strip.
+       `demolition_only` is the first; `single_trade` is the second - somebody having one room
+       painted is not taking a bathroom out, and asking them implies we think they might be. */
+    dependsOn: { field: 'jobType', notEquals: ['demolition_only', 'single_trade'] },
     /* Nothing is read for this field unless the page is plainly talking about taking something out.
        Without the guard, "full interior renovation" reads as `full_interior` demolition - a $4,250
        line - on a page that never mentioned demolition at all. */

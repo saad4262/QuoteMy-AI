@@ -34,7 +34,10 @@ export interface RenoBrief {
   extras: string[];
 }
 
-export type RenoBlocked = 'room' | 'jobType' | 'removal';
+/* `extra` is the single-trade path's own failure: the business renovates this room but does not
+   price the one job the customer asked for. `priceAndRank` maps it onto the `gate` slot, which
+   already means "a part of the brief nobody prices". */
+export type RenoBlocked = 'room' | 'jobType' | 'removal' | 'extra';
 
 export interface RenoQuote {
   roomKey: string;
@@ -69,6 +72,73 @@ function findRate(rows: RenoRate[], jobType: string, supply: string): RenoRate |
   return forJob.find((row) => row.supply && row.supply === supply) ?? forJob.find((row) => !row.supply);
 }
 
+/**
+ * A quote for one trade's worth of work, priced from what the business published for it.
+ *
+ * The rate is the sum of the extras the customer actually asked for, because asking for painting
+ * AND flooring is asking for both. Only flat, per-job lines can be summed - a per-square-metre or
+ * hourly line is named in a badge exactly as it is on the room path, since no area and no hours
+ * were asked for here either.
+ *
+ * WHICH published line is used is SAID OUT LOUD in the badges, and that is the point. A renovator
+ * lists four painting prices - a room, a ceiling, the walls, the whole interior - and this takes the
+ * first one published for that kind of work. That is a defensible choice and not a certain one, so
+ * the customer is shown the line rather than only the number: "Priced from: Standard room painting".
+ * If it is the wrong line they can see that it is, which is the whole difference between a guess and
+ * a silent guess.
+ */
+function quoteSingleTrade(
+  business: MatchedBusiness,
+  pricing: HomeRenovationVerifiedPricing,
+  brief: RenoBrief,
+): RenoQuote | { blocked: RenoBlocked } {
+  let total = 0;
+  const priced: string[] = [];
+  const onSite: string[] = [];
+
+  for (const wanted of brief.extras) {
+    const rows = pricing.extras.filter((row) => row.type && slug(row.type) === slug(wanted) && row.price !== null);
+    if (!rows.length) continue;
+    const flat = rows.find((row) => !row.unit || row.unit === 'per_job');
+    if (!flat) {
+      onSite.push(rows[0]!.label);
+      continue;
+    }
+    total += flat.price!;
+    priced.push(flat.label);
+  }
+
+  /* Nothing they asked for is priced by this business - so this business cannot do this job, and
+     saying so is the honest answer. `gate` is the slot meaning "a part of the brief nobody prices",
+     which is exactly what this is. */
+  if (!priced.length) return { blocked: 'extra' };
+
+  const gstIncluded = pricing.gstIncluded === true;
+  const { total: payable } = quoteTotal({
+    rate: total,
+    perUnitExtras: 0,
+    percentExtras: 0,
+    quantity: 1,
+    fixedItems: pricing.siteInspectionFee ?? 0,
+    minimumCharge: pricing.minimumCharge,
+    gstIncluded,
+  });
+
+  const badges: string[] = [];
+  badges.push(gstIncluded ? 'incl. GST' : 'incl. GST (added)');
+  badges.push(business.distanceKm > 0 ? business.distanceKm + ' km away' : 'In your suburb');
+  if (business.rating) badges.push(business.reviewCount ? business.rating + '★ (' + business.reviewCount + ')' : business.rating + '★');
+  badges.push('Priced from: ' + priced.join(', '));
+  if (brief.supply === 'supply_and_install') badges.push('Materials quoted separately');
+  else badges.push('You supply the materials');
+  if (onSite.length) badges.push(onSite.join(' and ') + ' measured on site, not in this price');
+  if (pricing.hourly.length) badges.push('Carpentry charged by the hour on site, not in this price');
+  if (pricing.siteInspectionFee) badges.push('Includes $' + pricing.siteInspectionFee + ' site inspection');
+  if (business.isAutoAcceptEnabled) badges.push('Instant accept');
+
+  return { roomKey: brief.room, jobKey: 'single_trade', ratePerUnit: payable, total: payable, badges };
+}
+
 export function quoteHomeRenovation(
   business: MatchedBusiness,
   pricing: HomeRenovationVerifiedPricing,
@@ -80,6 +150,19 @@ export function quoteHomeRenovation(
      the room but does not strip it out is a different sentence and a different question. Tiling
      makes the same distinction for the same reason. */
   if (!rows.length) return { blocked: 'room' };
+
+  /* ONE TRADE, NOT A ROOM. A customer who only wants the place painted is not buying a room
+     renovation, and no renovator publishes a room rate for it - what they publish is "Standard room
+     painting $1,250", which lives in `extras`. So for this job type the extras ARE the quote, and
+     the room only says where the work is.
+
+     Everything else about the sum is unchanged: quantity one, fees on top, minimum charge applied.
+     What is deliberately NOT done is falling back to a room rate when nothing they asked for is
+     priced - a painting quote made out of a full renovation price is exactly the silent wrong
+     answer this job type was added to stop. */
+  if (brief.jobType === 'single_trade') {
+    return quoteSingleTrade(business, pricing, brief);
+  }
 
   const rate = findRate(rows, brief.jobType, brief.supply);
   if (!rate) return { blocked: 'jobType' };

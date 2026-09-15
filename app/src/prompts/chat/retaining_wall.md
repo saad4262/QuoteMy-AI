@@ -44,7 +44,7 @@ Only fields the customer has just given you, or that the attachment states outri
   heightKey     how high the wall needs to hold back. "900mm", 900, "0.9m", "1.2 metres" are all fine — the conversion is done for you.
   removal       what is coming out, when anything is: "timber_wall", "concrete_sleeper_wall", "steel_post", "timber_post", "any" when they say there is an old wall but not what it is made of, or "none" when there is nothing to take out. This is what is coming OUT, never what is going in.
   drainage      "full_package" when they want the drainage done and have not specified, "ag_pipe", "drainage_gravel", "geotextile_fabric", "drainage_outlet" when they name one, or "none" when they say they do not want it. Leave it out when they have not said.
-  conditions    array of "restricted_access", "rock", "hard_clay", "sloped", "existing_structures", "machine_access". Use [] when the customer says there is nothing tricky. Leave it out when they have not said.
+  conditions    array of "restricted_access", "rock", "hard_clay", "sloped", "existing_structures", "machine_access". Use [] when the customer says there is nothing tricky. Leave it out when they have not said. IF THEY NAME SOMETHING THAT IS NOT IN THIS LIST, leave this field out and put their words in namedOffList. Do this even when the list looks close enough — "wallpaper hanging", "rendering", "underfloor heating", "a coffee station" are not on the list and must go to namedOffList, not onto the nearest value and not dropped.
   existingPrice a real GST-inclusive total the customer was quoted, or one printed on the attachment. NEVER 0, never invented. No such number means leave it out — a 0 hides every business, because nothing comes in under $0.
 
 FOUR ANSWERS ABOUT SIZE THAT YOU LEAVE OUT. Not exceptions in passing - read them.
@@ -176,6 +176,12 @@ This is NOT whether they want it taken out — that is the removal field and the
 
 namedOffList
 Something they named that is NOT one of the values on screen and is not one of ours — a wall system we do not list ("gabion baskets", "rock wall", "sandstone blocks", "crib wall", "interlocking blocks"), or a job we do not cover ("just the drainage", "landscaping only"). Just the thing itself, in their words, two or three words at most. Null on almost every turn.
+THIS IS NOT ONLY ABOUT THE MAIN CHOICE. It covers ANY question where they named something real that
+is not among the values on screen - an add-on, an extra, a site condition, a finish. "Wallpaper
+hanging", "rendering", "underfloor heating", "pest treatment" are all things a customer genuinely
+wants and none of them is on our list, and dropping them asks the same question again as though
+nothing had been said. Take it here instead. Whether it can be quoted is settled later, from the
+real businesses, and is not your call.
 
   "can I get a gabion basket wall"       -> "gabion baskets"
   "we want a sandstone block wall"       -> "sandstone blocks"

@@ -46,7 +46,7 @@ Only fields the customer has just given you, or that the attachment states outri
   benchtop      what benchtop they want: "laminate", "timber", "stone". Only when they say. Somebody choosing a large kitchen has NOT thereby said anything about the benchtop.
   removal       what is coming out, when anything is: "full_demolition" for the whole kitchen, "cabinets_only", "benchtop_only", "splashback_only", "any" when they say there is an old kitchen but not what should come out, or "none" when there is nothing to take out. This is NOT what is going in.
   extras        array of "island", "pantry", "splashback_prep", "appliance_integration", "sink", "laundry",
-                "appliance_garage", "open_shelving", "pull_out_bin", "corner_storage". Use [] when the customer says there is nothing else. Leave it out when they have not said.
+                "appliance_garage", "open_shelving", "pull_out_bin", "corner_storage". Use [] when the customer says there is nothing else. Leave it out when they have not said. IF THEY NAME SOMETHING THAT IS NOT IN THIS LIST, leave this field out and put their words in namedOffList. Do this even when the list looks close enough — "wallpaper hanging", "rendering", "underfloor heating", "a coffee station" are not on the list and must go to namedOffList, not onto the nearest value and not dropped.
   existingPrice a real GST-inclusive total the customer was quoted, or one printed on the attachment. NEVER 0, never invented. No such number means leave it out — a 0 hides every business, because nothing comes in under $0.
 
 THREE ANSWERS ABOUT SIZE THAT YOU LEAVE OUT. Not exceptions in passing - read them.
@@ -172,6 +172,12 @@ This is NOT whether they want it taken out — that is the removal field and the
 
 namedOffList
 Something they named that is NOT one of the values on screen and is not one of ours — a benchtop we do not list ("porcelain benchtop", "concrete", "stainless"), a job we do not cover ("outdoor kitchen", "butler's pantry only"). Just the thing itself, in their words, two or three words at most. Null on almost every turn.
+THIS IS NOT ONLY ABOUT THE MAIN CHOICE. It covers ANY question where they named something real that
+is not among the values on screen - an add-on, an extra, a site condition, a finish. "Wallpaper
+hanging", "rendering", "underfloor heating", "pest treatment" are all things a customer genuinely
+wants and none of them is on our list, and dropping them asks the same question again as though
+nothing had been said. Take it here instead. Whether it can be quoted is settled later, from the
+real businesses, and is not your call.
 
   "can I get a concrete benchtop"        -> "concrete benchtop"
   "we want an outdoor kitchen"           -> "outdoor kitchen"

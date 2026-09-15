@@ -486,6 +486,9 @@ export const RENO_LABEL_GROUPS = {
     demolition_only: 'Just strip it out',
     fit_out_only: 'Fit out what I already have',
     repair: 'A repair, not a renovation',
+    /* Named by examples rather than by a category, because "single trade" is builder's language and
+       the customer saying "I just want it painted" does not know they are asking for one. */
+    single_trade: 'Just one thing — painting, flooring, plastering',
   },
   supply: {
     supply_and_install: 'Supply the materials and do the work',
@@ -555,6 +558,7 @@ export const RENO_LABEL_GROUPS = {
     demolition_only: 'Demolition only',
     fit_out_only: 'Fit-out only',
     repair: 'Repair',
+    single_trade: 'Single trade only',
     supply_and_install: 'Supply and install',
     labour_only: 'Installation only',
   },

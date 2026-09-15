@@ -1310,6 +1310,13 @@ export function seedRenovator(
     ],
     extras: [
       { type: 'waterproofing', label: 'Bathroom waterproofing', price: 950, unit: 'per_job', isFromPrice: false },
+      /* The four painting lines this trade really publishes, and the reason `single_trade` exists.
+         A customer wanting a room painted is buying THIS, not a room renovation - and which of the
+         four is used is named in the quote's badges rather than picked silently. */
+      { type: 'painting', label: 'Standard room painting', price: 1250, unit: 'per_job', isFromPrice: false },
+      { type: 'painting', label: 'Ceiling painting', price: 650, unit: 'per_job', isFromPrice: false },
+      { type: 'painting', label: 'Full interior repaint', price: 6500, unit: 'per_job', isFromPrice: false },
+      { type: 'flooring', label: 'Floor preparation', price: 650, unit: 'per_job', isFromPrice: false },
       { type: 'benchtop', label: 'Stone benchtop installation', price: 1250, unit: 'per_job', isFromPrice: false },
       { type: 'wardrobe', label: 'Built-in wardrobe installation', price: 1850, unit: 'per_job', isFromPrice: false },
       { type: 'site_protection', label: 'Site protection', price: 350, unit: 'per_job', isFromPrice: false },
@@ -1434,6 +1441,40 @@ export const HOME_RENOVATION_CONVERSATIONS: Conversation[] = [
       { say: 'demolition_only' },
       { say: 'labour_only' },
       { say: 'none' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '65 renovation, one job and not a room - just the painting',
+    why: 'the answer this trade had no word for. A customer typing "i want to colour my room" was given `fit_out_only` - fitting what they had already bought - and the brief said cabinets. Nothing errored; the wrong job went on towards a price. What makes it quotable is that the renovator really does publish "Standard room painting $1,250", so the quote comes from the EXTRA rather than from a room rate. Two things to read in the snapshot: the strip-out question is never asked, because painting a room strips nothing out - and the badge NAMES the line the price came from, because four painting prices are published and picking one silently would be the same fault in a new place',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bedroom' },
+      { say: 'single_trade' },
+      { say: 'labour_only' },
+      { say: 'painting' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
+    name: '66 renovation, one job nobody nearby prices',
+    why: 'the honest refusal on the same path. This renovator publishes painting and flooring and does not publish plastering, so a customer wanting only plastering cannot be quoted by them - and must NOT be quoted a room renovation instead, which is exactly the silent substitution `single_trade` was added to stop. They are offered what IS priced',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bedroom' },
+      { say: 'single_trade' },
+      { say: 'labour_only' },
+      { say: 'plastering' },
       { say: 'none' },
       { say: 'yes' },
     ],

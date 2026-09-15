@@ -497,9 +497,15 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     if (!named?.trim() || field !== ui.lastAsked) return null;
 
     const spec = specOf(schema.fields, field);
-    // Enums only. A height nobody builds at is a different problem with its own answer, and a
-    // length is a number - neither has a vocabulary for a word to be missing from.
-    if (spec?.type !== 'enum') return null;
+    /* Enums and multi-choice enums. Both have a closed vocabulary for a word to be MISSING from,
+       which is the whole idea - a height nobody builds at is a different problem with its own
+       answer, and a length is a number. Neither of those, nor a suburb, may take a word the
+       customer invented: a made-up suburb cannot be geocoded and a made-up number goes straight
+       into a price.
+       `multiEnum` was left out when this was written and it is where the dead end actually showed:
+       a renovation customer asking for wallpaper hanging, which is nowhere in `extras`, had the
+       answer dropped and the same question asked again. They had named something real. */
+    if (spec?.type !== 'enum' && spec?.type !== 'multiEnum') return null;
 
     // Two or three words, not a sentence. "Tubular steel" is a fence; a clause is a misread.
     const value = slug(named).split('-').filter(Boolean);
@@ -507,6 +513,38 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
 
     // Already ours under another name - then it is not off-list at all, and belongs in the enum.
     return validate(field, named, schema, labelFor) === null ? offListValue(value.join('-')) : null;
+  }
+
+  /**
+   * The same thing, read from the raw message instead of from the model - and ONLY for multi-choice.
+   *
+   * `namedOffList` is the model's job everywhere else, for the reason `schemas.ts` gives: picking
+   * the answer out of "okay okay, please select the tubular steel" is reading. The turn call runs on
+   * `gpt-4o-mini` (deliberately - `agent.ts`), and mini does it reliably for a single choice and NOT
+   * AT ALL for a multi-choice one: measured 0 of 5 on the real production prompt with the wanted
+   * phrase written into the instruction, against 5 of 5 on the larger model. The prompt route was
+   * tried twice and is exhausted; moving the turn onto a bigger model to fix one field is a cost
+   * decision CLAUDE.md has already made the other way.
+   *
+   * What makes this safe to do in code here, where it would not be for an enum, is that the parser
+   * has already given a definite answer. `conditionsFrom` returns `[]` for an explicit "none" and
+   * `null` only when it could not read the text as this field at all - so a null IS the statement
+   * "they said something and none of it is ours". Nothing is being guessed from a sentence; a
+   * verdict that already exists is being believed.
+   */
+  function offListFromMessage(field: string, raw: string): string | null {
+    const spec = specOf(schema.fields, field);
+    if (spec?.type !== 'multiEnum' || field !== ui.lastAsked) return null;
+
+    const said = raw.trim();
+    // Two to four plain words. A sentence is a customer talking, and a digit is never a choice here.
+    if (!said || /\d/.test(said) || said.length > 40) return null;
+    const value = slug(said).split('-').filter(Boolean);
+    if (!value.length || value.length > 4) return null;
+
+    /* The parser's own verdict, and the whole basis for this. `[]` means they said "nothing else" -
+       an answer, not an absence - and anything non-null means it already resolved. */
+    return validate(field, said, schema, labelFor) === null ? offListValue(value.join('-')) : null;
   }
 
   /**
@@ -632,11 +670,31 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   /* Nothing on the list fitted, and they named something else. Last, so a real answer always wins:
      a customer who says "colorbond, or is tubular steel a thing?" gets colorbond. */
   let offListChoice: { field: ChecklistField; label: string } | null = null;
-  if (ui.lastAsked && !questionOnly && (merged[ui.lastAsked] === null || merged[ui.lastAsked] === undefined)) {
-    const offList = offListAnswer(ui.lastAsked, parsed.namedOffList);
-    if (offList) {
-      merged[ui.lastAsked] = offList;
-      offListChoice = { field: ui.lastAsked as ChecklistField, label: labelFor(ui.lastAsked as ChecklistField, offList) };
+  if (ui.lastAsked && !questionOnly) {
+    const spec = specOf(schema.fields, ui.lastAsked);
+    const current = merged[ui.lastAsked];
+    /* Unanswered means something different for the two shapes. A single choice is unanswered when
+       it is null; a multi-choice is unanswered when it is null OR still empty - an empty array is
+       what "nothing else" looks like after it has been ANSWERED, and one that is still empty on
+       the turn they named something is a turn where nothing was taken. */
+    const unanswered =
+      spec?.type === 'multiEnum'
+        ? current === null || current === undefined || (Array.isArray(current) && current.length === 0)
+        : current === null || current === undefined;
+
+    if (unanswered) {
+      /* Model first, always - it has the whole sentence and can tell an answer from an aside. Code
+         second, and only where the model has been measured not to do it at all. */
+      const offList =
+        offListAnswer(ui.lastAsked, parsed.namedOffList) ?? offListFromMessage(ui.lastAsked, rawMessage);
+      if (offList) {
+        /* Stored in the shape the field actually holds, which is the half that makes this work at
+           all: a `multiEnum` is an ARRAY everywhere downstream - the recap, the brief panel, the
+           matcher - and writing a bare string into one puts a character-by-character list on the
+           customer's screen. */
+        merged[ui.lastAsked] = spec?.type === 'multiEnum' ? [offList] : offList;
+        offListChoice = { field: ui.lastAsked as ChecklistField, label: labelFor(ui.lastAsked as ChecklistField, offList) };
+      }
     }
   }
 
@@ -719,7 +777,10 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
     const dependency = spec?.dependsOn;
     if (dependency) {
       const other = merged[dependency.field];
-      if (dependency.notEquals !== undefined && other === dependency.notEquals) return false;
+      if (dependency.notEquals !== undefined) {
+        const blocked = Array.isArray(dependency.notEquals) ? dependency.notEquals : [dependency.notEquals];
+        if (blocked.includes(String(other))) return false;
+      }
       if (dependency.equals !== undefined && other !== dependency.equals) return false;
     }
 

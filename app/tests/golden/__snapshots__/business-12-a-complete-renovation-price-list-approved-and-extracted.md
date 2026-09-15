@@ -694,6 +694,7 @@ Fixture: `tests/fixtures/description-COMPLETE-renovation.txt` (5117 characters)
       "demolition_only": "Demolition only",
       "fit_out_only": "Fit-out only",
       "repair": "Repair",
+      "single_trade": "Single trade only",
       "kitchen": "Kitchen",
       "bathroom": "Bathroom",
       "ensuite": "Ensuite",

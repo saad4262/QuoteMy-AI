@@ -17,6 +17,7 @@ import { quoteRetainingWall, type RetainingWallBrief } from './pricing/retaining
 import { quoteDecking, type DeckingBrief } from './pricing/decking.js';
 import { quoteHomeRenovation, type RenoBrief } from './pricing/homeRenovation.js';
 import { slug } from './fuzzyMatch.js';
+import { offListWords } from './vocab.js';
 import type { MatchedBusiness, MatchResult } from './matcher.js';
 import { quoteTotal } from './pricing/total.js';
 import { TRADE_PRICING, type PricingSpec } from './pricing/spec.js';
@@ -49,6 +50,14 @@ function makeMaterialNaming(schema: TradeSchema, spec: PricingSpec) {
   const canonicalMaterial = (value: string): string =>
     Object.keys(materials).find((k) => slug(k) === slug(value)) ?? value;
   const materialLabel = (value: string): string => {
+    /* Their own words, said back to them, with the marker stripped. `other:` is how code carries a
+       value that is not in the vocabulary; nobody reads it. Without this the no-match sentence came
+       out as "Nobody near you does Other:tubular steel at 1.8m" - which shows a customer a database
+       marker at the one moment they are being told we cannot help. `labelFor` in `schema.ts` has
+       always done this; the quote sentence is built from its own naming and did not. */
+    const named = offListWords(value);
+    if (named) return titleCase(named);
+
     const key = canonicalMaterial(value);
     return materials[key] ?? schema.extras[key]?.label ?? titleCase(key);
   };
@@ -575,7 +584,16 @@ export function priceAndRank(gate: ChatResponse, matcher: MatchResult, schema: T
            nobody renovates is fencing's `material`; a job they will not do to a room they DO
            renovate is its `height`, the slot retaining wall already repurposes for its supply
            model; and a renovator who cannot strip the old one out cannot do the job at all. */
-        blocked[quote.blocked === 'removal' ? 'removal' : quote.blocked === 'jobType' ? 'height' : 'material'] += 1;
+        blocked[
+          quote.blocked === 'removal'
+            ? 'removal'
+            : quote.blocked === 'jobType'
+              ? 'height'
+              : /* the single-trade path: they do the room, just not the one job asked for */
+                quote.blocked === 'extra'
+                ? 'gate'
+                : 'material'
+        ] += 1;
         continue;
       }
 

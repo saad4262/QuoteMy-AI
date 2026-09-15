@@ -46,7 +46,7 @@ Only fields the customer has just given you, or that the attachment states outri
   balustradeLm  how many metres of balustrade, as a number. ONLY when needsBalustrade is true.
   needsStairs   true or false. Only when they say.
   stairFlights  how many flights, as a number. ONLY when needsStairs is true.
-  conditions    array of "restricted_access", "rock", "roots", "poor_soil", "sloped", "existing_concrete". Use [] when the customer says there is nothing tricky. Leave it out when they have not said.
+  conditions    array of "restricted_access", "rock", "roots", "poor_soil", "sloped", "existing_concrete". Use [] when the customer says there is nothing tricky. Leave it out when they have not said. IF THEY NAME SOMETHING THAT IS NOT IN THIS LIST, leave this field out and put their words in namedOffList. Do this even when the list looks close enough — "wallpaper hanging", "rendering", "underfloor heating", "a coffee station" are not on the list and must go to namedOffList, not onto the nearest value and not dropped.
   existingPrice a real GST-inclusive total the customer was quoted, or one printed on the attachment. NEVER 0, never invented. No such number means leave it out — a 0 hides every business, because nothing comes in under $0.
 
 FIVE ANSWERS ABOUT SIZE OR HEIGHT THAT YOU LEAVE OUT. Not exceptions in passing - read them.
@@ -181,6 +181,12 @@ This is NOT whether they want it taken out — that is the removal field and the
 
 namedOffList
 Something they named that is NOT one of the values on screen and is not one of ours — a board we do not list ("bamboo", "aluminium decking", "tile over"), or a job we do not cover ("just the pergola", "a carport"). Just the thing itself, in their words, two or three words at most. Null on almost every turn.
+THIS IS NOT ONLY ABOUT THE MAIN CHOICE. It covers ANY question where they named something real that
+is not among the values on screen - an add-on, an extra, a site condition, a finish. "Wallpaper
+hanging", "rendering", "underfloor heating", "pest treatment" are all things a customer genuinely
+wants and none of them is on our list, and dropping them asks the same question again as though
+nothing had been said. Take it here instead. Whether it can be quoted is settled later, from the
+real businesses, and is not your call.
 
   "can I get bamboo decking"             -> "bamboo decking"
   "we want aluminium boards"             -> "aluminium decking"

@@ -40,7 +40,7 @@ Only fields the customer has just given you, or that the attachment states outri
   heightKey     how tall. "1.8m", 1800, "1800mm", "6ft" are all fine — the conversion is done for you.
   lengthMeters  how long, in metres. Never a range: "25-30m" is not an answer, leave it out.
   removal       what the OLD fence is made of: "timber", "metal", or "none" when there is nothing to take away. This is NOT the new fence's material — timber fences are routinely replaced with Colorbond.
-  conditions    array of "sloped", "rock", "restricted_access", "hand_dig". Use [] when the customer says there is nothing tricky. Leave it out when they have not said.
+  conditions    array of "sloped", "rock", "restricted_access", "hand_dig". Use [] when the customer says there is nothing tricky. Leave it out when they have not said. IF THEY NAME SOMETHING THAT IS NOT IN THIS LIST, leave this field out and put their words in namedOffList. Do this even when the list looks close enough — "wallpaper hanging", "rendering", "underfloor heating", "a coffee station" are not on the list and must go to namedOffList, not onto the nearest value and not dropped.
   gateType      a gate slug from the values that were on screen, or "none" when they want no gates.
   gateQty       how many of that gate.
   existingPrice a real GST-inclusive total the customer was quoted, or one printed on the attachment. NEVER 0, never invented. No such number means leave it out — a 0 hides every business, because nothing comes in under $0.
@@ -138,6 +138,12 @@ This is NOT whether they want it taken away — that is the removal field and th
 
 namedOffList
 A fence type they named that is NOT one of the values on screen and is not one of ours — "tubular steel", "bamboo screening", "wrought iron", "brush fencing". Just the thing itself, in their words, two or three words at most. Null on almost every turn.
+THIS IS NOT ONLY ABOUT THE MAIN CHOICE. It covers ANY question where they named something real that
+is not among the values on screen - an add-on, an extra, a site condition, a finish. "Wallpaper
+hanging", "rendering", "underfloor heating", "pest treatment" are all things a customer genuinely
+wants and none of them is on our list, and dropping them asks the same question again as though
+nothing had been said. Take it here instead. Whether it can be quoted is settled later, from the
+real businesses, and is not your call.
 
   "okay okay, please select the tubular steel"   -> "tubular steel"
   "can I get bamboo screening"                   -> "bamboo screening"

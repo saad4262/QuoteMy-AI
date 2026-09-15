@@ -62,6 +62,37 @@ export function editDistance(a: string, b: string): number {
  * Two equally good matches is treated as no match - "pool fence" could mean aluminium or glass
  * pool fencing, and guessing one prices a job the customer never asked for.
  */
+/**
+ * Grammar, scored as evidence - which is how a customer asking to paint a room was told we would
+ * demolish it.
+ *
+ * The word-overlap pass below counts how many of the customer's words appear in an option's slug or
+ * label, and one hit with nothing else scoring wins outright. That is fine for real words and
+ * catastrophic for filler, because our own labels are written in plain English and are full of it:
+ *
+ *   "just painting"       shares "just" with  "Just strip it out"    -> demolition
+ *   "colour the bedroom"  shares "the"  with  "The full renovation"  -> a whole renovation
+ *
+ * Neither customer said anything about demolishing or renovating, and neither was asked - the value
+ * went straight into the brief and on towards a price. Silent, and thousands of dollars wrong.
+ *
+ * Only words that carry NO meaning in any option are listed. `only` is here and is the one to think
+ * twice about - tiling really does offer "Floor only" and "Wall only" - but those are carried by
+ * "floor" and "wall", which do the distinguishing. Nothing here ever tells two options apart.
+ *
+ * NOT REMOVED FROM THE SCORE, ONLY FROM WHAT QUALIFIES AS EVIDENCE. Dropping them outright was
+ * tried first and broke a real match: "just the cabinets" IS a kitchen removal label, the two small
+ * words are most of what makes it that label rather than another, and without them it tied with a
+ * second option that also says "cabinets" and resolved to nothing. So they still count towards the
+ * score - they simply cannot be the whole of it.
+ */
+const FILLER_WORDS = new Set([
+  'the', 'and', 'for', 'with', 'our', 'your', 'you', 'its', 'but', 'not', 'that', 'this',
+  'want', 'wants', 'wanted', 'need', 'needs', 'needed', 'please', 'thanks', 'thank',
+  'just', 'only', 'some', 'can', 'could', 'would', 'should', 'like', 'looking', 'after',
+  'get', 'got', 'have', 'has', 'are', 'was', 'were', 'been', 'doing', 'done', 'make', 'made',
+]);
+
 export function oneOf(value: unknown, list: readonly string[], labelFor: (entry: string) => string): string | null {
   const wanted = slug(value);
   if (!wanted) return null;
@@ -77,9 +108,14 @@ export function oneOf(value: unknown, list: readonly string[], labelFor: (entry:
     const scored = list
       .map((entry) => {
         const entryWords = (slug(entry) + '-' + slug(labelFor(entry))).split('-').filter(Boolean);
-        return { entry, hits: words.filter((word) => entryWords.includes(word)).length };
+        const hit = words.filter((word) => entryWords.includes(word));
+        /* Scored on ALL the words, including filler, because filler breaks ties honestly when the
+           customer has echoed a label back: "just the cabinets" IS the label "Just the cabinets",
+           and the two small words are three-quarters of the evidence.
+           Qualified on the SUBSTANTIVE ones, because filler alone is not evidence of anything. */
+        return { entry, hits: hit.length, real: hit.filter((word) => !FILLER_WORDS.has(word)).length };
       })
-      .filter((row) => row.hits > 0)
+      .filter((row) => row.hits > 0 && row.real > 0)
       .sort((a, b) => b.hits - a.hits);
     if (scored.length && (scored.length === 1 || scored[0]!.hits > scored[1]!.hits)) return scored[0]!.entry;
   }

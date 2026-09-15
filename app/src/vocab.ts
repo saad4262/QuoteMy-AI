@@ -633,7 +633,26 @@ export const RENO_ROOMS = [
  * explicit no. Decking's stair grades were `standard`/`premium` until a golden conversation looped
  * for ever on exactly that collision.
  */
-export const RENO_JOB_TYPES = ['full_renovation', 'demolition_only', 'fit_out_only', 'repair'] as const;
+export const RENO_JOB_TYPES = [
+  'full_renovation',
+  'demolition_only',
+  'fit_out_only',
+  'repair',
+  /**
+   * ONE TRADE, NOT A ROOM - and the answer this list was missing.
+   *
+   * A renovator sells painting, flooring, plastering and tiling as their own jobs, at their own
+   * published prices, and a customer is entitled to want just one of them. Until this existed there
+   * was no honest answer to "I want to colour my room": the four above are a whole renovation, a
+   * strip-out, fitting what they already bought, and a repair, and painting is none of those. The
+   * model had to pick something, picked `fit_out_only`, and the brief said the customer wanted
+   * cabinets installed. Nothing errored; the wrong job just went on towards a price.
+   *
+   * The work itself is named in `extras`, which is already asked. This says only that the extras
+   * ARE the job rather than additions to one.
+   */
+  'single_trade',
+] as const;
 
 /**
  * Who buys the materials - and this document calls it "the fundamental business distinction".
