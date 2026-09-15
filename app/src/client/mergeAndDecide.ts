@@ -81,10 +81,24 @@ function validate(field: string, value: unknown, schema: TradeSchema, labelFor: 
       return oneOf(value, list, label) ?? aliasIn(spec, value, list);
     }
 
-    case 'multiEnum':
+    case 'multiEnum': {
       // No pinned short-circuit: an explicit "nothing tricky" is a valid EMPTY answer here, which
       // conditionsFrom already tells apart from "not asked yet".
-      return conditionsFrom(value, choices(), label);
+      const parsed = conditionsFrom(value, choices(), label);
+
+      /* The same passthrough the enum above has, and missing here was why a multi-choice answer in
+         the customer's own words lasted exactly one turn. It was accepted on the turn they said it,
+         came back through `known` on the next, and `conditionsFrom` correctly found nothing in the
+         vocabulary - so "wallpaper" vanished from the brief and the question was asked again.
+         An array can hold both kinds at once: "painting and wallpaper" is one value we know and one
+         we do not, and dropping half of that is worse than dropping all of it. */
+      const offList = (Array.isArray(value) ? value : [value])
+        .map((entry) => String(entry ?? ''))
+        .filter((entry) => OFF_LIST.test(entry));
+      if (!offList.length) return parsed;
+
+      return [...new Set([...(parsed ?? []), ...offList])];
+    }
 
     case 'measure':
       return heightKeyFrom(value);
@@ -611,6 +625,35 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
       logger.warn({ trade: schema.trade, field, value: docRaw }, 'document hint rejected by the schema');
     }
 
+    /* THE CUSTOMER'S OWN WORDS, ON A FIELD THEY WERE NOT ASKED ABOUT.
+       "I want to hang the wallpaper in my bedroom", answered to the JOB question, is two answers:
+       the shape of the job, and what the work actually is. The model reads both correctly - it
+       returns `jobType: single_trade` and `extras: ["wallpaper"]`, three times out of three - and
+       `validate` then throws the second away, because "wallpaper" is not a word this trade has. The
+       customer watched the one thing they asked for disappear off the screen.
+       Kept as their own words instead, under the `other:` marker, exactly as an answer to the
+       question itself would be. Nothing reaches a business document and nothing is guessed: it is
+       still only stored when the model supplied it AND `mentioned` finds it in what they actually
+       wrote. The effect is the honest one - the brief shows what they asked for, and the results
+       screen is where they find out nobody near them does it. */
+    const offListFromAgent = (): string[] | null => {
+      const spec = specOf(schema.fields, field);
+      if (spec?.type !== 'multiEnum' || agentValue !== null) return null;
+      const raw = (agentChecklist as Record<string, unknown>)[field];
+      if (!Array.isArray(raw) || !raw.length) return null;
+
+      const kept = raw
+        .map((entry) => String(entry ?? '').trim())
+        .filter((entry) => entry && !/\d/.test(entry) && entry.length <= 40)
+        .filter((entry) => validate(field, entry, schema, labelFor) === null)
+        .filter((entry) => mentioned(field as ChecklistField, entry))
+        .map((entry) => slug(entry).split('-').filter(Boolean))
+        .filter((words) => words.length > 0 && words.length <= 4)
+        .map((words) => offListValue(words.join('-')));
+
+      return kept.length ? [...new Set(kept)] : null;
+    };
+
     let value = knownValue;
     if (value === null || mayOverwrite(field)) {
       const accept =
@@ -625,6 +668,8 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
       value = accept ? agentValue : knownValue;
     }
     if (value === null) value = docValue;
+    /* Last, and only into a field nothing else could fill - a real value always wins. */
+    if (value === null) value = offListFromAgent();
     merged[field] = value;
   }
 

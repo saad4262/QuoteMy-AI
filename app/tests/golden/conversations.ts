@@ -1481,6 +1481,23 @@ export const HOME_RENOVATION_CONVERSATIONS: Conversation[] = [
   },
 
   {
+    name: '67 renovation, asking for something nobody has a word for',
+    why: 'the dead end a customer cannot see coming. They do not know what we cover, so answering "wallpaper hanging" and being asked the same question again reads as a broken assistant - and it was: the answer was dropped with nothing said. `schemas.ts` has always held that telling somebody "sorry, I didn\'t catch that" is a lie and a dead end, and that the honest place to find out nobody does it is the results screen. That worked for single-choice fields and silently did not for multi-choice ones, which is every extras and conditions question in the product. Their own words are kept under the `other:` marker, carried to the end, and nothing ever reaches a business document',
+    trade: 'home_renovation',
+    seed: (repo) => seedRenovator(repo, 'reno-1', 'Berwick Home Renovations'),
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bedroom' },
+      { say: 'single_trade' },
+      { say: 'labour_only' },
+      { say: 'wallpaper hanging' },
+      { say: 'none' },
+      { say: 'yes' },
+    ],
+  },
+
+  {
     name: '64 renovation, correcting the room from the recap',
     why: 'a correction re-asks one field and keeps the rest, on the field that headlines the quote and finds the rate. The total has to move by the difference between two rooms - and the job type has to survive, even though its options are keyed off the room that just changed',
     trade: 'home_renovation',

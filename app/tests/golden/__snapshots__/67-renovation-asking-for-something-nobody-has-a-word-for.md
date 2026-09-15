@@ -1,6 +1,6 @@
-# 65 renovation, one job and not a room - just the painting
+# 67 renovation, asking for something nobody has a word for
 
-Guards: the answer this trade had no word for. A customer typing "i want to colour my room" was given `fit_out_only` - fitting what they had already bought - and the brief said cabinets. Nothing errored; the wrong job went on towards a price. What makes it quotable is that the renovator really does publish "Standard room painting $1,250", so the quote comes from the EXTRA rather than from a room rate. Two things to read in the snapshot: the strip-out question is never asked, because painting a room strips nothing out - and the badge NAMES the line the price came from, because four painting prices are published and picking one silently would be the same fault in a new place
+Guards: the dead end a customer cannot see coming. They do not know what we cover, so answering "wallpaper hanging" and being asked the same question again reads as a broken assistant - and it was: the answer was dropped with nothing said. `schemas.ts` has always held that telling somebody "sorry, I didn't catch that" is a lie and a dead end, and that the honest place to find out nobody does it is the results screen. That worked for single-choice fields and silently did not for multi-choice ones, which is every extras and conditions question in the product. Their own words are kept under the `other:` marker, carried to the end, and nothing ever reaches a business document
 
 ## turn 1
 
@@ -778,7 +778,7 @@ customer: "labour_only"
 
 ## turn 7
 
-customer: "painting"
+customer: "wallpaper hanging"
 
 ```json
 {
@@ -825,7 +825,7 @@ customer: "painting"
     "supply": "labour_only",
     "removal": null,
     "extras": [
-      "painting"
+      "other:wallpaper-hanging"
     ],
     "conditions": null,
     "existingPrice": null,
@@ -883,7 +883,7 @@ customer: "painting"
           "me": "Who's buying the materials?"
         },
         {
-          "you": "painting",
+          "you": "wallpaper hanging",
           "me": "Anything tricky we should know about?"
         }
       ],
@@ -909,7 +909,7 @@ customer: "painting"
     },
     "extras": {
       "title": "Extras",
-      "value": "Painting"
+      "value": "Wallpaper hanging"
     }
   },
   "checklistAnswered": [
@@ -936,7 +936,7 @@ customer: "painting"
     {
       "key": "extras",
       "title": "Extras",
-      "value": "Painting"
+      "value": "Wallpaper hanging"
     }
   ],
   "checklistPending": [
@@ -969,7 +969,7 @@ customer: "none"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "confirmation",
-  "message": "Got it — Berwick, VIC 3806, Bedroom, Just one thing, not the whole room, I'm supplying the materials, painting. All correct?",
+  "message": "Got it — Berwick, VIC 3806, Bedroom, Just one thing, not the whole room, I'm supplying the materials, wallpaper hanging. All correct?",
   "options": [
     {
       "label": "Yes, that's all correct",
@@ -988,7 +988,7 @@ customer: "none"
     "supply": "labour_only",
     "removal": null,
     "extras": [
-      "painting"
+      "other:wallpaper-hanging"
     ],
     "conditions": [],
     "existingPrice": null,
@@ -1002,7 +1002,7 @@ customer: "none"
         "conditions": 0
       },
       "lastAsked": null,
-      "lastQuestion": "Got it — Berwick, VIC 3806, Bedroom, Just one thing, not the whole room, I'm supplying the materials, painting. All correct?",
+      "lastQuestion": "Got it — Berwick, VIC 3806, Bedroom, Just one thing, not the whole room, I'm supplying the materials, wallpaper hanging. All correct?",
       "lastValues": [
         "yes",
         "no"
@@ -1043,7 +1043,7 @@ customer: "none"
           "me": "Who's buying the materials?"
         },
         {
-          "you": "painting",
+          "you": "wallpaper hanging",
           "me": "Anything tricky we should know about?"
         }
       ],
@@ -1069,7 +1069,7 @@ customer: "none"
     },
     "extras": {
       "title": "Extras",
-      "value": "Painting"
+      "value": "Wallpaper hanging"
     },
     "conditions": {
       "title": "Site",
@@ -1100,7 +1100,7 @@ customer: "none"
     {
       "key": "extras",
       "title": "Extras",
-      "value": "Painting"
+      "value": "Wallpaper hanging"
     },
     {
       "key": "conditions",
@@ -1132,51 +1132,28 @@ customer: "yes"
     "postcode": "3806",
     "displayLabel": "Berwick, VIC 3806"
   },
-  "type": "result",
-  "message": "Here are the local businesses that cover your job.",
-  "options": [],
-  "results": [
+  "type": "question",
+  "message": "Nobody near you does Bedroom for just one thing, not the whole room. The closest they can do is Bedroom for the full renovation, $3,000 from Berwick Home Renovations. Want one of these instead?",
+  "options": [
     {
-      "businessId": "reno-1",
-      "autoAcceptsAi": true,
-      "businessName": "Berwick Home Renovations",
-      "suburb": "Berwick, VIC 3806",
-      "ratePerMeter": 1400,
-      "estimatedTotal": 1400,
-      "notes": "incl. GST · In your suburb · 4.8★ (64) · Priced from: Standard room painting · You supply the materials · Carpentry charged by the hour on site, not in this price · Includes $150 site inspection"
+      "label": "Bedroom, The full renovation · $3,000",
+      "value": "alt:bedroom:full-renovation"
+    },
+    {
+      "label": "Laundry, Just strip it out · $900",
+      "value": "alt:laundry:demolition-only"
+    },
+    {
+      "label": "Bathroom, Just strip it out · $1,600",
+      "value": "alt:bathroom:demolition-only"
+    },
+    {
+      "label": "No thanks, I'll change something",
+      "value": "no"
     }
   ],
-  "avgRatePerMeter": 1400,
-  "unit": "item",
-  "comparison": {
-    "potentialSavings": null,
-    "marketAverage": 1400,
-    "totalQuotesScreened": 1,
-    "userExistingPrice": null,
-    "quotes": [
-      {
-        "businessId": "reno-1",
-        "autoAcceptsAi": true,
-        "businessName": "Berwick Home Renovations",
-        "ratePerMeter": 1400,
-        "projectTotalMin": 1400,
-        "projectTotalMax": 1400,
-        "badges": [
-          "incl. GST",
-          "In your suburb",
-          "4.8★ (64)",
-          "Priced from: Standard room painting",
-          "You supply the materials",
-          "Carpentry charged by the hour on site, not in this price",
-          "Includes $150 site inspection"
-        ],
-        "warranty": "Ten year workmanship warranty",
-        "tag": "BEST_VALUE",
-        "savingsFromAverage": null,
-        "suburb": "Berwick, VIC 3806"
-      }
-    ]
-  },
+  "noMatchReason": "alternative",
+  "checklistComplete": false,
   "checklist": {
     "suburb": "Berwick, VIC 3806",
     "room": "bedroom",
@@ -1184,7 +1161,7 @@ customer: "yes"
     "supply": "labour_only",
     "removal": null,
     "extras": [
-      "painting"
+      "other:wallpaper-hanging"
     ],
     "conditions": [],
     "existingPrice": null,
@@ -1197,10 +1174,14 @@ customer: "yes"
         "extras": 0,
         "conditions": 0
       },
-      "lastAsked": null,
-      "lastQuestion": "Let me check what businesses are available near you…",
-      "lastValues": [],
-      "lastType": "message",
+      "lastAsked": "alternative",
+      "lastQuestion": "alternatives",
+      "lastValues": [
+        "alt:bedroom:full-renovation",
+        "alt:laundry:demolition-only",
+        "alt:bathroom:demolition-only"
+      ],
+      "lastType": "question",
       "fixing": false,
       "rejectedPlaces": [],
       "nearbyPlaces": {},
@@ -1236,14 +1217,13 @@ customer: "yes"
           "me": "Who's buying the materials?"
         },
         {
-          "you": "painting",
+          "you": "wallpaper hanging",
           "me": "Anything tricky we should know about?"
         }
       ],
       "trade": "home_renovation"
     }
   },
-  "checklistComplete": true,
   "checklistDisplay": {
     "suburb": {
       "title": "Suburb",
@@ -1263,7 +1243,7 @@ customer: "yes"
     },
     "extras": {
       "title": "Extras",
-      "value": "Painting"
+      "value": "Wallpaper hanging"
     },
     "conditions": {
       "title": "Site",
@@ -1294,7 +1274,7 @@ customer: "yes"
     {
       "key": "extras",
       "title": "Extras",
-      "value": "Painting"
+      "value": "Wallpaper hanging"
     },
     {
       "key": "conditions",
@@ -1302,6 +1282,44 @@ customer: "yes"
       "value": "Nothing tricky"
     }
   ],
-  "checklistPending": []
+  "checklistPending": [],
+  "results": [],
+  "avgRatePerMeter": null,
+  "unit": "item",
+  "alternatives": [
+    {
+      "material": "bedroom",
+      "materialLabel": "Bedroom",
+      "heightKey": "full-renovation",
+      "label": "Bedroom for the full renovation",
+      "heightKeyLabel": "The full renovation",
+      "businessId": "reno-1",
+      "businessName": "Berwick Home Renovations",
+      "estimatedTotal": 3000,
+      "value": "alt:bedroom:full-renovation"
+    },
+    {
+      "material": "laundry",
+      "materialLabel": "Laundry",
+      "heightKey": "demolition-only",
+      "label": "Laundry for just strip it out",
+      "heightKeyLabel": "Just strip it out",
+      "businessId": "reno-1",
+      "businessName": "Berwick Home Renovations",
+      "estimatedTotal": 900,
+      "value": "alt:laundry:demolition-only"
+    },
+    {
+      "material": "bathroom",
+      "materialLabel": "Bathroom",
+      "heightKey": "demolition-only",
+      "label": "Bathroom for just strip it out",
+      "heightKeyLabel": "Just strip it out",
+      "businessId": "reno-1",
+      "businessName": "Berwick Home Renovations",
+      "estimatedTotal": 1600,
+      "value": "alt:bathroom:demolition-only"
+    }
+  ]
 }
 ```

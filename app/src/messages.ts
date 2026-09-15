@@ -486,9 +486,13 @@ export const RENO_LABEL_GROUPS = {
     demolition_only: 'Just strip it out',
     fit_out_only: 'Fit out what I already have',
     repair: 'A repair, not a renovation',
-    /* Named by examples rather than by a category, because "single trade" is builder's language and
-       the customer saying "I just want it painted" does not know they are asking for one. */
-    single_trade: 'Just one thing — painting, flooring, plastering',
+    /* NO EXAMPLES IN THE LABEL. It read "Just one thing — painting, flooring, plastering", which is
+       helpful in the option list and actively misleading everywhere else: a customer who asked to
+       have WALLPAPER hung saw their brief say "painting, flooring, plastering" and the no-match
+       sentence say nobody does "Bedroom for just one thing — painting, flooring, plastering". They
+       had named none of those three, and it reads as though we swapped their job for another one.
+       What they asked for is carried in `extras`, in their own words, which is where it belongs. */
+    single_trade: 'Just one thing, not the whole room',
   },
   supply: {
     supply_and_install: 'Supply the materials and do the work',

@@ -573,7 +573,7 @@ customer: "single_trade"
     },
     "jobType": {
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     }
   },
   "checklistAnswered": [
@@ -590,7 +590,7 @@ customer: "single_trade"
     {
       "key": "jobType",
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     }
   ],
   "checklistPending": [
@@ -731,7 +731,7 @@ customer: "labour_only"
     },
     "jobType": {
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     "supply": {
       "title": "Who supplies",
@@ -752,7 +752,7 @@ customer: "labour_only"
     {
       "key": "jobType",
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     {
       "key": "supply",
@@ -901,7 +901,7 @@ customer: "plastering"
     },
     "jobType": {
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     "supply": {
       "title": "Who supplies",
@@ -926,7 +926,7 @@ customer: "plastering"
     {
       "key": "jobType",
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     {
       "key": "supply",
@@ -969,7 +969,7 @@ customer: "none"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "confirmation",
-  "message": "Got it — Berwick, VIC 3806, Bedroom, Just one thing — painting, flooring, plastering, I'm supplying the materials, plastering. All correct?",
+  "message": "Got it — Berwick, VIC 3806, Bedroom, Just one thing, not the whole room, I'm supplying the materials, plastering. All correct?",
   "options": [
     {
       "label": "Yes, that's all correct",
@@ -1002,7 +1002,7 @@ customer: "none"
         "conditions": 0
       },
       "lastAsked": null,
-      "lastQuestion": "Got it — Berwick, VIC 3806, Bedroom, Just one thing — painting, flooring, plastering, I'm supplying the materials, plastering. All correct?",
+      "lastQuestion": "Got it — Berwick, VIC 3806, Bedroom, Just one thing, not the whole room, I'm supplying the materials, plastering. All correct?",
       "lastValues": [
         "yes",
         "no"
@@ -1061,7 +1061,7 @@ customer: "none"
     },
     "jobType": {
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     "supply": {
       "title": "Who supplies",
@@ -1090,7 +1090,7 @@ customer: "none"
     {
       "key": "jobType",
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     {
       "key": "supply",
@@ -1133,7 +1133,7 @@ customer: "yes"
     "displayLabel": "Berwick, VIC 3806"
   },
   "type": "question",
-  "message": "Nobody near you does Bedroom for just one thing — painting, flooring, plastering. The closest they can do is Bedroom for the full renovation, $3,000 from Berwick Home Renovations. Want one of these instead?",
+  "message": "Nobody near you does Bedroom for just one thing, not the whole room. The closest they can do is Bedroom for the full renovation, $3,000 from Berwick Home Renovations. Want one of these instead?",
   "options": [
     {
       "label": "Bedroom, The full renovation · $3,000",
@@ -1235,7 +1235,7 @@ customer: "yes"
     },
     "jobType": {
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     "supply": {
       "title": "Who supplies",
@@ -1264,7 +1264,7 @@ customer: "yes"
     {
       "key": "jobType",
       "title": "Job",
-      "value": "Just one thing — painting, flooring, plastering"
+      "value": "Just one thing, not the whole room"
     },
     {
       "key": "supply",

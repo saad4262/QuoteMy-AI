@@ -64,6 +64,29 @@ for (const list of new Set([...Object.keys(publishedCore), ...Object.keys(compil
   for (const v of gone) console.log(`      - ${v}   (in Firestore only - WILL BE LOST)`);
 }
 
+/* LABELS AND QUESTIONS DRIFT TOO, and only comparing `core` made this script quietly useless the
+   first time it mattered: a label was changed in code from "Just one thing - painting, flooring,
+   plastering" to "Just one thing, not the whole room", no VALUE changed, and this reported
+   "already matches" while customers kept reading the old words off Firestore. */
+const compare = (what: string, live: Record<string, unknown>, code: Record<string, unknown>) => {
+  for (const key of new Set([...Object.keys(live), ...Object.keys(code)])) {
+    const a = JSON.stringify(live[key]);
+    const b = JSON.stringify(code[key]);
+    if (a === b) continue;
+    drifted += 1;
+    console.log(`  ${what}.${key}`);
+    console.log(`      published: ${a ?? '(absent)'}`);
+    console.log(`      in code  : ${b ?? '(absent)'}`);
+  }
+};
+
+const publishedLabels = (snap.get('labels') ?? {}) as Record<string, Record<string, string>>;
+const codeLabels = CUSTOMER_LABELS[trade] as unknown as Record<string, Record<string, string>>;
+for (const group of new Set([...Object.keys(publishedLabels), ...Object.keys(codeLabels)])) {
+  compare(`labels.${group}`, publishedLabels[group] ?? {}, codeLabels[group] ?? {});
+}
+compare('questions', (snap.get('questions') ?? {}) as Record<string, unknown>, TRADE_QUESTIONS[trade]);
+
 if (!drifted) {
   console.log('  already matches the compiled vocabulary. Nothing to do.\n');
   process.exit(0);
