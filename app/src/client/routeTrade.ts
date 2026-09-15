@@ -171,6 +171,21 @@ export function detectTrade(message: string, published: readonly Trade[]): Trade
   return matched.filter((trade) => trade !== 'tiling' && trade !== 'kitchen');
 }
 
+/**
+ * The trade a customer picked out of the list, matched on the whole message.
+ *
+ * Accepts the slug (`home_renovation`), the slug as words (`home renovation`) and the label the
+ * picker actually showed (`Home renovation`, `Kitchen fitting`) - all normalised the same way, so a
+ * client that echoes the display text instead of the option value still works.
+ */
+const asTappedTrade = (message: string, published: readonly Trade[]): Trade | undefined => {
+  const said = message.trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+  if (!said) return undefined;
+  return published.find(
+    (trade) => said === trade.replace(/[_-]+/g, ' ') || said === TRADE_WORDS[trade].trade.toLowerCase(),
+  );
+};
+
 export function routeTrade(
   message: string,
   fromCaller: Trade | undefined,
@@ -187,6 +202,19 @@ export function routeTrade(
 
   // One trade live means there is nothing to ask about, whatever the words say.
   if (published.length === 1) return { trade: published[0]!, by: 'only-trade', ambiguous: false };
+
+  /* A TAPPED OPTION IS NOT PROSE, and this is where that was being forgotten.
+     `askWhichTrade` offers each trade with its SLUG as the option value, so tapping "Retaining wall"
+     sends the literal `retaining_wall`. Handed to `detectTrade` that matches nothing at all: the
+     keyword patterns are anchored on `\b`, an underscore is a word character, and so there is no
+     boundary before "retaining" or before "renovat". The picker then asks the same question again,
+     and again, for ever - the customer taps the answer they were offered and it is not accepted.
+     Two of the six trades are affected, which is every trade whose slug is two words.
+     Checked against the WHOLE message so it can only ever be an answer to this question - "I need a
+     kitchen fitting" is a sentence and still goes to the keywords below. The label is accepted as
+     well as the slug, because a client may send back what it displayed rather than what it held. */
+  const tapped = asTappedTrade(message, published);
+  if (tapped) return { trade: tapped, by: 'keywords', ambiguous: false };
 
   const matched = detectTrade(message, published);
   if (matched.length === 1) return { trade: matched[0]!, by: 'keywords', ambiguous: false };

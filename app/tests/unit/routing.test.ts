@@ -467,3 +467,43 @@ describe('asking to change the trade', () => {
     expect(after._ui?.history).toEqual([{ you: 'I need a renovation quote', me: 'Happy to help' }]);
   });
 });
+
+/**
+ * Tapping an answer out of the trade picker, which was broken for every two-word trade.
+ *
+ * `askWhichTrade` offers each trade with its SLUG as the option value, so tapping "Retaining wall"
+ * sends the literal `retaining_wall`. Handed to `detectTrade` that matched NOTHING: the keyword
+ * patterns are anchored on `\b`, an underscore is a word character, and there is no boundary before
+ * "retaining" or before "renovat". The picker asked the same question again, and again - the
+ * customer tapping the answer they had just been offered was never accepted.
+ *
+ * It went unnoticed because the picker is rarely reached: it needs a first message that names no
+ * trade or two. The trade-change flow reaches it every time, which is how this surfaced.
+ */
+describe('picking a trade out of the list', () => {
+  const PUB = [...TRADES];
+  const picked = (message: string) => routeTrade(message, undefined, undefined, PUB).trade;
+
+  it('accepts every trade by the value the picker actually sends', () => {
+    for (const trade of TRADES) {
+      expect(picked(trade), trade).toBe(trade);
+    }
+  });
+
+  /** A client may echo back what it displayed rather than the value it held. Both work. */
+  it('accepts the label the picker showed', () => {
+    expect(picked('Home renovation')).toBe('home_renovation');
+    expect(picked('Retaining wall')).toBe('retaining_wall');
+    expect(picked('Kitchen fitting')).toBe('kitchen');
+    expect(picked('Fencing')).toBe('fencing');
+  });
+
+  /** Matched on the WHOLE message, so a sentence is still read as a sentence. */
+  it('does not treat a sentence that mentions a trade as a tap', () => {
+    expect(picked('I need a kitchen fitting')).toBe('kitchen');
+    expect(picked('renovate my bathroom')).toBe('home_renovation');
+    expect(picked('the old fence is coming out')).toBe('fencing');
+    // Still ambiguous, still asks - a tap could never look like this.
+    expect(picked('a new fence and a bathroom renovation')).toBeNull();
+  });
+});

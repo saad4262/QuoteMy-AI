@@ -167,10 +167,24 @@ export async function runVoiceTurn(
     checklist: response.checklist,
     place: response.place,
     options: response.options,
-    /* Kept once anything settles it, and never unset by a turn that could not: the router answers
-       `trade: null` on the turn where it ASKS which trade, and taking that as the new truth would
-       throw away a trade the call had already established. */
-    trade: response.trade ?? session?.trade ?? null,
+    /* THE CHECKLIST IS THE TRUTH about which trade this call is on - not the last turn that managed
+       to name one.
+
+       It used to be `response.trade ?? session?.trade`, which kept a trade once anything settled it
+       and never unset it: the router answers `trade: null` on the turn where it ASKS which trade,
+       and taking that as the new truth would throw away a trade the call had already established.
+       That reasoning is still right, and it is still what the fallback below does.
+
+       What it could not survive is a caller CHANGING trade mid-call. The change clears `_ui.trade`
+       and returns the picker, which answers `trade: null` - so the old trade was kept, sent back up
+       as `input.trade` on the next turn, and `routeTrade` takes `fromCaller` before anything else.
+       The caller would say "yes, change it", pick fencing, and be put straight back into the trade
+       they had just left. It never showed on the web because that client sends no `trade` at all.
+
+       So: when the response carries a `_ui`, its `trade` is authoritative and an absent one means
+       genuinely none. Only a response with no `_ui` - an error shape, a turn built before the
+       checklist existed - falls back to what the session had. */
+    trade: response.trade ?? settledTrade(response, session?.trade ?? null),
     /* Numbered, not positioned. `slice` below drops the oldest turns of a very long call, which
        shifts every index behind them - and a page that tracks "I have rendered the first N" then
        re-renders turns it already had, remounting the list on every reply. */
@@ -210,6 +224,19 @@ export async function runVoiceTurn(
  * agent cannot read. A call that gets a 500 goes silent, and silence on a phone call is the one
  * failure a customer will not wait through.
  */
+/**
+ * Which trade the CALL is on, read from the checklist the turn just produced.
+ *
+ * Separate from `response.trade`, which is what this turn was about - null on the turn that asks
+ * which trade, and on an error. `_ui.trade` is what the conversation has settled, including having
+ * settled on nothing after a trade change.
+ */
+export function settledTrade(response: ChatResponse, fallback: Trade | null): Trade | null {
+  const ui = (response.checklist as Checklist | undefined)?._ui as UiState | undefined;
+  if (!ui) return fallback;
+  return ui.trade ?? null;
+}
+
 export async function voiceTurn(req: Request, res: Response): Promise<void> {
   const body = req.body as VoiceTurnBody;
 
