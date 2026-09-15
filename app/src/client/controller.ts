@@ -245,7 +245,24 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
     return askToChangeTrade(input.sessionId, ui.trade, known);
   }
 
-  const routing = routeTrade(input.message, input.trade, known._ui?.trade, published);
+  /* A CALLER-SUPPLIED TRADE GOES STALE THE MOMENT THE CUSTOMER CHANGES SERVICE, and this is the
+     line that stops it resurrecting the old one.
+
+     `routeTrade` takes `fromCaller` before it reads anything else, which is right: somebody who
+     arrived through a "get tiling quotes" page has already answered the question. But a client
+     holds that trade from the page it was opened on and sends it back on EVERY turn - so after a
+     trade change it kept arriving as `fencing`, beat the cleared `_ui.trade`, beat the trade the
+     customer had just tapped out of the picker, and put them straight back into the trade they had
+     just left. The same fault the voice session had, from the other side.
+
+     The checklist is the truth. A conversation that is underway (`_ui` exists) and holds no trade
+     holds none deliberately - it was cleared - so what the caller is still carrying is out of date
+     and this turn's own words decide instead. A first turn has no `_ui` at all and is untouched.
+     Read from an explicit marker, NOT from "the checklist has no trade": a client sending a
+     part-built checklist has no trade either and has cleared nothing, and treating those the same
+     sent seven integration tests to the trade picker. */
+  const stale = Boolean(ui?.tradeCleared && !ui.trade);
+  const routing = routeTrade(input.message, stale ? undefined : input.trade, known._ui?.trade, published);
 
   if (!routing.trade) {
     logger.info({ requestId: input.sessionId, ambiguous: routing.ambiguous }, 'asking which trade');

@@ -194,6 +194,15 @@ export interface UiState {
      customer is answering, and "are you sure you want to change service?" needs an answer exactly
      as a question about a tile does. See `asksToChangeTrade` in `routeTrade.ts`. */
   lastAsked: ChecklistField | 'alternative' | 'trade-change' | null;
+  /**
+   * The trade was CLEARED on purpose, and the caller's own may be out of date.
+   *
+   * Set only by `clearForTradeChange`, and dropped the moment a new trade settles. It exists to
+   * tell two things apart that look identical in the data: a conversation that never had a trade
+   * (a client sending a part-built checklist, which is ordinary) and one that has just thrown its
+   * trade away (where a client is still carrying the OLD one and would resurrect it).
+   */
+  tradeCleared?: boolean;
   lastQuestion: string;
   lastValues: (string | number)[];
   lastType: 'message' | 'question' | 'confirmation' | 'result';

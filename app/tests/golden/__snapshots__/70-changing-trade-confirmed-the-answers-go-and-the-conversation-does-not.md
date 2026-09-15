@@ -764,7 +764,8 @@ customer: "trade-change:yes"
           "you": "Berwick",
           "me": "Which room are you renovating?"
         }
-      ]
+      ],
+      "tradeCleared": true
     }
   },
   "checklistDisplay": {},

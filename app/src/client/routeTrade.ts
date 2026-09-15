@@ -281,7 +281,11 @@ export function askWhichTrade(
 export function rememberTrade(response: ChatResponse, trade: Trade): ChatResponse {
   const ui = response.checklist?._ui;
   if (!ui) return response;
-  return { ...response, checklist: { ...response.checklist, _ui: { ...ui, trade } } };
+  /* `tradeCleared` has done its job the moment a trade settles again, and is REMOVED rather than
+     set false - writing the key on every turn would put it into all forty-one golden snapshots for
+     a flag that matters on exactly one. */
+  const { tradeCleared: _settled, ...rest } = ui;
+  return { ...response, checklist: { ...response.checklist, _ui: { ...rest, trade } } };
 }
 
 /**
@@ -349,6 +353,9 @@ export function clearForTradeChange(known: Partial<Checklist>): Partial<Checklis
     _ui: {
       ...(ui as UiState),
       trade: undefined,
+      /* So the next turn can tell this from a conversation that simply never had a trade - see
+         `UiState.tradeCleared`. Dropped again by `rememberTrade` as soon as one is chosen. */
+      tradeCleared: true,
       turn: ui?.turn ?? 0,
       cursor: {},
       lastAsked: null,

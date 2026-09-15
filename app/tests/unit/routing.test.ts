@@ -507,3 +507,45 @@ describe('picking a trade out of the list', () => {
     expect(picked('a new fence and a bathroom renovation')).toBeNull();
   });
 });
+
+/**
+ * A caller-supplied trade going STALE, which is what kept putting customers back where they began.
+ *
+ * `routeTrade` takes `fromCaller` before it reads anything else, and that is right - somebody who
+ * arrived through a "get tiling quotes" page has already answered the question. But a client holds
+ * that trade from the page it was opened on and sends it back on EVERY turn. After a trade change
+ * it kept arriving as the OLD trade, beat the cleared `_ui.trade`, beat the trade the customer had
+ * just tapped out of the picker, and dropped them straight back into the service they had left.
+ *
+ * The voice session had the same fault from the other side. Both are now settled the same way: the
+ * checklist is the truth about which trade a conversation is on.
+ */
+describe('a caller-supplied trade that has gone stale', () => {
+  const PUB = [...TRADES];
+
+  it('still wins on a first turn, where there is nothing to contradict it', () => {
+    expect(routeTrade('I need a quote', 'tiling', undefined, PUB)).toEqual({
+      trade: 'tiling',
+      by: 'caller',
+      ambiguous: false,
+    });
+  });
+
+  it('still wins while the conversation agrees with it', () => {
+    expect(routeTrade('colorbond', 'fencing', 'fencing', PUB).trade).toBe('fencing');
+  });
+
+  /**
+   * The controller drops `fromCaller` when the conversation is underway and holds no trade, so what
+   * reaches `routeTrade` on the turn after a change is `undefined` - and the customer's own tap
+   * decides. This asserts the behaviour that drop produces.
+   */
+  it('lets the tapped answer win once the trade has been cleared', () => {
+    // What the controller passes after a change: no caller trade, no settled trade.
+    expect(routeTrade('Tiling', undefined, undefined, PUB).trade).toBe('tiling');
+    expect(routeTrade('home_renovation', undefined, undefined, PUB).trade).toBe('home_renovation');
+
+    // And what it would have done WITHOUT the drop - the bug, stated so it cannot come back quietly.
+    expect(routeTrade('Tiling', 'fencing', undefined, PUB).trade).toBe('fencing');
+  });
+});
