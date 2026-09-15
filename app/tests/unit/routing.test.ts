@@ -549,3 +549,53 @@ describe('a caller-supplied trade that has gone stale', () => {
     expect(routeTrade('Tiling', 'fencing', undefined, PUB).trade).toBe('fencing');
   });
 });
+
+/**
+ * Typos, and the reason the routing patterns alone were never going to be enough.
+ *
+ * "hello bro today in my house there is some function in my family so i need an urgent home
+ * RENEVATION facility" named the trade plainly to any human and matched nothing at all. One letter.
+ * Worse: "renivate my kitchen" matched KITCHEN - the renovation word was mistyped, the precedence
+ * rule never fired, and a whole-room renovation went to a cabinet fitter.
+ */
+describe('a trade word with a letter wrong', () => {
+  const PUB = [...TRADES];
+  const found = (message: string) => detectTrade(message, PUB);
+
+  it('still finds the trade', () => {
+    expect(found('i need an urgent home renevation facility')).toEqual(['home_renovation']);
+    expect(found('we are doing some renavation work')).toEqual(['home_renovation']);
+    expect(found('after a fencinng quote')).toEqual(['fencing']);
+    expect(found('need a decling quote')).toEqual(['decking']);
+    expect(found('retainng wall please')).toEqual(['retaining_wall']);
+  });
+
+  /** The mistyped word is the one that should WIN, so the typo pass runs even on an exact match. */
+  it('lets a mistyped scope word still beat a room word', () => {
+    expect(found('i want to renivate my kitchen')).toEqual(['home_renovation']);
+  });
+
+  /**
+   * A correctly spelled word is not a typo of anything, and must be left to the exact patterns.
+   * Without this, `kitchen` and `kitchens` being one edit apart resurrected a trade whose own
+   * pattern EXCLUDES the message on purpose - a splashback is tiling's work.
+   */
+  it('does not resurrect a trade whose pattern deliberately declined the message', () => {
+    expect(found('kitchen splashback quote')).toEqual(['tiling']);
+    expect(found('how much to tile the kitchen floor')).toEqual(['tiling']);
+  });
+
+  /** Words that are real English one edit from a trade word, and are not about our work. */
+  it('does not fire on ordinary words that merely look close', () => {
+    expect(found('I need a new desk for my office')).toEqual([]);
+    expect(found('i am docking my boat this weekend')).toEqual([]);
+    expect(found('I need to pay a retainer')).toEqual([]);
+    expect(found('can you fix my laptop')).toEqual([]);
+  });
+
+  /** Real typos of the same word must still resolve - the guard above is a list, not a shortening. */
+  it('still reads a genuine typo of a word on that list', () => {
+    expect(found('need a decling quote')).toEqual(['decking']);
+    expect(found('deking quote please')).toEqual(['decking']);
+  });
+});

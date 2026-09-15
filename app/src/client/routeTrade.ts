@@ -1,5 +1,6 @@
 import { TRADE_WORDS } from '../messages.js';
 import type { Trade } from '../vocab.js';
+import { editDistance } from './fuzzyMatch.js';
 import type { ChatOption, ChatResponse, Checklist, UiState } from './schemas.js';
 
 /**
@@ -152,8 +153,84 @@ export interface TradeRouting {
  * question - a customer who mentioned a fence AND a bathroom has told us they want two jobs, and
  * guessing which one they meant first is worse than spending a turn asking.
  */
+/**
+ * The words each trade would be recognised by if they were spelled correctly.
+ *
+ * `TRADE_KEYWORDS` above is exact, and one letter is all it takes to lose a customer to the "which
+ * service?" question: "home renevation" has an E where an O belongs and matched nothing at all.
+ * Worse, "renivate my kitchen" matched KITCHEN - the renovation word was mistyped, the precedence
+ * rule below never fired, and a whole-room renovation was routed to a cabinet fitter.
+ *
+ * SEVEN CHARACTERS IS THE FLOOR, and it is not arbitrary. Below that an edit of one letter is a
+ * different word rather than a typo, and this list would start firing on things nobody said:
+ * `deck` and `DESK` are one edit apart, so "I need a new desk" would ask about decking. Every entry
+ * here is long enough that a single-edit neighbour is very unlikely to be real English used in this
+ * context. `fuzzyMatch.ts` reaches the same conclusion for option matching and says so in its own
+ * comment.
+ *
+ * These do NOT replace the patterns above - they are tried only as a second pass, and the exact
+ * patterns still decide everything they can.
+ */
+const TRADE_NEAR_WORDS: Record<Trade, readonly string[]> = {
+  fencing: ['fencing', 'fences', 'palings', 'colorbond', 'colourbond', 'chainmesh', 'pickets'],
+  tiling: ['tiling', 'tilers', 'bathroom', 'bathrooms', 'ensuite', 'laundry', 'splashback', 'porcelain', 'regrouting', 'waterproofing'],
+  kitchen: ['kitchen', 'kitchens', 'cabinetry', 'cabinets', 'benchtop', 'benchtops', 'cupboards'],
+  retaining_wall: ['retaining', 'retainer', 'sleepers'],
+  decking: ['decking', 'balustrade', 'balustrades'],
+  home_renovation: ['renovation', 'renovations', 'renovate', 'renovating', 'renovator', 'remodel', 'remodelling', 'plastering', 'skirting', 'architrave', 'architraves'],
+};
+
+/**
+ * Ordinary English that sits one edit from a trade word and is NOT a typo of it.
+ *
+ * The seven-character floor above removes most of this risk; these are what survive it. `docking`
+ * and `ducking` are both one letter from `decking`, and a customer who says they are docking a boat
+ * has not asked about a deck. Kept as a tiny explicit list rather than by shortening the word list,
+ * because "decling" and "deking" ARE typos of decking and should still resolve.
+ */
+const NOT_A_TYPO = new Set(['docking', 'ducking', 'lodging', 'bathrobe']);
+
+/** Every word of the message, long enough to be worth comparing. */
+const wordsOf = (message: string): string[] =>
+  message.toLowerCase().split(/[^a-z]+/).filter((word) => word.length >= 6 && !NOT_A_TYPO.has(word));
+
+/**
+ * Every trade word, spelled correctly, across all six trades.
+ *
+ * A word in here is NOT a typo of anything, and must be left to the exact patterns above. That is
+ * the rule this pass turns on, and getting it wrong undid a deliberate decision: `kitchen` and
+ * `kitchens` are one edit apart, so "kitchen splashback quote" - which kitchen's own pattern
+ * EXCLUDES on purpose, because a splashback is tiling's work - came back as both trades and went to
+ * the "which one?" question. A typo pass that can resurrect a trade whose pattern just declined the
+ * message is not a typo pass.
+ */
+const SPELLED_CORRECTLY = new Set(Object.values(TRADE_NEAR_WORDS).flat());
+
+/** Is any word in this message one typo away from something this trade is known by? */
+const nearMiss = (message: string, trade: Trade): boolean => {
+  const words = wordsOf(message).filter((word) => !SPELLED_CORRECTLY.has(word));
+  if (!words.length) return false;
+  return TRADE_NEAR_WORDS[trade].some(
+    (known) => known.length >= 7 && words.some((word) => editDistance(word, known) <= 1),
+  );
+};
+
+/** The scope word that beats a room word, with the same one-typo tolerance. */
+const isRenovating = (message: string): boolean =>
+  RENOVATING.test(message) ||
+  wordsOf(message).filter((word) => !SPELLED_CORRECTLY.has(word)).some((word) =>
+    ['renovate', 'renovation', 'renovating', 'remodel', 'remodelling'].some(
+      (known) => editDistance(word, known) <= 1,
+    ),
+  );
+
 export function detectTrade(message: string, published: readonly Trade[]): Trade[] {
-  const matched = published.filter((trade) => TRADE_KEYWORDS[trade].test(message));
+  const exact = published.filter((trade) => TRADE_KEYWORDS[trade].test(message));
+  /* The typo pass runs even when something matched exactly, and that is the point rather than an
+     oversight: "renivate my kitchen" matches KITCHEN perfectly well, and the thing that was
+     mistyped is the word that should have beaten it. Union first, let the precedence rule below
+     decide - that is where the two are weighed against each other. */
+  const matched = [...exact, ...published.filter((trade) => !exact.includes(trade) && nearMiss(message, trade))];
 
   /* The one tie-break in this file, and it is deliberately narrow: it drops TILING and KITCHEN, and
      only when the customer has said in so many words that they are renovating.
@@ -167,7 +244,7 @@ export function detectTrade(message: string, published: readonly Trade[]): Trade
      genuinely ambiguous - this business does sell decks and so does a deck builder - and "a fence
      and a renovation" is two jobs. Both should keep going to the question, which is what happens
      when two trades are still matched. */
-  if (!matched.includes('home_renovation') || !RENOVATING.test(message)) return matched;
+  if (!matched.includes('home_renovation') || !isRenovating(message)) return matched;
   return matched.filter((trade) => trade !== 'tiling' && trade !== 'kitchen');
 }
 

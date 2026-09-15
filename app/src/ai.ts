@@ -532,6 +532,12 @@ export class MockAiClient implements AiClient {
       else if (trade === 'home_renovation') data = this.reviewHomeRenovation(text);
       else data = this.review(text, rates);
     }
+    /* The offline stand-in NEVER guesses a trade, and that is deliberate rather than lazy.
+       `guessTrade` is the last thing tried before the picker, so a mock that answered it would
+       quietly route every golden conversation whose opening words match nothing - and the picker
+       turn, which several of them exist to pin, would stop happening. Returning "none" keeps the
+       offline suite testing the PATTERNS, which is what it can actually check. */
+    else if (call.name === 'route') data = { trade: 'none', confident: false };
     else if (call.name === 'turn') data = this.turn(text);
     else if (call.name === 'answer') data = this.answer();
     else {

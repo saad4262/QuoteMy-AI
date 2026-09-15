@@ -25,6 +25,8 @@ import { runTurn, SAID_NOTHING } from './agent.js';
 import { readAttachmentFacts } from './attachmentFacts.js';
 import { formatFencingResult } from './formatResult.js';
 import { matchBusinesses } from './matcher.js';
+import type { Trade } from '../vocab.js';
+import { guessTrade } from './guessTrade.js';
 import { mergeAndDecide, NO, YES } from './mergeAndDecide.js';
 import { resolveSuburb } from './suburb.js';
 import { priceAndRank } from './priceAndRank.js';
@@ -264,12 +266,29 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   const stale = Boolean(ui?.tradeCleared && !ui.trade);
   const routing = routeTrade(input.message, stale ? undefined : input.trade, known._ui?.trade, published);
 
-  if (!routing.trade) {
+  /* NOTHING MATCHED, SO READ WHAT THEY MEANT BEFORE ASKING THEM.
+
+     The patterns are a list of words and a customer is not one. "Hello bro, today in my house there
+     is some function in my family so I need an urgent home renevation facility" names the trade
+     plainly to any human and matched nothing, because one letter was wrong - and the next customer
+     will say "we're doing the whole place up before the wedding", which names no trade word at all.
+     The typo pass in `routeTrade` catches the first and can never catch the second.
+
+     Only on `unresolved`, never on `ambiguous`: two trades named IS a question worth asking, and a
+     model picking between them would be choosing on the customer's behalf. And the guess may come
+     back null - for a plumber, a dam, home decor - which is when the picker is exactly right. */
+  let guessed: Trade | null = null;
+  if (!routing.trade && !routing.ambiguous) {
+    guessed = await guessTrade(input.message, published, { ai: deps.ai });
+    if (guessed) logger.info({ requestId: input.sessionId, trade: guessed }, 'trade read from the message');
+  }
+
+  if (!routing.trade && !guessed) {
     logger.info({ requestId: input.sessionId, ambiguous: routing.ambiguous }, 'asking which trade');
     return askWhichTrade(input.sessionId, published, known, routing.ambiguous);
   }
 
-  const trade = routing.trade;
+  const trade = routing.trade ?? guessed!;
   if (routing.by === 'keywords') logger.info({ requestId: input.sessionId, trade }, 'trade read from the message');
   const schema = await loadTradeSchema(trade, repo);
 
