@@ -6,7 +6,14 @@ import { readSource, withoutDescriptions, type SourceDocument, type UploadedFile
 import { getRepository, type BusinessRepository } from '../store.js';
 import { answerQuestion } from './askAbout.js';
 import { readBudgetTap } from './budget.js';
-import { askWhichTrade, rememberTrade, routeTrade } from './routeTrade.js';
+import {
+  askToChangeTrade,
+  askWhichTrade,
+  asksToChangeTrade,
+  clearForTradeChange,
+  rememberTrade,
+  routeTrade,
+} from './routeTrade.js';
 import { findPictures, PICTURES_LINE } from './pictures.js';
 import { asObject, chatError } from './errors.js';
 import { specOf } from './fieldSpec.js';
@@ -18,7 +25,7 @@ import { runTurn, SAID_NOTHING } from './agent.js';
 import { readAttachmentFacts } from './attachmentFacts.js';
 import { formatFencingResult } from './formatResult.js';
 import { matchBusinesses } from './matcher.js';
-import { mergeAndDecide } from './mergeAndDecide.js';
+import { mergeAndDecide, NO, YES } from './mergeAndDecide.js';
 import { resolveSuburb } from './suburb.js';
 import { priceAndRank } from './priceAndRank.js';
 import { saveChatResult } from './saveResult.js';
@@ -186,7 +193,7 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   const repo = deps.repo ?? getRepository();
 
   const place = asObject<Place>(input.place);
-  const known = asObject<Partial<Checklist>>(input.knownChecklist) ?? {};
+  let known = asObject<Partial<Checklist>>(input.knownChecklist) ?? {};
   const ui: UiState | null = known._ui ?? null;
 
   // The trade's whole vocabulary, from Firestore `schema/fencing`. Read once per conversation
@@ -205,7 +212,40 @@ export async function runChat(input: ChatBody, files: UploadedFile[] = [], deps:
   /* `input.message` rather than the budget-stripped `message` below, which is not computed yet -
      and it makes no difference: a budget chip only exists mid-conversation, by which point the
      trade was settled on the first turn and comes back from the session. */
-  const routing = routeTrade(input.message, input.trade, ui?.trade, published);
+  /* THE ESCAPE HATCH, and it sits here because it has to run BEFORE `routeTrade` - that function's
+     `settled` branch returns this conversation's trade without ever reading the message, which is
+     correct and is exactly what has to be stepped around.
+
+     Two turns, never one. The first asks; only the second clears anything. A regex over free text
+     is wrong sometimes, and the cost of being wrong here is somebody's whole filled-in brief. */
+  if (ui?.lastAsked === 'trade-change') {
+    const answered = input.message.trim();
+    const yes = /^trade-change:yes$/i.test(answered) || (YES.test(answered) && !NO.test(answered));
+
+    if (yes) {
+      logger.info({ requestId: input.sessionId, from: ui.trade }, 'changing trade');
+      /* Answers gone, `_ui.history` kept. The transcript lives inside `_ui`, so throwing the
+         checklist away would also throw away every word either side has said - and a customer who
+         changes service has not asked to be forgotten. */
+      const cleared = clearForTradeChange(known);
+      return askWhichTrade(input.sessionId, published, cleared, false);
+    }
+
+    /* "No" - and anything that is not a yes. Put back exactly as it was and re-ask.
+
+       The message is BLANKED as well as the marker, and that is the whole fix: "trade-change:no" is
+       not an answer to anything, and left in place it fell through to the matcher and came back
+       "Sorry, I didn't catch which one". Declining an interruption should return the customer to
+       the question they were on, not ask them a confused one. With nothing to parse, the turn falls
+       through to the next unanswered field - which is exactly that question. */
+    known = { ...known, _ui: { ...(ui as UiState), lastAsked: null, lastQuestion: '' } };
+    input = { ...input, message: '' };
+  } else if (ui?.trade && asksToChangeTrade(input.message, ui.trade, published)) {
+    logger.info({ requestId: input.sessionId, trade: ui.trade }, 'asking whether to change trade');
+    return askToChangeTrade(input.sessionId, ui.trade, known);
+  }
+
+  const routing = routeTrade(input.message, input.trade, known._ui?.trade, published);
 
   if (!routing.trade) {
     logger.info({ requestId: input.sessionId, ambiguous: routing.ambiguous }, 'asking which trade');

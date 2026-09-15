@@ -1461,6 +1461,47 @@ export const HOME_RENOVATION_CONVERSATIONS: Conversation[] = [
   },
 ];
 
+export const TRADE_CHANGE_CONVERSATIONS: Conversation[] = [
+  {
+    name: '70 changing trade, confirmed - the answers go and the conversation does not',
+    why: 'the escape hatch `routeTrade` never had. Its `settled` branch returns the conversation\'s trade without reading the message at all, which is right - re-routing on a stray word would throw away everything answered - but it left a customer who picked the wrong service stuck in it for ever. Two turns, never one: this asks before it clears anything, so a wrong guess costs a turn instead of a filled-in brief. What must survive the clear is `_ui.history`, which lives INSIDE the checklist - throwing it away would make the assistant forget the conversation it is in the middle of',
+    trade: 'home_renovation',
+    seed: (repo) => {
+      seedRenovator(repo, 'reno-1', 'Berwick Home Renovations');
+      seedBusiness(repo, 'fence-1', 'Berwick Fencing');
+    },
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bathroom' },
+      { say: 'full_renovation' },
+      // Four answers in. Now they realise they picked the wrong service.
+      { say: 'i want fencing' },
+      { say: 'trade-change:yes' },
+    ],
+  },
+
+  {
+    name: '71 changing trade, declined - nothing is lost',
+    why: 'the half that matters more, because it is what makes the trigger safe to be generous with. A regex over free text is wrong sometimes; saying no must put the customer back exactly where they were, with every answer intact and the question they were on still waiting. If this snapshot ever shows a cleared field, the confirmation step is not doing its job',
+    trade: 'home_renovation',
+    seed: (repo) => {
+      seedRenovator(repo, 'reno-1', 'Berwick Home Renovations');
+      seedBusiness(repo, 'fence-1', 'Berwick Fencing');
+    },
+    turns: [
+      ...openReno,
+      { say: 'Berwick', place: BERWICK },
+      { say: 'bathroom' },
+      { say: 'full_renovation' },
+      { say: 'i want fencing' },
+      { say: 'trade-change:no' },
+      // Straight back into the renovation, answering the question that was on screen.
+      { say: 'labour_only' },
+    ],
+  },
+];
+
 const openTiling: Turn[] = [{ say: 'I need a tiling quote' }, { say: 'yes go ahead' }];
 
 export const TILING_CONVERSATIONS: Conversation[] = [

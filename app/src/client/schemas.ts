@@ -189,7 +189,11 @@ export interface UiState {
   trade?: Trade;
   turn: number;
   cursor: Record<string, number>;
-  lastAsked: ChecklistField | 'alternative' | null;
+  /* `trade-change` is not a checklist field and never will be - the trade lives in `_ui.trade`,
+     not in the answers. It sits here because this is what the next turn reads to know what the
+     customer is answering, and "are you sure you want to change service?" needs an answer exactly
+     as a question about a tile does. See `asksToChangeTrade` in `routeTrade.ts`. */
+  lastAsked: ChecklistField | 'alternative' | 'trade-change' | null;
   lastQuestion: string;
   lastValues: (string | number)[];
   lastType: 'message' | 'question' | 'confirmation' | 'result';

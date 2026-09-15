@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { runChat } from '../../src/client/controller.js';
-import { detectTrade, routeTrade } from '../../src/client/routeTrade.js';
+import { asksToChangeTrade, clearForTradeChange, detectTrade, routeTrade } from '../../src/client/routeTrade.js';
 import { clearSchemaCache } from '../../src/client/schema.js';
 import { MemoryRepository, setRepository } from '../../src/store.js';
 import { TRADES } from '../../src/vocab.js';
@@ -365,5 +365,105 @@ describe('the conversation', () => {
 
     expect(asked.type).toBe('question');
     expect(asked.checklist.material).toBe('colorbond');
+  });
+});
+
+/**
+ * The escape hatch, and the two halves that make it safe.
+ *
+ * `routeTrade`'s `settled` branch returns this conversation's trade WITHOUT reading the message, on
+ * purpose - re-routing on a stray word would throw away everything answered. But it left a customer
+ * who picked the wrong service at the start stuck in it for ever: "i want fencing" three questions
+ * into a renovation was read and discarded, and nothing told them why.
+ */
+describe('asking to change the trade', () => {
+  const PUB = [...TRADES];
+  const asks = (message: string, current?: string) =>
+    asksToChangeTrade(message, current as never, PUB as never);
+
+  it('fires on a message about the conversation rather than about the job', () => {
+    for (const message of [
+      'i want to change trade type',
+      'change the service',
+      'can i pick a different service',
+      'wrong service',
+      'switch to another trade',
+      'not the right trade',
+      'start over',
+    ]) {
+      expect(asks(message, 'home_renovation'), message).toBe(true);
+    }
+  });
+
+  /** The customer's own first attempt, and the reason the second branch exists. */
+  it('fires when they ask for a different trade outright', () => {
+    for (const message of ['i want fencing', 'I need a fence quote', 'actually i want tiling', 'can i get a deck instead']) {
+      expect(asks(message, 'home_renovation'), message).toBe(true);
+    }
+  });
+
+  /**
+   * THE HALF THAT MATTERS MORE. Every one of these describes the job in hand, and every one of them
+   * would cost somebody their filled-in brief if it fired. The first is the exact sentence
+   * `routeTrade`'s own comment warns about.
+   */
+  it('stays silent on a sentence about the job', () => {
+    const cases: [string, string][] = [
+      ['the old fence is coming out', 'tiling'],
+      ['i want a gate as well', 'fencing'],
+      ['i need waterproofing', 'tiling'],
+      ['i want the full renovation', 'home_renovation'],
+      ['i need a bigger deck', 'decking'],
+      ['strip out the bathroom', 'home_renovation'],
+      ['remove the old fence', 'fencing'],
+      ['i want to change the height', 'fencing'],
+      ['can i change the suburb', 'fencing'],
+      ['change the tile', 'tiling'],
+      ['the job is wrong', 'home_renovation'],
+    ];
+    for (const [message, current] of cases) {
+      expect(asks(message, current), `[${current}] ${message}`).toBe(false);
+    }
+  });
+
+  it('needs a settled trade before it can fire at all', () => {
+    expect(asks('i want fencing', undefined)).toBe(false);
+  });
+
+  /**
+   * The trap this helper exists to avoid: `_ui.history` lives INSIDE the checklist, so throwing the
+   * checklist away to change trade would also throw away every word either side has said. A
+   * customer changing service has not asked to be forgotten.
+   */
+  it('clears the answers and the trade, and keeps the conversation', () => {
+    const before = {
+      suburb: 'Berwick, VIC 3806',
+      room: 'bathroom',
+      jobType: 'full_renovation',
+      _ui: {
+        trade: 'home_renovation',
+        turn: 5,
+        cursor: { room: 1 },
+        lastAsked: 'supply',
+        lastQuestion: "Who's buying the materials?",
+        lastValues: ['a', 'b'],
+        fixing: true,
+        history: [{ you: 'I need a renovation quote', me: 'Happy to help' }],
+      },
+    } as never;
+
+    const after = clearForTradeChange(before);
+
+    // Every answer is gone - nothing from the old trade may show in the new one's brief.
+    expect(after.suburb).toBeUndefined();
+    expect(after.room).toBeUndefined();
+    expect(after.jobType).toBeUndefined();
+    expect(after._ui?.trade).toBeUndefined();
+    expect(after._ui?.cursor).toEqual({});
+    expect(after._ui?.lastAsked).toBeNull();
+    expect(after._ui?.fixing).toBe(false);
+
+    // The conversation is not.
+    expect(after._ui?.history).toEqual([{ you: 'I need a renovation quote', me: 'Happy to help' }]);
   });
 });

@@ -1,6 +1,6 @@
 import { TRADE_WORDS } from '../messages.js';
 import type { Trade } from '../vocab.js';
-import type { ChatOption, ChatResponse, Checklist } from './schemas.js';
+import type { ChatOption, ChatResponse, Checklist, UiState } from './schemas.js';
 
 /**
  * Which trade a conversation is about, decided before anything else in the turn.
@@ -254,4 +254,129 @@ export function rememberTrade(response: ChatResponse, trade: Trade): ChatRespons
   const ui = response.checklist?._ui;
   if (!ui) return response;
   return { ...response, checklist: { ...response.checklist, _ui: { ...ui, trade } } };
+}
+
+/**
+ * A customer asking to change the TRADE, not to correct an answer inside it.
+ *
+ * This is the escape hatch `routeTrade` has never had. The `settled` check above is deliberate and
+ * stays - re-routing on a stray word mid-conversation would throw away everything answered - but
+ * without a way out, a customer who picked the wrong service at the start was stuck in it for ever.
+ * Saying "i want fencing" three questions into a renovation did nothing at all: the words were read
+ * and discarded, and nothing told them why.
+ *
+ * THE PATTERN IS ABOUT CHANGING, NOT ABOUT NAMING. That distinction is the whole safety of this:
+ * "the old fence is coming out" names a trade and must never fire, because it is a sentence about
+ * the job in hand. "I want to change the service" is about the conversation itself and can mean
+ * nothing else. So every branch below needs a verb of changing or a word of being wrong - never a
+ * trade name on its own.
+ *
+ * And nothing is cleared on a match. It asks first (`askToChangeTrade`), so a false positive costs
+ * one turn and never an answer.
+ */
+const CHANGE_TRADE =
+  /\b(?:change|switch|swap|pick|choose|select)\s+(?:the\s+|my\s+|a\s+|to\s+a\s+)?(?:different\s+|another\s+|other\s+)?(?:trade|service|category|job\s?type\s+of\s+work)\b|\b(?:wrong|different|another)\s+(?:trade|service|category)\b|\bnot\s+(?:the\s+)?(?:right|correct)\s+(?:trade|service)\b|\bstart\s+(?:over|again)\b|\bwrong\s+one\s+by\s+mistake\b/i;
+
+/**
+ * The second way in, and the one the customer actually tried first: naming a different trade
+ * outright. "i want fencing", three questions into a renovation.
+ *
+ * This is only safe BECAUSE of the confirmation turn. Naming a trade is exactly what the `settled`
+ * lock exists to ignore - "the old fence is coming out" names fencing and is a sentence about the
+ * job in hand - so firing on a bare trade name would be the old bug back again. What separates them
+ * is the ASKING SHAPE: a message that opens "I want", "I need", "actually, can I get" is addressed
+ * to us about what they are buying. A message describing the site is not.
+ *
+ * And it must name a DIFFERENT trade. "I want a gate as well" inside a fencing job names fencing,
+ * matches the opener, and must go nowhere near this.
+ */
+const WANTS = /^\s*(?:actually,?\s*)?(?:i\s+(?:want|need|wanted)|can\s+i\s+(?:get|have)|give\s+me|looking\s+for)\b/i;
+
+export const asksToChangeTrade = (
+  message: string,
+  current?: Trade,
+  published: readonly Trade[] = [],
+): boolean => {
+  if (CHANGE_TRADE.test(message)) return true;
+  if (!current || !WANTS.test(message)) return false;
+  const named = detectTrade(message, published);
+  return named.length === 1 && named[0] !== current;
+};
+
+/**
+ * The checklist a customer starts the new trade with: empty of ANSWERS, but not of memory.
+ *
+ * `_ui.history` is the trap here, and it is why this is a named helper rather than `{}` at the call
+ * site. The conversation transcript lives INSIDE `_ui` (`schemas.ts`), so the obvious way to do this
+ * - throw the checklist away - also throws away every word either side has said. The customer would
+ * change trade and find the assistant had forgotten the conversation they were in the middle of.
+ *
+ * So: every answer goes, the settled trade goes, the cursor and the last-asked state go. The
+ * history stays, and so does the geocoded place hint - a customer who has already told us their
+ * suburb through the Google picker should not have to find it again to change service.
+ */
+export function clearForTradeChange(known: Partial<Checklist>): Partial<Checklist> {
+  const ui = known._ui;
+  return {
+    _ui: {
+      ...(ui as UiState),
+      trade: undefined,
+      turn: ui?.turn ?? 0,
+      cursor: {},
+      lastAsked: null,
+      lastQuestion: '',
+      lastValues: [],
+      fixing: false,
+      /* Kept, deliberately - see above. Everything else about the old trade is gone; what was SAID
+         is not the old trade's, it is the customer's. */
+      history: ui?.history ?? [],
+    } as UiState,
+  };
+}
+
+/**
+ * The one turn that stands between a customer and losing their answers.
+ *
+ * Deliberately a QUESTION and not an action. `asksToChangeTrade` is a regex over free text, and a
+ * regex over free text is wrong sometimes - so nothing is cleared until somebody says yes, and a
+ * false positive costs one turn instead of a filled-in brief. It also names what will be lost,
+ * because "changed my mind" and "throw away the six answers I just gave you" are not the same
+ * intention and the customer is the only one who knows which they meant.
+ *
+ * The current trade is named in the question rather than left implicit: a customer who typed
+ * something ambiguous needs to see what they are actually on before they answer.
+ */
+export function askToChangeTrade(
+  sessionId: string,
+  current: Trade,
+  known: Partial<Checklist>,
+): ChatResponse {
+  const words = TRADE_WORDS[current];
+  return {
+    sessionId,
+    trade: current,
+    intent: 'new_quote',
+    place: null,
+    type: 'question',
+    message:
+      `You're getting quotes for ${words.trade} at the moment. Do you want to change that? ` +
+      `Your answers so far would be cleared.`,
+    options: [
+      { label: 'Yes, change it', value: 'trade-change:yes' },
+      { label: 'No, carry on', value: 'trade-change:no' },
+    ],
+    checklistComplete: false,
+    /* Echoed back UNCHANGED apart from the marker. Nothing is cleared on this turn - that is the
+       whole point of it - so a customer who answers "no" is exactly where they were. */
+    checklist: {
+      ...(known as Checklist),
+      _ui: { ...(known._ui as UiState), lastAsked: 'trade-change', lastQuestion: 'change trade?' },
+    },
+    checklistDisplay: {},
+    checklistAnswered: [],
+    checklistPending: [],
+    results: [],
+    avgRatePerMeter: null,
+    unit: null,
+  };
 }

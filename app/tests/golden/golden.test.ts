@@ -8,6 +8,7 @@ import {
   KITCHEN_CONVERSATIONS,
   RETAINING_WALL_CONVERSATIONS,
   runScript,
+  TRADE_CHANGE_CONVERSATIONS,
   TILING_CONVERSATIONS,
 } from './conversations.js';
 
@@ -41,6 +42,7 @@ describe('golden conversations', () => {
     ...RETAINING_WALL_CONVERSATIONS,
     ...DECKING_CONVERSATIONS,
     ...HOME_RENOVATION_CONVERSATIONS,
+    ...TRADE_CHANGE_CONVERSATIONS,
   ]) {
     it(conversation.name, async () => {
       const transcript = await runScript(conversation, repo);

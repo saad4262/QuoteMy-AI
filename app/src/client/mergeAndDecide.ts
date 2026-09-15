@@ -306,8 +306,8 @@ function fieldsNamedIn(message: string, fields: FieldSpec[]): Set<string> {
 
   return named;
 }
-const YES = /^\s*(y|ya|yes|yep|yeah|yup|correct|confirm(ed)?|all good|that'?s? (all )?(correct|right)|looks? (good|right)|sahi|theek|thik|ok(ay)?)\b/i;
-const NO = /^\s*(n|no|nope|not quite|wrong|incorrect|nah|galat)\b/i;
+export const YES = /^\s*(y|ya|yes|yep|yeah|yup|correct|confirm(ed)?|all good|that'?s? (all )?(correct|right)|looks? (good|right)|sahi|theek|thik|ok(ay)?)\b/i;
+export const NO = /^\s*(n|no|nope|not quite|wrong|incorrect|nah|galat)\b/i;
 
 export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
   const rawMessage = String(input.message || '');
@@ -605,7 +605,7 @@ export function mergeAndDecide(input: MergeAndDecideInput): MergedState {
      has stopped asking. Naming two is comparing. Naming one while still saying "which is best" is
      also comparing. On every other turn - a tap, a typed answer, no question at all - nothing
      changes, because there is nothing here to be careful about. */
-  if (ui.lastAsked && ui.lastAsked !== 'alternative' && rawMessage && !questionOnly) {
+  if (ui.lastAsked && ui.lastAsked !== 'alternative' && ui.lastAsked !== 'trade-change' && rawMessage && !questionOnly) {
     /* Guarded whether or not they were judged to have asked something, because this path has no
        judgement in it at all - it is a fuzzy match over a sentence. "Treated pine or colorbond,
        what do you reckon?" came back from the model with no question flagged on it, and this line

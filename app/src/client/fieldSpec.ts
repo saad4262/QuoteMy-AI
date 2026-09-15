@@ -1642,7 +1642,11 @@ export const HOME_RENOVATION_FIELDS: FieldSpec[] = [
   },
   {
     key: 'jobType',
-    namedBy: /\b(jobs?|what.{0,12}(?:doing|having done)|full renovation|strip|demolition)\b/i,
+    /* `trade` and `service` are excluded deliberately. "I want to change the trade type" is about
+       the SERVICE, not about this field - and read as this field it clears the job, re-asks "what
+       do you need done to it?", and leaves the customer no way to do what they actually asked for.
+       That is a real turn from a real session. `asksToChangeTrade` in `routeTrade.ts` handles it. */
+    namedBy: /\b(?<!trade\s)(?<!service\s)(jobs?|what.{0,12}(?:doing|having done)|full renovation|strip|demolition)\b/i,
     aliases: ['job'],
     type: 'enum',
     title: 'Job',
